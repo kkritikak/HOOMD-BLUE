@@ -606,13 +606,13 @@ class wallpotential(external._external_force):
 
     Note:
         NPT Integrator Methods:
-				+----------------+------------+-------------------------+-------------------------------------+
-				| Geometry       | Plane      | Sphere                  | Cylinder                            |
-				+================+============+=========================+=====================================+
-				| Required       | *None*     | couple='xyz'            | couple='xy','xz','yz',   or 'xyz'   |
-				+----------------+------------+-------------------------+-------------------------------------+
-				| Forbidden      | *None*     | Tilt Degrees of Freedom | Tilt Degrees of Freedom             |
-				+----------------+------------+-------------------------+-------------------------------------+
+    +----------------+------------+-------------------------+-------------------------------------+
+    | Geometry       | Plane      | Sphere                  | Cylinder                            |
+    +================+============+=========================+=====================================+
+    | Required       | *None*     | couple='xyz'            | couple='xy','xz','yz',   or 'xyz'   |
+    +----------------+------------+-------------------------+-------------------------------------+
+    | Forbidden      | *None*     | Tilt Degrees of Freedom | Tilt Degrees of Freedom             |
+    +----------------+------------+-------------------------+-------------------------------------+
 
     .. [*] For any anisotropic couplings, the coupled directions must be perpendicular to all cylinder axes in the system.
 
@@ -621,8 +621,8 @@ class wallpotential(external._external_force):
 
     Examples::
 
-        # This is an example for repulsive paritcles bounded between two (Yukawa) parallel planar walls 
-        # setup system after being thermalized 
+        # This is an example for repulsive paritcles bounded between two (Yukawa) parallel planar walls
+        # setup system after being thermalized
         #create system of sq lattice
 
         from hoomd import *
@@ -639,7 +639,7 @@ class wallpotential(external._external_force):
         snapshot = system.take_snapshot()
         box=snapshot.box
 
-        #change size of box along z-direction 
+        #change size of box along z-direction
         snapshot.box = data.boxdim(Lx=box.Lx, Ly=box.Ly, Lz=40, xy=0, xz=0, yz=0)
 
         #random velocities
@@ -677,7 +677,7 @@ class wallpotential(external._external_force):
 
         #log Thermos
         logger = analyze.log(quantities=['temperature' , 'potential_energy', 'kinetic_energy'],
-																 period=5e2, filename='test.log', overwrite=True)
+     period=5e2, filename='test.log', overwrite=True)
 
 
         #Run Simulation
@@ -804,57 +804,57 @@ class wallpotential(external._external_force):
     # TODO: NPT_walls, documentation for this functionality, settle on nameing?
     # updates python obj using c++ obj
     def update_params_pull(self):
-        R""" This functions updates the parameter values of (python) wall objects that were potentially modified and of interest to the user  
-        after performing methods such as NPT integration or implementating :py:class:`hoomd.update` routines (See example below).    
+        R""" This functions updates the parameter values of (python) wall objects that were potentially modified and of interest to the user
+        after performing methods such as NPT integration or implementating :py:class:`hoomd.update` routines (See example below).
 
-        Note:   
-            Usage of this function is not a mandatory step to continue at any point with a simulation.   
-         
-        Example::   
+        Note:
+            Usage of this function is not a mandatory step to continue at any point with a simulation.
 
-            In[0]: 
+        Example::
+
+            In[0]:
             #Create pair of walls parallel to xy plane. For example, they could bound repulsive pointwise particles.
             walls = wall.group()
-            walls =walls.add_plane(origin=(0,0,8.0),normal=(0.,0.,-1.),inside=True) 
-            walls =walls.add_plane(origin=(0,0,-8.0),normal=(0.,0.,1.),inside=True) 
+            walls =walls.add_plane(origin=(0,0,8.0),normal=(0.,0.,-1.),inside=True)
+            walls =walls.add_plane(origin=(0,0,-8.0),normal=(0.,0.,1.),inside=True)
             wall_force_slj=wall.slj(walls, r_cut=2.0)
             wall_force_slj.force_coeff.set('A', epsilon= 1,r_cut=2**(1.6),sigma=1.0,r_extrap = 0.05)
-            #print initial planar walls parameters 
+            #print initial planar walls parameters
             print(walls.planes)
 
-            Out[0]: 
+            Out[0]:
             [{'origin':(0.0, 0.0, 8.0), 'normal': (0.0, 0.0, -1.0), 'inside': True},
             {'origin':(0.0, 0.0, -8.0), 'normal': (0.0, 0.0, 1.0), 'inside': True}]
 
-            In[1]: 
+            In[1]:
             #Run NPT integration method with compression along Z-axis
             npt_integrator = integrate.npt(group=all , kT=tf ,tau=0.65,P=1e-2,tauP=0.65,x =False,y=False ,z=True)
-            run(3e5) 
+            run(3e5)
             #print parameters of planar walls after compression (no sign changes despite compression)
             print(walls.planes)
 
-            Out[1]: 
-            [{'origin':(0.0, 0.0, 8.0), 'normal': (0.0, 0.0, -1.0), 'inside': True}, 
-            {'origin':(0.0, 0.0, -8.0), 'normal': (0.0, 0.0, 1.0), 'inside': True}] 
+            Out[1]:
+            [{'origin':(0.0, 0.0, 8.0), 'normal': (0.0, 0.0, -1.0), 'inside': True},
+            {'origin':(0.0, 0.0, -8.0), 'normal': (0.0, 0.0, 1.0), 'inside': True}]
 
 
-            In[2]: 
-            #Let's update walls parameters 
+            In[2]:
+            #Let's update walls parameters
             wall_force_slj.update_params_pull()
             #print new walls parameters
             print(walls.planes)
 
-            Out[2]: 
+            Out[2]:
             [{'origin':(0.0, 0.0, 2.063586751564829), 'normal': (0.0, 0.0, -1.0), 'inside': True},
-            {'origin':(0.0, 0.0, -2.063586751564829), 'normal': (0.0, 0.0, 1.0), 'inside': True}]  
-        """ 
+            {'origin':(0.0, 0.0, -2.063586751564829), 'normal': (0.0, 0.0, 1.0), 'inside': True}]
+        """
 
         self.cpp_force.updateFieldPy(self.field_coeff)
 
     # update c++ ojb using python obj
     def update_params_push(self):
         R""" Create Doc ?
-        """ 
+        """
 
         fcoeff = self.process_field_coeff(self.field_coeff);
         self.cpp_force.setField(fcoeff);

@@ -343,8 +343,8 @@ class EvaluatorWalls
                         }
                     }
                 }
-						// Due to Elastic collisions with walls the particles lose kinetic energy 
-						// Need to include momentum flux contributions (Force * velocity *deltaT)  to account for stress calculations
+            // Due to Elastic collisions with walls the particles lose kinetic energy
+            // Need to include momentum flux contributions (Force * velocity *deltaT)  to account for stress calculations
             virial[0] += F.x*m_vel.x;
             virial[1] += F.x*m_vel.y;
             virial[2] += F.x*m_vel.z;
