@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The Regents of the University of Michigan
+// Copyright (c) 2009-2018 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -247,5 +247,7 @@ class EvaluatorPairDPDThermo
         Scalar m_dot;       //!< Velocity difference dotted with displacement vector
         Scalar m_deltaT;   //!<  timestep size stored from constructor
     };
+
+#undef DEVICE
 
 #endif // __PAIR_EVALUATOR_DPD_H__

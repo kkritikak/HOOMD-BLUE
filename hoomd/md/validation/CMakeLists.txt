@@ -8,7 +8,7 @@ macro(add_script_test_cpu_mpi script USER_VAR)
             add_test(NAME ${script}-mpi-cpu-${USER_VAR}
                 COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${nproc}
                 ${MPIEXEC_POSTFLAGS} ${PYTHON_EXECUTABLE} "-u" ${CMAKE_CURRENT_SOURCE_DIR}/${script} "--mode=cpu" "--user=${USER_VAR}")
-                set_tests_properties(${script}-mpi-cpu-${USER_VAR} PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}:$ENV{PYTHONPATH};OMP_NUM_THREADS=1"
+                set_tests_properties(${script}-mpi-cpu-${USER_VAR} PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}:$ENV{PYTHONPATH}"
                     LABELS "validation")
             endif()
     endif(ENABLE_MPI)
@@ -32,7 +32,7 @@ endmacro()
 macro(add_script_test_cpu script start stop)
     foreach(USER_VAR RANGE ${start} ${stop})
         add_test(${script}-cpu-${USER_VAR} ${PYTHON_EXECUTABLE} "-u" ${CMAKE_CURRENT_SOURCE_DIR}/${script} "--mode=cpu" "--user=${USER_VAR}")
-        set_tests_properties(${script}-cpu-${USER_VAR} PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}:$ENV{PYTHONPATH};OMP_NUM_THREADS=1"
+        set_tests_properties(${script}-cpu-${USER_VAR} PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}:$ENV{PYTHONPATH}"
             LABELS "validation")
         add_script_test_cpu_mpi(${script} ${USER_VAR})
     endforeach()
@@ -51,11 +51,15 @@ endmacro()
 set(TEST_LIST_CPU
 minimize_fire_rigid.py 0 0
 bd_angular.py 0 0
+compare_npt_nvt_rigid.py 0 2
+npt_dimer_eos.py 0 2
 )
 
 set(TEST_LIST_GPU
 minimize_fire_rigid.py 0 0
 bd_angular.py 0 0
+compare_npt_nvt_rigid.py 0 2
+npt_dimer_eos.py 0 2
 )
 
 set(EXCLUDE_FROM_GPU_MPI

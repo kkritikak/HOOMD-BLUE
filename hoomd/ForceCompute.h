@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The Regents of the University of Michigan
+// Copyright (c) 2009-2018 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -45,7 +45,7 @@
     \ingroup data_structs
 */
 
-class ForceCompute : public Compute
+class PYBIND11_EXPORT ForceCompute : public Compute
     {
     public:
         //! Constructs the compute
@@ -130,6 +130,7 @@ class ForceCompute : public Compute
             // by default, only request positions
             CommFlags flags(0);
             flags[comm_flag::position] = 1;
+            flags[comm_flag::net_force] = 1; // only used if constraints are present
             return flags;
             }
         #endif
@@ -147,7 +148,7 @@ class ForceCompute : public Compute
         //! Helper function called when particles are sorted
         /*! setParticlesSorted() is passed as a slot to the particle sort signal.
             It is used to flag \c m_particles_sorted so that a second call to compute
-            with the same timestep can properly recaculate the forces, which are stored
+            with the same timestep can properly recalculate the forces, which are stored
             by index.
         */
         void setParticlesSorted()

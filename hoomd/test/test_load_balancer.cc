@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The Regents of the University of Michigan
+// Copyright (c) 2009-2018 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -32,7 +32,7 @@ void test_load_balancer_basic(std::shared_ptr<ExecutionConfiguration> exec_conf,
 {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     // create a system with eight particles
@@ -138,7 +138,7 @@ void test_load_balancer_multi(std::shared_ptr<ExecutionConfiguration> exec_conf,
 {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     // create a system with eight particles
@@ -273,7 +273,7 @@ void test_load_balancer_ghost(std::shared_ptr<ExecutionConfiguration> exec_conf,
 {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     // create a system with eight particles

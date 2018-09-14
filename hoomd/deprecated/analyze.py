@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2017 The Regents of the University of Michigan
+# Copyright (c) 2009-2018 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 R""" Deprecated analyzers.
@@ -57,7 +57,7 @@ class msd(_analyzer):
     See group for a list.
 
     By default, columns in the file are separated by tabs, suitable for importing as a
-    tab-delimited spreadsheet. The delimiter can be changed to any string using :py:meth`set_params()`.
+    tab-delimited spreadsheet. The delimiter can be changed to any string using :py:meth:`set_params()`.
 
     The *header_prefix* can be used in a number of ways. It specifies a simple string that
     will be printed before the header line of the output file. One handy way to use this

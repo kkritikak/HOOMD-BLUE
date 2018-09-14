@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The Regents of the University of Michigan
+// Copyright (c) 2009-2018 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #include "hoomd/HOOMDMath.h"
@@ -69,5 +69,7 @@ DEVICE inline OverlapReal4 make_overlapreal4(OverlapReal x, OverlapReal y, Overl
     }
 
 }; // end namespace hpmc
+
+#undef DEVICE
 
 #endif //__HPMC_PRECISION_SETUP_H__

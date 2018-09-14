@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The Regents of the University of Michigan
+// Copyright (c) 2009-2018 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #ifndef __COMPUTE_FREE_VOLUME_GPU_H__
@@ -98,8 +98,7 @@ ComputeFreeVolumeGPU< Shape >::ComputeFreeVolumeGPU(std::shared_ptr<SystemDefini
     std::vector<unsigned int> valid_params;
     for (unsigned int block_size = 32; block_size <= 1024; block_size += 32)
         {
-        unsigned int s=1;
-        while (s <= (unsigned int) this->m_exec_conf->dev_prop.warpSize)
+        for (auto s : Autotuner::getTppListPow2(this->m_exec_conf->dev_prop.warpSize))
             {
             unsigned int stride = 1;
             while (stride <= this->m_exec_conf->dev_prop.warpSize/s)
@@ -113,7 +112,6 @@ ComputeFreeVolumeGPU< Shape >::ComputeFreeVolumeGPU(std::shared_ptr<SystemDefini
                     }
                 stride*=2;
                 }
-            s = s * 2;
             }
         }
     m_tuner_free_volume.reset(new Autotuner(valid_params, 5, 1000000, "hpmc_free_volume", this->m_exec_conf));
@@ -150,7 +148,7 @@ void ComputeFreeVolumeGPU<Shape>::computeFreeVolume(unsigned int timestep)
     this->m_exec_conf->msg->notice(5) << "HPMC computing free volume " << timestep << std::endl;
 
     // set nominal width
-    Scalar nominal_width = this->m_mc->getMaxDiameter();
+    Scalar nominal_width = this->m_mc->getMaxCoreDiameter();
         {
         // add range of test particle
         const std::vector<typename Shape::param_type, managed_allocator<typename Shape::param_type> > & params = this->m_mc->getParams();

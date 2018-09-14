@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The Regents of the University of Michigan
+// Copyright (c) 2009-2018 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -139,6 +139,12 @@ void IntegratorTwoStep::update(unsigned int timestep)
     else
 #endif
         computeNetForce(timestep+1);
+
+    // Call HalfStep hook
+    if (m_half_step_hook)
+        {
+        m_half_step_hook->update(timestep+1);
+        }
 
     if (m_prof)
         m_prof->push("Integrate");
@@ -390,6 +396,9 @@ void IntegratorTwoStep::prepRun(unsigned int timestep)
         computeAccelerations(timestep);
         m_pdata->notifyAccelSet();
         }
+
+    for (auto method = m_methods.begin(); method != m_methods.end(); ++method)
+        (*method)->randomizeVelocities(timestep);
 
     m_prepared = true;
     }

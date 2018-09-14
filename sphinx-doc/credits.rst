@@ -89,6 +89,7 @@ Jens Glaser, University of Michigan
  * pair.van_der_waals
  * hpmc interaction_matrix
  * special_pair framework
+ * TBB support
 
 Pavani Medapuram, University of Minnesota
  * Framework for external potentials
@@ -131,6 +132,7 @@ Michael P. Howard, Princeton University
  * XML dump by particle group
  * Fix references when disabling/enabling objects
  * Misc. bug fixes
+ * CUDA9+V100 compatibility
 
 James Antonaglia, University of Michigan
  * pair.mie
@@ -199,6 +201,9 @@ Lin Yang, Alex Travesset, Iowa State University
 Tim Moore, Vanderbilt University
   * angle.cosinesq
 
+Bradley Dice, Avisek Das, University of Michigan
+  * integrator.randomize_velocities()
+
 Jaime Millan, Northwestern University
  * Wall potential framework support of integrate.npt mode
 
@@ -225,6 +230,7 @@ Joshua Anderson, University of Michigan - Lead developer
  * Bounding box tree generation, query, and optimizations
  * BVH implementation of trial move processing
  * SSE and AVX intrinsics
+ * `jit.patch.user` user defined patchy interactions with LLVM runtime compiled code
 
 Eric Irrgang, University of Michigan
  * NPT updater
@@ -254,6 +260,8 @@ Jens Glaser, University of Michigan
  * Helped port the Sphinx overlap check
  * Dynamic number of particle types support
  * Implicit depletants
+ * `jit.patch.user_union` user defined patchy interactions with LLVM runtime compiled code
+ * Geometric Cluster Algorithm implementation
 
 Eric Harper, University of Michigan
  * Misc bug fixes to move size by particle type feature
@@ -284,6 +292,9 @@ Vyas Ramasubramani, University of Michigan
  * hpmc.util.tune fixes for tuning by type
  * hpmc.update.boxmc fixes for non-orthorhombic box volume moves
 
+William Zygmunt, Luis Rivera-Rivera, University of Michigan
+ * Patchy interaction support in HPMC CPU integrators
+
 DEM developers
 --------------
 
@@ -291,6 +302,18 @@ The following people contributed to the :py:mod:`hoomd.dem` package.
 
 Matthew Spellings, University of Michigan - Lead developer
 Ryan Marson, University of Michigan
+
+MPCD developers
+---------------
+
+The following people contributed to the :py:mod:`hoomd.mpcd` package.
+
+Michael P. Howard, Princeton University - **Lead developer**
+ * Design
+ * Cell list and properties
+ * Particle and cell communication
+ * Basic streaming method
+ * SRD and AT collision rules
 
 Source code
 -----------
@@ -508,14 +531,6 @@ ModernGPU source code is embedded in HOOMD's package and is used for various tas
     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-num_util is embedded in HOOMD's package::
-
-    Copyright 2006  Phil Austin (http://www.eos.ubc.ca/personal/paustin)
-    Distributed under the Boost Software License, Version 1.0. (See
-    accompanying file LICENSE_1_0.txt or copy at
-    http://www.boost.org/LICENSE_1_0.txt)
-    \endverbatim
 
 CUB 1.4.1 source code is embedded in HOOMD's package and is used for various tasks: http://nvlabs.github.io/cub/::
 

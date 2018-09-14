@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The Regents of the University of Michigan
+// Copyright (c) 2009-2018 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -261,6 +261,6 @@ class EvaluatorPairDPDLJThermo
         Scalar m_deltaT;   //!<  timestep size stored from constructor
     };
 
-#undef SARU
+#undef DEVICE
 
 #endif // __PAIR_EVALUATOR_DPDLJ_H__

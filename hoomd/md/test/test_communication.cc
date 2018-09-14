@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The Regents of the University of Michigan
+// Copyright (c) 2009-2018 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -51,7 +51,7 @@ void test_domain_decomposition(std::shared_ptr<ExecutionConfiguration> exec_conf
 {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     // create a system with eight particles
@@ -175,7 +175,7 @@ void test_balanced_domain_decomposition(std::shared_ptr<ExecutionConfiguration> 
 {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     // create a system with eight particles
@@ -369,7 +369,7 @@ void test_communicator_migrate(communicator_creator comm_creator, std::shared_pt
     {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     BoxDim ref_box = BoxDim(2.0);
@@ -408,6 +408,28 @@ void test_communicator_migrate(communicator_creator comm_creator, std::shared_pt
     pdata->setDomainDecomposition(decomposition);
 
     pdata->initializeFromSnapshot(snap);
+
+        // store some test data
+        {
+        ArrayHandle<unsigned int> h_rtag(pdata->getRTags(), access_location::host, access_mode::readwrite);
+        ArrayHandle<Scalar4> h_net_force(pdata->getNetForce(), access_location::host, access_mode::readwrite);
+        ArrayHandle<Scalar4> h_net_torque(pdata->getNetTorqueArray(), access_location::host, access_mode::readwrite);
+        ArrayHandle<Scalar> h_net_virial(pdata->getNetVirial(), access_location::host, access_mode::readwrite);
+
+        unsigned int net_virial_pitch = pdata->getNetVirial().getPitch();
+
+        for (unsigned int i = 0; i < 8; ++i)
+            {
+            unsigned int idx = h_rtag.data[i];
+            if (idx != NOT_LOCAL)
+                {
+                h_net_force.data[idx] = make_scalar4(i*1.1,i*2.2,i*3.3,i*4.4);
+                h_net_torque.data[idx] = make_scalar4(i*9.9,i*8.8,i*7.7,i*6.6);
+                for (unsigned int j = 0; j < 6; ++j)
+                    h_net_virial.data[j*net_virial_pitch+idx] = i*1.23+j;
+                }
+            }
+        }
 
     // migrate atoms
     comm->migrateParticles();
@@ -525,6 +547,35 @@ void test_communicator_migrate(communicator_creator comm_creator, std::shared_pt
     // particle 7 crosses the global boundary in the - z direction
     pdata->setPosition(7, TO_TRICLINIC(make_scalar3(-0.6, -0.1,- 1.5)),false);
 
+    // check that the particle data is still there
+        {
+        ArrayHandle<unsigned int> h_rtag(pdata->getRTags(), access_location::host, access_mode::read);
+        ArrayHandle<Scalar4> h_net_force(pdata->getNetForce(), access_location::host, access_mode::read);
+        ArrayHandle<Scalar4> h_net_torque(pdata->getNetTorqueArray(), access_location::host, access_mode::read);
+        ArrayHandle<Scalar> h_net_virial(pdata->getNetVirial(), access_location::host, access_mode::read);
+
+        unsigned int net_virial_pitch = pdata->getNetVirial().getPitch();
+
+        for (unsigned int i = 0; i < 8; ++i)
+            {
+            unsigned int idx = h_rtag.data[i];
+            if (idx != NOT_LOCAL)
+                {
+                CHECK_CLOSE(h_net_force.data[idx].x,i*1.1,tol);
+                CHECK_CLOSE(h_net_force.data[idx].y,i*2.2,tol);
+                CHECK_CLOSE(h_net_force.data[idx].z,i*3.3,tol);
+                CHECK_CLOSE(h_net_force.data[idx].w,i*4.4,tol);
+                CHECK_CLOSE(h_net_torque.data[idx].x,i*9.9,tol);
+                CHECK_CLOSE(h_net_torque.data[idx].y,i*8.8,tol);
+                CHECK_CLOSE(h_net_torque.data[idx].z,i*7.7,tol);
+                CHECK_CLOSE(h_net_torque.data[idx].w,i*6.6,tol);
+                for (unsigned int j = 0; j < 6; ++j)
+                    CHECK_CLOSE(h_net_virial.data[j*net_virial_pitch+idx], i*1.23+j,tol);
+                }
+            }
+        }
+
+
     // migrate particles
     comm->migrateParticles();
 
@@ -623,7 +674,7 @@ void test_communicator_balanced_migrate(communicator_creator comm_creator, std::
     {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     BoxDim ref_box = BoxDim(2.0);
@@ -910,7 +961,7 @@ void test_communicator_ghosts(communicator_creator comm_creator,
     {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     // create a system with eight particles
@@ -1635,7 +1686,7 @@ void test_communicator_ghosts(communicator_creator comm_creator,
         ArrayHandle<unsigned int> h_global_rtag(pdata->getRTags(), access_location::host, access_mode::read);
         unsigned int rtag;
         int rank;
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        MPI_Comm_rank(exec_conf->getHOOMDWorldMPICommunicator(), &rank);
         switch (rank)
             {
             case 0:
@@ -1876,7 +1927,7 @@ void test_communicator_bond_exchange(communicator_creator comm_creator,
     {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     // create a system with eight particles
@@ -2544,7 +2595,7 @@ void test_communicator_bonded_ghosts(communicator_creator comm_creator,
     {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     // create a system with eight particles
@@ -2642,7 +2693,7 @@ void test_communicator_bonded_ghosts(communicator_creator comm_creator,
 
         // check bond partners
         int rank;
-        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+        MPI_Comm_rank(exec_conf->getHOOMDWorldMPICommunicator(), &rank);
 
         switch (rank)
             {
@@ -2859,7 +2910,7 @@ void test_communicator_ghost_fields(communicator_creator comm_creator, std::shar
     {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     // create a system with eight + 1 one ptls (1 ptl in ghost layer)
@@ -3111,7 +3162,7 @@ void test_communicator_ghost_layer_width(communicator_creator comm_creator, std:
     {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     // just create some system
@@ -3211,7 +3262,7 @@ void test_communicator_ghosts_per_type(communicator_creator comm_creator, std::s
     {
     // this test needs to be run on eight processors
     int size;
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_size(exec_conf->getHOOMDWorldMPICommunicator(), &size);
     UP_ASSERT_EQUAL(size,8);
 
     // create a system with fourteen particles

@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2017 The Regents of the University of Michigan
+# Copyright (c) 2009-2018 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: joaander / All Developers are free to add commands for new features
@@ -45,7 +45,7 @@ class pppm(force._force):
     The command supports additional screening of interactions, according to the Ewald summation for Yukawa potentials.
     This is useful if one wants to compute a screened interaction (i.e. a solution to the linerized Poisson-Boltzmann
     equation), yet the cut-off radius is so large that the computation with a purely short-ranged potential would become
-    inefficient. In that case, the inverse Debye screening length can be supplied using :py:meth`set_params()`.
+    inefficient. In that case, the inverse Debye screening length can be supplied using :py:meth:`set_params()`.
     Also see `Salin, G and Caillol, J. 2000, <http://dx.doi.org/10.1063/1.1326477>`.
 
     Parameters:

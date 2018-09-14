@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The Regents of the University of Michigan
+// Copyright (c) 2009-2018 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -28,12 +28,7 @@
 #define ALIGN_SCALAR 8
 #endif
 
-//! SphereWall Constructor
-/*! \param r Radius of the sphere
-    \param origin The x,y,z coordinates of the center of the sphere
-    \param inside Determines which half space is evaluated.
-*/
-struct SphereWall
+struct __attribute__((visibility("default"))) SphereWall
     {
     SphereWall(Scalar rad = 0.0, Scalar3 orig = make_scalar3(0.0,0.0,0.0), bool ins = true) : origin(orig), r(rad), inside(ins) {}
     Scalar3    origin; // need to order datatype in descending order of type size for Fermi
@@ -48,7 +43,7 @@ struct SphereWall
     \param quatAxisToZRot (Calculated not input) The quaternion which rotates the simulation space such that the axis of the cylinder is parallel to the z' axis
     \param inside Determines which half space is evaluated.
 */
-struct CylinderWall
+struct __attribute__((visibility("default"))) CylinderWall
     {
     CylinderWall(Scalar rad = 0.0, Scalar3 orig = make_scalar3(0.0,0.0,0.0), Scalar3 zorient = make_scalar3(0.0,0.0,1.0), bool ins=true) : origin(orig), axis(zorient), r(rad), inside(ins)
         {
@@ -89,7 +84,7 @@ struct CylinderWall
     \param normal The x,y,z normal vector of the plane (normalized upon input)
     \param inside Determines which half space is evaluated.
 */
-struct PlaneWall
+struct __attribute__((visibility("default"))) PlaneWall
     {
     PlaneWall(Scalar3 orig = make_scalar3(0.0,0.0,0.0), Scalar3 norm = make_scalar3(0.0,0.0,1.0), bool ins = true) : normal(norm), origin(orig), inside(ins)
         {

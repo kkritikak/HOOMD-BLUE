@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The Regents of the University of Michigan
+// Copyright (c) 2009-2018 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -9,9 +9,8 @@
 
 #ifdef ENABLE_CUDA
 
-#include "hoomd/Variant.h"
+#include "PotentialPairDPDThermo.h"
 #include "PotentialPairDPDThermoGPU.cuh"
-#include "AllPairPotentials.h"
 
 /*! \file PotentialPairDPDThermoGPU.h
     \brief Defines the template class for standard pair potentials on the GPU
@@ -100,11 +99,9 @@ PotentialPairDPDThermoGPU< evaluator, gpu_cpdf >::PotentialPairDPDThermoGPU(std:
     std::vector<unsigned int> valid_params;
     for (unsigned int block_size = 32; block_size <= 1024; block_size += 32)
         {
-        int s=1;
-        while (s <= this->m_exec_conf->dev_prop.warpSize)
+        for (auto s : Autotuner::getTppListPow2(this->m_exec_conf->dev_prop.warpSize))
             {
             valid_params.push_back(block_size*10000 + s);
-            s = s * 2;
             }
         }
 

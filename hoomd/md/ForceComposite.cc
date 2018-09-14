@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The Regents of the University of Michigan
+// Copyright (c) 2009-2018 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -20,7 +20,10 @@ namespace py = pybind11;
 ForceComposite::ForceComposite(std::shared_ptr<SystemDefinition> sysdef)
         : MolecularForceCompute(sysdef), m_bodies_changed(false), m_ptls_added_removed(false),
          m_global_max_d(0.0),
-         m_comm_ghost_layer_connected(false), m_global_max_d_changed(true)
+         #ifdef ENABLE_MPI
+         m_comm_ghost_layer_connected(false),
+         #endif
+         m_global_max_d_changed(true)
     {
     // connect to the ParticleData to receive notifications when the number of types changes
     m_pdata->getNumTypesChangeSignal().connect<ForceComposite, &ForceComposite::slotNumTypesChange>(this);
@@ -695,12 +698,6 @@ CommFlags ForceComposite::getRequestedCommFlags(unsigned int timestep)
     // request orientations
     flags[comm_flag::orientation] = 1;
 
-    // request communication of particle forces
-    flags[comm_flag::net_force] = 1;
-
-    // request communication of particle torques (not currently used)
-    //flags[comm_flag::net_torque] = 1;
-
     // only communicate net virial if needed
     PDataFlags pdata_flags = this->m_pdata->getFlags();
     if (pdata_flags[pdata_flag::isotropic_virial] || pdata_flags[pdata_flag::pressure_tensor])
@@ -861,14 +858,6 @@ void ForceComposite::computeForces(unsigned int timestep)
                     Scalar virialyz = h_net_virial.data[4*net_virial_pitch+idxj];
                     Scalar virialzz = h_net_virial.data[5*net_virial_pitch+idxj];
 
-                    // zero net virial
-                    h_net_virial.data[0*net_virial_pitch+idxj] = 0.0;
-                    h_net_virial.data[1*net_virial_pitch+idxj] = 0.0;
-                    h_net_virial.data[2*net_virial_pitch+idxj] = 0.0;
-                    h_net_virial.data[3*net_virial_pitch+idxj] = 0.0;
-                    h_net_virial.data[4*net_virial_pitch+idxj] = 0.0;
-                    h_net_virial.data[5*net_virial_pitch+idxj] = 0.0;
-
                     // subtract intra-body virial prt
                     h_virial.data[0*m_virial_pitch+central_idx] += virialxx - f.x*dr_space.x;
                     h_virial.data[1*m_virial_pitch+central_idx] += virialxy - f.x*dr_space.y;
@@ -878,6 +867,14 @@ void ForceComposite::computeForces(unsigned int timestep)
                     h_virial.data[5*m_virial_pitch+central_idx] += virialzz - f.z*dr_space.z;
                     }
                 }
+
+            // zero net virial
+            h_net_virial.data[0*net_virial_pitch+idxj] = 0.0;
+            h_net_virial.data[1*net_virial_pitch+idxj] = 0.0;
+            h_net_virial.data[2*net_virial_pitch+idxj] = 0.0;
+            h_net_virial.data[3*net_virial_pitch+idxj] = 0.0;
+            h_net_virial.data[4*net_virial_pitch+idxj] = 0.0;
+            h_net_virial.data[5*net_virial_pitch+idxj] = 0.0;
             }
         }
     }

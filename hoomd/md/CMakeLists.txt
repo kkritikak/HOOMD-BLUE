@@ -37,7 +37,7 @@ set(_md_sources module-md.cc
                    TwoStepNVE.cc
                    TwoStepNVTMTK.cc
                    ZeroMomentumUpdater.cc
-		   MuellerPlatheFlow.cc
+                   MuellerPlatheFlow.cc
                    )
 
 set(_md_headers ActiveForceComputeGPU.h
@@ -106,6 +106,7 @@ set(_md_headers ActiveForceComputeGPU.h
                 HarmonicImproperForceCompute.h
                 IntegrationMethodTwoStep.h
                 IntegratorTwoStep.h
+                MolecularForceCompute.cuh
                 MolecularForceCompute.h
                 NeighborListBinned.h
                 NeighborListGPUBinned.h
@@ -118,16 +119,16 @@ set(_md_headers ActiveForceComputeGPU.h
                 OPLSDihedralForceComputeGPU.h
                 OPLSDihedralForceCompute.h
                 PotentialBondGPU.h
-		PotentialBondGPU.cuh
+                PotentialBondGPU.cuh
                 PotentialBond.h
                 PotentialExternalGPU.h
                 PotentialExternalGPU.cuh
                 PotentialExternal.h
                 PotentialPairDPDThermoGPU.h
-		PotentialPairDPDThermoGPU.cuh
+                PotentialPairDPDThermoGPU.cuh
                 PotentialPairDPDThermo.h
                 PotentialPairGPU.h
-		PotentialPairGPU.cuh
+                PotentialPairGPU.cuh
                 PotentialPair.h
                 PotentialSpecialPairGPU.h
                 PotentialSpecialPair.h
@@ -174,6 +175,7 @@ list(APPEND _md_sources ActiveForceComputeGPU.cc
                            HarmonicAngleForceComputeGPU.cc
                            HarmonicDihedralForceComputeGPU.cc
                            HarmonicImproperForceComputeGPU.cc
+                           MolecularForceCompute.cu
                            NeighborListGPU.cc
                            NeighborListGPUBinned.cc
                            NeighborListGPUStencil.cc
@@ -189,8 +191,8 @@ list(APPEND _md_sources ActiveForceComputeGPU.cc
                            TwoStepNPTMTKGPU.cc
                            TwoStepNVEGPU.cc
                            TwoStepNVTMTKGPU.cc
-			   MuellerPlatheFlowGPU.cc
-               CosineSqAngleForceComputeGPU.cc
+                           MuellerPlatheFlowGPU.cc
+                           CosineSqAngleForceComputeGPU.cc
                            )
 endif()
 
@@ -198,7 +200,22 @@ set(_md_cu_sources ActiveForceComputeGPU.cu
                       AllDriverAnisoPotentialPairGPU.cu
                       AllDriverPotentialBondGPU.cu
                       AllDriverPotentialSpecialPairGPU.cu
-                      AllDriverPotentialPairGPU.cu
+                      BuckinghamDriverPotentialPairGPU.cu
+                      DLVODriverPotentialPairGPU.cu
+                      DPDLJThermoDriverPotentialPairGPU.cu
+                      DPDThermoDriverPotentialPairGPU.cu
+                      EwaldDriverPotentialPairGPU.cu
+                      ForceShiftedLJDriverPotentialPairGPU.cu
+                      GaussDriverPotentialPairGPU.cu
+                      LJDriverPotentialPairGPU.cu
+                      MieDriverPotentialPairGPU.cu
+                      MoliereDriverPotentialPairGPU.cu
+                      MorseDriverPotentialPairGPU.cu
+                      PairLJ1208DriverPotentialPairGPU.cu
+                      ReactionFieldDriverPotentialPairGPU.cu
+                      SLJDriverPotentialPairGPU.cu
+                      YukawaDriverPotentialPairGPU.cu
+                      ZBLDriverPotentialPairGPU.cu
                       BondTablePotentialGPU.cu
                       CommunicatorGridGPU.cu
                       ConstraintEllipsoidGPU.cu
@@ -212,6 +229,7 @@ set(_md_cu_sources ActiveForceComputeGPU.cu
                       HarmonicAngleForceGPU.cu
                       HarmonicDihedralForceGPU.cu
                       HarmonicImproperForceGPU.cu
+                      MolecularForceCompute.cu
                       NeighborListGPUBinned.cu
                       NeighborListGPU.cu
                       NeighborListGPUStencil.cu
@@ -228,29 +246,31 @@ set(_md_cu_sources ActiveForceComputeGPU.cu
                       TwoStepNPTMTKGPU.cu
                       TwoStepNVEGPU.cu
                       TwoStepNVTMTKGPU.cu
-		      MuellerPlatheFlowGPU.cu
-              CosineSqAngleForceGPU.cu
+                      MuellerPlatheFlowGPU.cu
+                      CosineSqAngleForceGPU.cu
                       )
-
-# Need to define NO_IMPORT_ARRAY in every file but module.cc
-set_source_files_properties(${_md_sources} ${_md_cu_sources} PROPERTIES COMPILE_DEFINITIONS NO_IMPORT_ARRAY)
 
 if (ENABLE_CUDA)
 CUDA_COMPILE(_CUDA_GENERATED_FILES ${_md_cu_sources} ${DFFT_CU_SOURCES} OPTIONS ${CUDA_ADDITIONAL_OPTIONS} SHARED)
 endif (ENABLE_CUDA)
 
-add_library (_md SHARED ${_md_sources} ${_CUDA_GENERATED_FILES} ${DFFT_SOURCES})
+pybind11_add_module(_md SHARED ${_md_sources} ${_CUDA_GENERATED_FILES} ${DFFT_SOURCES} NO_EXTRAS)
+if(APPLE)
+set_target_properties(_md PROPERTIES INSTALL_RPATH "@loader_path/..;@loader_path")
+else()
+set_target_properties(_md PROPERTIES INSTALL_RPATH "$ORIGIN/..;$ORIGIN")
+endif()
 
 # link the library to its dependencies
 if (CUSOLVER_AVAILABLE)
     if(${CUDA_VERSION} VERSION_LESS 8.0)
-        target_link_libraries(_md _hoomd ${HOOMD_COMMON_LIBS} ${CUDA_cusolver_LIBRARY} ${CUDA_cusparse_LIBRARY})
+        target_link_libraries(_md PRIVATE _hoomd ${HOOMD_COMMON_LIBS} ${CUDA_cusolver_LIBRARY} ${CUDA_cusparse_LIBRARY})
     else()
         # CUDA 8.0 requires that we link in gomp
-        target_link_libraries(_md _hoomd ${HOOMD_COMMON_LIBS} ${CUDA_cusolver_LIBRARY} ${CUDA_cusparse_LIBRARY} gomp)
+        target_link_libraries(_md PRIVATE _hoomd ${HOOMD_COMMON_LIBS} ${CUDA_cusolver_LIBRARY} ${CUDA_cusparse_LIBRARY} gomp)
     endif()
 else()
-    target_link_libraries(_md _hoomd ${HOOMD_COMMON_LIBS})
+    target_link_libraries(_md PRIVATE _hoomd ${HOOMD_COMMON_LIBS})
 endif()
 
 # if we are compiling with MPI support built in, set appropriate
@@ -264,15 +284,6 @@ if (ENABLE_MPI)
    endif(MPI_LINK_FLAGS)
 endif(ENABLE_MPI)
 
-##################################
-# change the name of the library to be a valid python module
-# tweak the properties of the output to make a functional python module
-set_target_properties(_md PROPERTIES PREFIX "" OUTPUT_NAME "_md")
-
-# .dylib is not recognized as a python module by python on Mac OS X
-if(APPLE)
-    set_target_properties(_md PROPERTIES SUFFIX ".so")
-endif(APPLE)
 fix_cudart_rpath(_md)
 
 # install the library

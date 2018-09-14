@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2017 The Regents of the University of Michigan
+// Copyright (c) 2009-2018 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -54,7 +54,7 @@
     each set of samples. When idle, the number of calls is counted in m_calls. m_state lists the current state in the
     state machine.
 */
-class Autotuner
+class PYBIND11_EXPORT Autotuner
     {
     public:
         //! Constructor
@@ -166,6 +166,20 @@ class Autotuner
             m_mode = mode;
             }
 
+
+        //! build list of thread per particle targets
+        static std::vector<unsigned int> getTppListPow2(unsigned int warpSize)
+            {
+            std::vector<unsigned int> v;
+
+            for (unsigned int s=4; s <= warpSize; s*=2)
+                {
+                v.push_back(s);
+                }
+            v.push_back(1);
+            v.push_back(2);
+            return v;
+            }
 
     protected:
         unsigned int computeOptimalParameter();

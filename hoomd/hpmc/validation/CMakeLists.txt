@@ -8,7 +8,7 @@ macro(add_script_test_cpu_mpi script USER_VAR)
             add_test(NAME ${script}-mpi-cpu-${USER_VAR}
                 COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${nproc}
                 ${MPIEXEC_POSTFLAGS} ${PYTHON_EXECUTABLE} "-u" ${CMAKE_CURRENT_SOURCE_DIR}/${script} "--mode=cpu" "--user=${USER_VAR}")
-                set_tests_properties(${script}-mpi-cpu-${USER_VAR} PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}:$ENV{PYTHONPATH};OMP_NUM_THREADS=1"
+                set_tests_properties(${script}-mpi-cpu-${USER_VAR} PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}:$ENV{PYTHONPATH}"
                     LABELS "validation")
             endif()
     endif(ENABLE_MPI)
@@ -32,7 +32,7 @@ endmacro()
 macro(add_script_test_cpu script start stop)
     foreach(USER_VAR RANGE ${start} ${stop})
         add_test(${script}-cpu-${USER_VAR} ${PYTHON_EXECUTABLE} "-u" ${CMAKE_CURRENT_SOURCE_DIR}/${script} "--mode=cpu" "--user=${USER_VAR}")
-        set_tests_properties(${script}-cpu-${USER_VAR} PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}:$ENV{PYTHONPATH};OMP_NUM_THREADS=1"
+        set_tests_properties(${script}-cpu-${USER_VAR} PROPERTIES ENVIRONMENT "PYTHONPATH=${CMAKE_BINARY_DIR}:$ENV{PYTHONPATH}"
             LABELS "validation")
         add_script_test_cpu_mpi(${script} ${USER_VAR})
     endforeach()
@@ -49,22 +49,31 @@ endmacro()
 
 # format: test_script user_min user_max
 set(TEST_LIST_CPU
-spheres_implicit.py 0 0
+spheres_implicit.py 0 1
 sphere_eos.py 0 0
 disk_eos.py 0 0
 )
 
+if(BUILD_JIT)
+set(TEST_LIST_CPU ${TEST_LIST_CPU}
+    wca_dumbbell.py 0 2
+    lj_spheres.py 0 3
+)
+endif(BUILD_JIT)
+
 set(TEST_LIST_GPU
-spheres_implicit.py 0 0
+spheres_implicit.py 0 1
 sphere_eos.py 0 0
 disk_eos.py 0 0
 )
 
 set(EXCLUDE_FROM_GPU_MPI
     spheres_implicit.py
+    wca_dumbbell.py
 )
 
 set(EXCLUDE_FROM_MPI
+    lj_spheres.py
 )
 
 list(LENGTH TEST_LIST_CPU _max_i)
