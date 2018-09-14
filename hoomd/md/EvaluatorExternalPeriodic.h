@@ -67,7 +67,6 @@ class EvaluatorExternalPeriodic
         */
         DEVICE EvaluatorExternalPeriodic(Scalar3 X, Scalar3 V, const BoxDim& box, const param_type& params, const field_type& field)
             : m_pos(X),
-              m_vel(V),
               m_box(box)
             {
             m_index=  SCALARASINT(params.x);
@@ -165,7 +164,6 @@ class EvaluatorExternalPeriodic
 
     protected:
         Scalar3 m_pos;                //!< particle position
-        Scalar3 m_vel;                //!< particle velocity
         BoxDim m_box;                 //!< box dimensions
         unsigned int m_index;         //!< cartesian index of direction along which the lammellae should be orientied
         Scalar m_orderParameter;      //!< ordering parameter
