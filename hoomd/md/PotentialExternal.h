@@ -198,14 +198,14 @@ void PotentialExternal<evaluator>::computeForces(unsigned int timestep)
         // get the current particle properties
         Scalar3 X = make_scalar3(h_pos.data[idx].x, h_pos.data[idx].y, h_pos.data[idx].z);
         Scalar3 V = make_scalar3(h_vel.data[idx].x, h_vel.data[idx].y, h_vel.data[idx].z);
-        V *= m_deltaT;
+        V *= m_deltaT; // What is happening here??? This should make all the velocities quite small which in turn whould decrease the virial contributuion in a way that's dependent on the time step size.....???
         unsigned int type = __scalar_as_int(h_pos.data[idx].w);
         Scalar3 F;
         Scalar energy;
         Scalar virial[6];
 
         param_type params = h_params.data[type];
-        evaluator eval(X,V, box, params, field);
+        evaluator eval(X, V, box, params, field);
 
         if (evaluator::needsDiameter())
             {

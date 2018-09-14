@@ -312,7 +312,8 @@ inline void rescaleWall(CylinderWall& wall, const Scalar *transMatrix)
         {k=transMatrix[4];}
     else
         {
-        throw std::runtime_error(std::string("A box update was attempted without two coupled dimensions, this does not obey the cylinder wall constraints."));
+        // TODO: this has to be changed for GPU compatibility, can either throw an error elsewhere or just let everything fail from k=0
+        // throw std::runtime_error(std::string("A box update was attempted without two coupled dimensions, this does not obey the cylinder wall constraints."));
         k=0;
         }
     //rescale r
