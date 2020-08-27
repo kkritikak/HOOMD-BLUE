@@ -16,7 +16,7 @@
 #include "hoomd/md/QuaternionMath.h"
 #include "hoomd/BoxDim.h"
 
-#ifdef NVCC
+#ifdef __HIPCC__
 #define DEVICE __device__
 #else
 #define DEVICE

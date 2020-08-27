@@ -7,7 +7,7 @@
 #ifndef __EVALUATOR_EXTERNAL_ELECTRIC_FIELD_H__
 #define __EVALUATOR_EXTERNAL_ELECTRIC_FIELD_H__
 
-#ifndef NVCC
+#ifndef __HIPCC__
 #include <string>
 #include <hoomd/extern/pybind/include/pybind11/pybind11.h>
 #endif
@@ -22,7 +22,7 @@
 
 // need to declare these class methods with __device__ qualifiers when building in nvcc
 // DEVICE is __host__ __device__ when included in nvcc and blank when included into the host compiler
-#ifdef NVCC
+#ifdef __HIPCC__
 #define DEVICE __device__
 #else
 #define DEVICE
@@ -99,7 +99,7 @@ class EvaluatorExternalElectricField
             virial[5] = F.z*m_pos.z;
             }
 
-        #ifndef NVCC
+        #ifndef __HIPCC__
         //! Get the name of this potential
         /*! \returns The potential name. Must be short and all lowercase, as this is the name energies will be logged as
             via analyze.log.

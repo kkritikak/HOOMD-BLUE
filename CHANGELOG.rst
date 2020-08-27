@@ -1,6 +1,64 @@
 Change Log
 ==========
 
+v3.x
+----
+
+v3.0.0 (not yet released)
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+*Added*
+
+- Implicit depletants are now supported by any **hpmc** integrator through
+  ``mc.set_fugacity('type', fugacity)``.
+- Enable implicit depletants for two-dimensional shapes in **hpmc**.
+- ``jit.patch.user()`` and ``jit.patch.user_union()`` now support GPUs via
+  NVRTC.
+  - Add harmonically mapped averaging.
+
+*Changed*
+
+- *CMake* >=3.9, *cereal*, *eigen*, and *pybind11* are required to compile
+  HOOMD.
+- Plugins must be updated to build against v3.
+- By default, HOOMD installs to the ``site-packages`` directory associated with
+  the ``python`` executable given, which may be inside a virtual environment.
+- Refactored CMake code.
+- ``git submodule update`` no longer runs when during CMake configuration.
+- Use ``random123`` library for implicit depletants in **hpmc**.
+
+*Deprecated*
+
+*Removed*
+
+- Type swap moves in ``hpmc.update.muvt()`` are no longer supported
+  (``transfer_ratio`` option to ``muvt.set_params()``)
+- The option ``implicit=True`` to ``hpmc.integrate.*`` is no longer available
+  (use ``set_fugacity``).
+- ``static`` parameter in ``dump.gsd``
+- ``util.quiet_status`` and ``util.unquiet_status``.
+- ``deprecated.analyze.msd``.
+- ``deprecated.dump.xml``.
+- ``deprecated.dump.pos``.
+- ``deprecated.init.read_xml``.
+- ``deprecated.init.create_random``.
+- ``deprecated.init.create_random_polymers``.
+- **hpmc** ``ignore_overlaps`` parameter.
+- **hpmc** ``sphere_union::max_members`` parameter.
+- **hpmc** ``convex_polyhedron_union``.
+- **hpmc** ``setup_pos_writer`` method.
+- **hpmc** ``depletant_mode='circumsphere'``.
+- **hpmc** ``max_verts`` parameter.
+- **hpmc** ``depletant_mode`` parameter.
+- **hpmc** ``ntrial`` parameter.
+- **hpmc** ``implicit`` boolean parameter.
+- ``group`` parameter to ``md.integrate.mode_minimize_fire``
+- ``cgcmm.angle.cgcmm``
+- ``cgcmm.pair.cgcmm``
+- ``COPY_HEADERS`` *CMake* option.
+
+*Fixed*
+
 v2.x
 ----
 
@@ -286,7 +344,11 @@ v2.4.2 (2018-12-20)
    returned from ``ParticleData`` and other classes (replace by
    ``GlobalArray``)
 
+<<<<<<< HEAD
+v2.4.1 (2018/11/27)
+=======
 v2.4.1 (2018-11-27)
+>>>>>>> master
 ^^^^^^^^^^^^^^^^^^^
 
 *Bug fixes*
