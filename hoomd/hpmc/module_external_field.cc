@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #include <hoomd/extern/pybind/include/pybind11/pybind11.h>
@@ -32,7 +32,7 @@
 namespace py = pybind11;
 
 namespace hpmc{
-// NOTE: I am only exporting 3d shapes for now beacuse I think the 2d ones need some tweaking (how to do this generally?)
+// NOTE: I am only exporting 3d shapes for now because I think the 2d ones need some tweaking (how to do this generally?)
 
 SphereWall make_sphere_wall(Scalar r, py::list origin, bool inside)
     {

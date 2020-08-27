@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -15,7 +15,7 @@
 
 /*! \file EvaluatorPairForceShiftedLJ.h
     \brief Defines the pair evaluator class for LJ potentials
-    \details As the prototypical example of a MD pair potential, this also serves as the primary documetnation and
+    \details As the prototypical example of a MD pair potential, this also serves as the primary documentation and
     base reference for the implementation of pair evaluators.
 */
 
@@ -50,7 +50,7 @@ class EvaluatorPairForceShiftedLJ
         typedef Scalar2 param_type;
 
         //! Constructs the pair potential evaluator
-        /*! \param _rsq Squared distance beteen the particles
+        /*! \param _rsq Squared distance between the particles
             \param _rcutsq Squared distance at which the potential and the force go to 0
             \param _params Per type pair parameters of this potential
         */
@@ -82,7 +82,7 @@ class EvaluatorPairForceShiftedLJ
             \note There is no need to check if rsq < rcutsq in this method. Cutoff tests are performed
                   in PotentialPair.
 
-            \return True if they are evaluated or false if they are not because we are beyond the cuttoff
+            \return True if they are evaluated or false if they are not because we are beyond the cutoff
         */
         DEVICE bool evalForceAndEnergy(Scalar& force_divr, Scalar& pair_eng, bool energy_shift)
             {
@@ -121,6 +121,11 @@ class EvaluatorPairForceShiftedLJ
         static std::string getName()
             {
             return std::string("force_shift_lj");
+            }
+
+        std::string getShapeSpec() const
+            {
+            throw std::runtime_error("Shape definition not supported for this pair potential.");
             }
         #endif
 

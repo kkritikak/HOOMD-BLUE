@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -30,7 +30,7 @@ SystemDefinition::SystemDefinition()
     \param n_types Number of particle types to set
     \param n_bond_types Number of bond types to create
     \param n_angle_types Number of angle types to create
-    \param n_dihedral_types Number of diehdral types to create
+    \param n_dihedral_types Number of dihedral types to create
     \param n_improper_types Number of improper types to create
     \param exec_conf The ExecutionConfiguration HOOMD is to be run on
 

@@ -50,6 +50,7 @@ set(TEST_LIST_CPU
     ignore_flag.py
     move_by_type.py
     shape_union.py
+    test_general_polyhedron.py
     create_shapes.py
     image-list.py
     test_sdf.py
@@ -64,10 +65,13 @@ set(TEST_LIST_CPU
     hpmc_gsd_state.py
     faceted_sphere.py
     test_clusters.py
+    test_overlap.py
+    get_type_shapes.py
+    test_hpmc_shape_spec.py
     )
 
 if (BUILD_JIT)
-    list(APPEND TEST_LIST_CPU enthalpic_interaction.py)
+    list(APPEND TEST_LIST_CPU enthalpic_interaction.py test_jit_external_field.py)
 endif()
 
 set(TEST_LIST_GPU
@@ -82,6 +86,7 @@ set(TEST_LIST_GPU
     shape_proxy.py
     faceted_sphere.py
     test_clusters.py
+    test_general_polyhedron.py
     )
 
 set(EXCLUDE_FROM_MPI
@@ -97,6 +102,8 @@ set(EXCLUDE_FROM_MPI
     map_overlap.py
     shape_union.py
     enthalpic_interaction.py
+    test_general_polyhedron.py
+    test_overlap.py
    )
 
 set(MPI_ONLY

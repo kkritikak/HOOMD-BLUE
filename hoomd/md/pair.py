@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 R""" Pair potentials.
@@ -9,7 +9,7 @@ can be defined in a single simulation. The net force on each particle due to
 all types of pair forces is summed.
 
 Pair forces require that parameters be set for each unique type pair. Coefficients
-are set through the aid of the :py:class:`coeff` class. To set this coefficients, specify
+are set through the aid of the :py:class:`coeff` class. To set these coefficients, specify
 a pair force and save it in a variable::
 
     my_force = pair.some_pair_force(arguments...)
@@ -34,7 +34,7 @@ import hoomd;
 
 import math;
 import sys;
-
+import json;
 from collections import OrderedDict
 
 class coeff:
@@ -191,7 +191,7 @@ class coeff:
 
         # update each of the values provided
         if len(coeffs) == 0:
-            hoomd.context.msg.error("No coefficents specified\n");
+            hoomd.context.msg.error("No coefficients specified\n");
         for name, val in coeffs.items():
             self.values[cur_pair][name] = val;
 
@@ -331,7 +331,7 @@ class pair(force._force):
     systems. The WCA potential and it's first derivative already go smoothly to 0 at the cutoff, so there is no need
     to apply the smoothing function. In such mixed systems, set :math:`r_{\mathrm{on}}` to a value greater than
     :math:`r_{\mathrm{cut}}` for those pairs that interact via WCA in order to enable shifting of the WCA potential
-    to 0 at the cuttoff.
+    to 0 at the cutoff.
 
     The following coefficients must be set per unique pair of particle types. See :py:mod:`hoomd.md.pair` for information
     on how to set coefficients:
@@ -364,7 +364,7 @@ class pair(force._force):
             r_cut = -1.0
         self.global_r_cut = r_cut;
 
-        # setup the coefficent matrix
+        # setup the coefficient matrix
         self.pair_coeff = coeff();
         self.pair_coeff.set_default_coeff('r_cut', self.global_r_cut);
         self.pair_coeff.set_default_coeff('r_on', self.global_r_cut);
@@ -410,12 +410,12 @@ class pair(force._force):
                 raise RuntimeError("Error changing parameters in pair force");
 
     def process_coeff(self, coeff):
-        hoomd.context.msg.error("Bug in hoomd_script, please report\n");
+        hoomd.context.msg.error("Bug in hoomd, please report\n");
         raise RuntimeError("Error processing coefficients");
 
     def update_coeffs(self):
         coeff_list = self.required_coeffs + ["r_cut", "r_on"];
-        # check that the pair coefficents are valid
+        # check that the pair coefficients are valid
         if not self.pair_coeff.verify(coeff_list):
             hoomd.context.msg.error("Not all pair coefficients are set\n");
             raise RuntimeError("Error updating pair coefficients");
@@ -533,6 +533,30 @@ class pair(force._force):
         # future versions could use np functions to test the assumptions above and raise an error if they occur.
         return self.cpp_force.computeEnergyBetweenSets(tags1, tags2);
 
+    def _connect_gsd_shape_spec(self, gsd):
+        # This is an internal method, and should not be called directly. See gsd.dump_shape() instead
+        if isinstance(gsd, hoomd.dump.gsd) and hasattr(self.cpp_force, "connectGSDShapeSpec"):
+            self.cpp_force.connectGSDShapeSpec(gsd.cpp_analyzer);
+        else:
+            raise NotImplementedError("GSD Schema is not implemented for {}".format(self.__class__.__name__));
+
+    def get_type_shapes(self):
+        """Get all the types of shapes in the current simulation.
+
+        Since this behaves differently for different types of shapes, the
+        default behavior just raises an exception. Subclasses can override this
+        to properly return.
+        """
+        raise NotImplementedError(
+            "You are using a shape type that is not implemented! "
+            "If you want it, please modify the "
+            "hoomd.hpmc.integrate.mode_hpmc.get_type_shapes function.")
+
+    def _return_type_shapes(self):
+        type_shapes = self.cpp_force.getTypeShapesPy();
+        ret = [ json.loads(json_string) for json_string in type_shapes ];
+        return ret;
+
 class lj(pair):
     R""" Lennard-Jones pair potential.
 
@@ -595,7 +619,7 @@ class lj(pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['epsilon', 'sigma', 'alpha'];
         self.pair_coeff.set_default_coeff('alpha', 1.0);
 
@@ -668,7 +692,7 @@ class gauss(pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['epsilon', 'sigma'];
 
     def process_coeff(self, coeff):
@@ -738,7 +762,7 @@ class slj(pair):
         slj.pair_coeff.set('A', 'A', epsilon=1.0)
         slj.pair_coeff.set('A', 'B', epsilon=2.0, r_cut=3.0);
         slj.pair_coeff.set('B', 'B', epsilon=1.0, r_cut=2**(1.0/6.0));
-        slj.pair_coeff.set(['A', 'B'], ['C', 'D'], espilon=2.0)
+        slj.pair_coeff.set(['A', 'B'], ['C', 'D'], epsilon=2.0)
 
     """
     def __init__(self, r_cut, nlist, d_max=None, name=None):
@@ -859,7 +883,7 @@ class yukawa(pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['epsilon', 'kappa'];
 
     def process_coeff(self, coeff):
@@ -879,7 +903,7 @@ class ewald(pair):
 
         \begin{eqnarray*}
          V_{\mathrm{ewald}}(r)  = & q_i q_j \left[\mathrm{erfc}\left(\kappa r + \frac{\alpha}{2\kappa}\right) \exp(\alpha r)+
-                                    \mathrm{erfc}\left(\kappa r - \frac{\alpha}{2 \kappa}\right) \exp(-\alpha r) & r < r_{\mathrm{cut}} \\
+                                    \mathrm{erfc}\left(\kappa r - \frac{\alpha}{2 \kappa}\right) \exp(-\alpha r)\right] & r < r_{\mathrm{cut}} \\
                             = & 0 & r \ge r_{\mathrm{cut}} \\
         \end{eqnarray*}
 
@@ -931,7 +955,7 @@ class ewald(pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['kappa','alpha'];
         self.pair_coeff.set_default_coeff('alpha', 0.0);
 
@@ -1009,7 +1033,8 @@ class table(force._force):
             F = 4 * epsilon / r * ( 12 * (sigma / r)**12 - 6 * (sigma / r)**6);
             return (V, F)
 
-        table = pair.table(width=1000)
+        nl = nlist.cell()
+        table = pair.table(width=1000, nlist=nl)
         table.pair_coeff.set('A', 'A', func=lj, rmin=0.8, rmax=3.0, coeff=dict(epsilon=1.5, sigma=1.0))
         table.pair_coeff.set('A', 'B', func=lj, rmin=0.8, rmax=3.0, coeff=dict(epsilon=2.0, sigma=1.2))
         table.pair_coeff.set('B', 'B', func=lj, rmin=0.8, rmax=3.0, coeff=dict(epsilon=0.5, sigma=1.0))
@@ -1037,7 +1062,7 @@ class table(force._force):
         # initialize the base class
         force._force.__init__(self, name);
 
-        # setup the coefficent matrix
+        # setup the coefficient matrix
         self.pair_coeff = coeff();
 
         self.nlist = nlist
@@ -1118,7 +1143,7 @@ class table(force._force):
         return maxrmax;
 
     def update_coeffs(self):
-        # check that the pair coefficents are valid
+        # check that the pair coefficients are valid
         if not self.pair_coeff.verify(["func", "rmin", "rmax", "coeff"]):
             hoomd.context.msg.error("Not all pair coefficients are set for pair.table\n");
             raise RuntimeError("Error updating pair coefficients");
@@ -1270,7 +1295,7 @@ class morse(pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['D0', 'alpha', 'r0'];
 
     def process_coeff(self, coeff):
@@ -1322,7 +1347,7 @@ class dpd(pair):
     and :math:`\theta_{ij}` is a uniformly distributed random number in the range [-1, 1].
 
     :py:class:`dpd` generates random numbers by hashing together the particle tags in the pair, the user seed,
-    and cthe urrent time step index.
+    and the current time step index.
 
     .. attention::
 
@@ -1396,7 +1421,7 @@ class dpd(pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['A', 'gamma'];
 
         # set the seed for dpd thermostat
@@ -1506,7 +1531,7 @@ class dpd_conservative(pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['A'];
 
 
@@ -1636,7 +1661,7 @@ class dpdlj(pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['epsilon','sigma', 'alpha', 'gamma'];
         self.pair_coeff.set_default_coeff('alpha', 1.0);
 
@@ -1702,7 +1727,7 @@ class force_shifted_lj(pair):
     by the subtraction of the value of the force at :math:`r_{\mathrm{cut}}`, such that the force smoothly goes
     to zero at the cut-off. The potential is modified by a linear function. This potential can be used as a substitute
     for :py:class:`lj`, when the exact analytical form of the latter is not required but a smaller cut-off radius is
-    desired for computational efficency. See `Toxvaerd et. al. 2011 <http://dx.doi.org/10.1063/1.3558787>`_
+    desired for computational efficiency. See `Toxvaerd et. al. 2011 <http://dx.doi.org/10.1063/1.3558787>`_
     for a discussion of this potential.
 
     .. math::
@@ -1757,7 +1782,7 @@ class force_shifted_lj(pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['epsilon', 'sigma', 'alpha'];
         self.pair_coeff.set_default_coeff('alpha', 1.0);
 
@@ -2077,7 +2102,7 @@ class mie(pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['epsilon', 'sigma', 'n', 'm'];
 
     def process_coeff(self, coeff):
@@ -2092,8 +2117,19 @@ class mie(pair):
         mie4 = m
         return _hoomd.make_scalar4(mie1, mie2, mie3, mie4);
 
+
+class _shape_dict(dict):
+    """Simple dictionary subclass to improve handling of anisotropic potential
+    shape information."""
+    def __getitem__(self, key):
+        try:
+            return super(_shape_dict, self).__getitem__(key)
+        except KeyError as e:
+            raise KeyError("No shape parameters specified for particle type {}!".format(key)) from e
+
+
 class ai_pair(pair):
-    R""" Generic anisotropic pair potential.
+    R"""Generic anisotropic pair potential.
 
     Users should not instantiate :py:class:`ai_pair` directly. It is a base class that
     provides common features to all anisotropic pair forces. Rather than repeating all of that documentation in a
@@ -2119,7 +2155,7 @@ class ai_pair(pair):
 
         self.global_r_cut = r_cut;
 
-        # setup the coefficent matrix
+        # setup the coefficient matrix
         self.pair_coeff = coeff();
         self.pair_coeff.set_default_coeff('r_cut', self.global_r_cut);
 
@@ -2128,8 +2164,10 @@ class ai_pair(pair):
         self.nlist.subscribe(lambda:self.get_rcut())
         self.nlist.update_rcut()
 
+        self._shape = _shape_dict()
+
     def set_params(self, mode=None):
-        R""" Set parameters controlling the way forces are computed.
+        R"""Set parameters controlling the way forces are computed.
 
         Args:
             mode (str): (if set) Set the mode with which potentials are handled at the cutoff
@@ -2156,9 +2194,21 @@ class ai_pair(pair):
                 hoomd.context.msg.error("Invalid mode\n");
                 raise RuntimeError("Error changing parameters in pair force");
 
+    @property
+    def shape(self):
+        R"""Get or set shape parameters per type.
+
+        In addition to any pair-specific parameters required to characterize a
+        pair potential, individual particles that have anisotropic interactions
+        may also have their own shapes that affect the potentials. General
+        anisotropic pair potentials may set per-particle shapes using this
+        method.
+        """
+        return self._shape
+
     def update_coeffs(self):
         coeff_list = self.required_coeffs + ["r_cut"];
-        # check that the pair coefficents are valid
+        # check that the pair coefficients are valid
         if not self.pair_coeff.verify(coeff_list):
             hoomd.context.msg.error("Not all pair coefficients are set\n");
             raise RuntimeError("Error updating pair coefficients");
@@ -2170,15 +2220,24 @@ class ai_pair(pair):
             type_list.append(hoomd.context.current.system_definition.getParticleData().getNameByType(i));
 
         for i in range(0,ntypes):
+            self._set_cpp_shape(i, type_list[i])
+
             for j in range(i,ntypes):
                 # build a dict of the coeffs to pass to process_coeff
-                coeff_dict = {};
+                coeff_dict = {}
                 for name in coeff_list:
                     coeff_dict[name] = self.pair_coeff.get(type_list[i], type_list[j], name);
 
                 param = self.process_coeff(coeff_dict);
                 self.cpp_force.setParams(i, j, param);
                 self.cpp_force.setRcut(i, j, coeff_dict['r_cut']);
+
+    def _set_cpp_shape(self, type_id, type_name):
+        """Update shape information in C++.
+
+        This method must be implemented by subclasses to generate the
+        appropriate shape structure. The default behavior is to do nothing."""
+        pass
 
 class gb(ai_pair):
     R""" Gay-Berne anisotropic pair potential.
@@ -2260,7 +2319,7 @@ class gb(ai_pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['epsilon', 'lperp', 'lpar'];
 
     def process_coeff(self, coeff):
@@ -2268,7 +2327,20 @@ class gb(ai_pair):
         lperp = coeff['lperp'];
         lpar = coeff['lpar'];
 
-        return _hoomd.make_scalar3(epsilon, lperp, lpar);
+        return _md.make_pair_gb_params(epsilon, lperp, lpar);
+
+    def get_type_shapes(self):
+        """Get all the types of shapes in the current simulation.
+
+        Example:
+
+            >>> my_gb.get_type_shapes()
+            [{'type': 'Ellipsoid', 'a': 1.0, 'b': 1.0, 'c': 1.5}]
+
+        Returns:
+            A list of dictionaries, one for each particle type in the system.
+        """
+        return super(ai_pair, self)._return_type_shapes();
 
 class dipole(ai_pair):
     R""" Screened dipole-dipole interactions.
@@ -2327,7 +2399,7 @@ class dipole(ai_pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        ## setup the coefficent options
+        ## setup the coefficient options
         self.required_coeffs = ['mu', 'A', 'kappa'];
 
         self.pair_coeff.set_default_coeff('A', 1.0)
@@ -2337,9 +2409,7 @@ class dipole(ai_pair):
         A = float(coeff['A']);
         kappa = float(coeff['kappa']);
 
-        params = _hoomd.make_scalar3(mu, A, kappa)
-
-        return params
+        return _md.make_pair_dipole_params(mu, A, kappa);
 
     def set_params(self, *args, **kwargs):
         """ :py:class:`dipole` has no energy shift modes """
@@ -2427,7 +2497,7 @@ class reaction_field(pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['epsilon', 'eps_rf', 'use_charge'];
         self.pair_coeff.set_default_coeff('use_charge', False)
 
@@ -2522,7 +2592,7 @@ class DLVO(pair):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs = ['kappa', 'Z', 'A'];
 
     def process_coeff(self, coeff):
@@ -2545,35 +2615,19 @@ class square_density(pair):
 
     The self energy per particle takes the form
 
-    .. math::
-        :nowrap:
-
-        \begin{equation}
-        \Psi^{ex} = B (\rho - A)^2
-        \end{equation}
+    .. math:: \Psi^{ex} = B (\rho - A)^2
 
     which gives a pair-wise additive, three-body force
 
-    .. math::
-        \begin{equation}
-        \vec f_{ij} = \left\{B (n_i - A) + B (n_j - A)\right\} w'_{ij} \vec e_{ij}
-        \end{equation}
+    .. math:: \vec{f}_{ij} = \left( B (n_i - A) + B (n_j - A) \right) w'_{ij} \vec{e}_{ij}
 
     Here, :math:`w_{ij}` is a quadratic, normalized weighting function,
 
-    .. math::
-        :nowrap:
+    .. math:: w(x) = \frac{15}{2 \pi r_{c,\mathrm{weight}}^3} (1-r/r_{c,\mathrm{weight}})^2
 
-        \begin{equation}
-        w(x) = \frac{15}{2 \pi r_{c,\mathrm{weight}}^3} (1-r/r_{c,\mathrm{weight}})^2
-        \end{equation}
+    The local density at the location of particle *i* is defined as
 
-    The local density at the location of particle $i$ is defined as
-
-    .. math::
-        \begin{equation}
-        n_i = \sum\limits_{j\neq i} w_{ij}\left(\big| \vec r_i - \vec r_j \big|\right)
-        \end{equation}
+    .. math:: n_i = \sum\limits_{j\neq i} w_{ij}\left(\big| \vec r_i - \vec r_j \big|\right)
 
     The following coefficients must be set per unique pair of particle types:
 
@@ -2642,7 +2696,7 @@ class buckingham(pair):
 
         \begin{eqnarray*}
         V_{\mathrm{Buckingham}}(r)  = & A \exp\left(-\frac{r}{\rho}\right) -
-                          \frac{C}{r} & r < r_{\mathrm{cut}} \\
+                          \frac{C}{r^6} & r < r_{\mathrm{cut}} \\
                             = & 0 & r \ge r_{\mathrm{cut}} \\
         \end{eqnarray*}
 
@@ -2653,7 +2707,7 @@ class buckingham(pair):
 
     - :math:`A` - *A* (in energy units)
     - :math:`\rho` - *rho* (in distance units)
-    - :math:`\C` - *C* (in energy/distance units )
+    - :math:`C` - *C* (in energy * distance**6 units )
     - :math:`r_{\mathrm{cut}}` - *r_cut* (in distance units)
       - *optional*: defaults to the global r_cut specified in the pair command
     - :math:`r_{\mathrm{on}}`- *r_on* (in distance units)
@@ -2779,3 +2833,82 @@ class lj1208(pair):
         lj1 = 4.0 * epsilon * math.pow(sigma, 12.0);
         lj2 = alpha * 4.0 * epsilon * math.pow(sigma, 8.0);
         return _hoomd.make_scalar2(lj1, lj2);
+
+class fourier(pair):
+    R""" Fourier pair potential.
+
+    Args:
+        r_cut (float): Default cutoff radius (in distance units).
+        nlist (:py:mod:`hoomd.md.nlist`): Neighbor list
+        name (str): Name of the force instance.
+
+    :py:class:`fourier` specifies that a fourier series form potential.
+
+    .. math::
+        :nowrap:
+
+        \begin{eqnarray*}
+        V_{\mathrm{Fourier}}(r) = & \frac{1}{r^{12}} + \frac{1}{r^2}\sum_{n=1}^4 [a_n cos(\frac{n \pi r}{r_{cut}}) + b_n sin(\frac{n \pi r}{r_{cut}})] & r < r_{\mathrm{cut}}  \\
+                                = & 0 & r \ge r_{\mathrm{cut}} \\
+        \end{eqnarray*}
+
+        where:
+        \begin{eqnarray*}
+        a_1 = \sum_{n=2}^4 (-1)^n a_n cos(\frac{n \pi r}{r_{cut}})
+        \end{eqnarray*}
+
+        \begin{eqnarray*}
+        b_1 = \sum_{n=2}^4 n (-1)^n b_n cos(\frac{n \pi r}{r_{cut}})
+        \end{eqnarray*}
+
+        is calculated to enforce close to zero value at r_cut.
+
+    See :py:class:`pair` for details on how forces are calculated and the available energy shifting and smoothing modes.
+    Use :py:meth:`pair_coeff.set <coeff.set>` to set potential coefficients.
+
+    The following coefficients must be set per unique pair of particle types:
+
+    - :math:`a` - *a* (array of 3 values corresponding to a2, a3 and a4 in the Fourier series, unitless)
+    - :math:`a` - *b* (array of 3 values corresponding to b2, b3 and b4 in the Fourier series, unitless)
+    - :math:`r_{\mathrm{cut}}` - *r_cut* (in distance units)
+      - *optional*: defaults to the global r_cut specified in the pair command
+    - :math:`r_{\mathrm{on}}`- *r_on* (in distance units)
+      - *optional*: defaults to the global r_cut specified in the pair command
+
+    Example::
+
+        nl = nlist.cell()
+        fourier = pair.fourier(r_cut=3.0, nlist=nl)
+        fourier.pair_coeff.set('A', 'A', a=[a2,a3,a4], b=[b2,b3,b4])
+    """
+
+    def __init__(self, r_cut, nlist, name=None):
+
+        hoomd.util.print_status_line();
+
+        # tell the base class how we operate
+
+        # initialize the base class
+        pair.__init__(self, r_cut, nlist, name);
+
+        # create the c++ mirror class
+        if not hoomd.context.exec_conf.isCUDAEnabled():
+            self.cpp_force = _md.PotentialPairFourier(hoomd.context.current.system_definition, self.nlist.cpp_nlist, self.name);
+            self.cpp_class = _md.PotentialPairFourier;
+        else:
+            self.nlist.cpp_nlist.setStorageMode(_md.NeighborList.storageMode.full);
+            self.cpp_force = _md.PotentialPairFourierGPU(hoomd.context.current.system_definition, self.nlist.cpp_nlist, self.name);
+            self.cpp_class = _md.PotentialPairFourierGPU;
+
+        hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
+
+        # setup the coefficent options
+
+        self.required_coeffs = ['fourier_a','fourier_b'];
+        # self.pair_coeff.set_default_coeff('alpha', 1.0);
+
+    def process_coeff(self, coeff):
+        fourier_a = coeff['fourier_a'];
+        fourier_b = coeff['fourier_b'];
+
+        return _md.make_pair_fourier_params(fourier_a,fourier_b);

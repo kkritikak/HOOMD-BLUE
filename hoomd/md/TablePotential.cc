@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -44,10 +44,32 @@ TablePotential::TablePotential(std::shared_ptr<SystemDefinition> sysdef,
 
     // allocate storage for the tables and parameters
     Index2DUpperTriangular table_index(m_ntypes);
-    GPUArray<Scalar2> tables(m_table_width, table_index.getNumElements(), m_exec_conf);
+    GlobalArray<Scalar2> tables(m_table_width, table_index.getNumElements(), m_exec_conf);
     m_tables.swap(tables);
-    GPUArray<Scalar4> params(table_index.getNumElements(), m_exec_conf);
+    TAG_ALLOCATION(m_tables);
+
+    GlobalArray<Scalar4> params(table_index.getNumElements(), m_exec_conf);
     m_params.swap(params);
+    TAG_ALLOCATION(m_params);
+
+    #ifdef ENABLE_CUDA
+    if (m_exec_conf->isCUDAEnabled() && m_exec_conf->allConcurrentManagedAccess())
+        {
+        cudaMemAdvise(m_tables.get(), m_tables.getNumElements()*sizeof(Scalar2), cudaMemAdviseSetReadMostly, 0);
+        cudaMemAdvise(m_params.get(), m_params.getNumElements()*sizeof(Scalar4), cudaMemAdviseSetReadMostly, 0);
+
+        // prefetch
+        auto& gpu_map = m_exec_conf->getGPUIds();
+
+        for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
+            {
+            // prefetch data on all GPUs
+            cudaMemPrefetchAsync(m_tables.get(), sizeof(Scalar2)*m_tables.getNumElements(), gpu_map[idev]);
+            cudaMemPrefetchAsync(m_params.get(), sizeof(Scalar4)*m_params.getNumElements(), gpu_map[idev]);
+            }
+        CHECK_CUDA_ERROR();
+        }
+    #endif
 
     assert(!m_tables.isNull());
     assert(!m_params.isNull());
@@ -73,16 +95,38 @@ void TablePotential::slotNumTypesChange()
 
     // skip the reallocation if the number of types does not change
     // this keeps old parameters when restoring a snapshot
-    // it will result in invalid coeficients if the snapshot has a different type id -> name mapping
+    // it will result in invalid coefficients if the snapshot has a different type id -> name mapping
     if (m_ntypes*(m_ntypes+1)/2 == m_params.getNumElements())
         return;
 
     // allocate storage for the tables and parameters
     Index2DUpperTriangular table_index(m_ntypes);
-    GPUArray<Scalar2> tables(m_table_width, table_index.getNumElements(), m_exec_conf);
+    GlobalArray<Scalar2> tables(m_table_width, table_index.getNumElements(), m_exec_conf);
     m_tables.swap(tables);
-    GPUArray<Scalar4> params(table_index.getNumElements(), m_exec_conf);
+    TAG_ALLOCATION(m_tables);
+
+    GlobalArray<Scalar4> params(table_index.getNumElements(), m_exec_conf);
     m_params.swap(params);
+    TAG_ALLOCATION(m_params);
+
+    #ifdef ENABLE_CUDA
+    if (m_exec_conf->isCUDAEnabled() && m_exec_conf->allConcurrentManagedAccess())
+        {
+        cudaMemAdvise(m_tables.get(), m_tables.getNumElements()*sizeof(Scalar2), cudaMemAdviseSetReadMostly, 0);
+        cudaMemAdvise(m_params.get(), m_params.getNumElements()*sizeof(Scalar4), cudaMemAdviseSetReadMostly, 0);
+
+        // prefetch
+        auto& gpu_map = m_exec_conf->getGPUIds();
+
+        for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
+            {
+            // prefetch data on all GPUs
+            cudaMemPrefetchAsync(m_tables.get(), sizeof(Scalar2)*m_tables.getNumElements(), gpu_map[idev]);
+            cudaMemPrefetchAsync(m_params.get(), sizeof(Scalar4)*m_params.getNumElements(), gpu_map[idev]);
+            }
+        CHECK_CUDA_ERROR();
+        }
+    #endif
 
     assert(!m_tables.isNull());
     assert(!m_params.isNull());
@@ -94,9 +138,9 @@ void TablePotential::slotNumTypesChange()
     \param F Table for the potential F (must be - dV / dr)
     \param rmin Minimum r in the potential
     \param rmax Maximum r in the potential
-    \post Values from \a V and \a F are copied into the interal storage for type pair (typ1, typ2)
+    \post Values from \a V and \a F are copied into the internal storage for type pair (typ1, typ2)
     \note There is no need to call this again for typ2,typ1
-    \note See TablePotential for a detailed definiton of rmin and rmax
+    \note See TablePotential for a detailed definition of rmin and rmax
 */
 void TablePotential::setTable(unsigned int typ1,
                               unsigned int typ2,

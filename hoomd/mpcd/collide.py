@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: mphoward
@@ -163,7 +163,7 @@ class _collision_method(hoomd.meta._metadata):
 
 
 class at(_collision_method):
-    """ Andersen thermostat method
+    r""" Andersen thermostat method
 
     Args:
         seed (int): Seed to the collision method random number generator (must be positive)
@@ -219,10 +219,9 @@ class at(_collision_method):
             collide_class = _mpcd.ATCollisionMethodGPU
             thermo_class = _mpcd.CellThermoComputeGPU
 
-        # create an auxilliary thermo compute and disable logging on it
+        # create an auxiliary thermo compute and disable logging on it
         if hoomd.context.current.mpcd._at_thermo is None:
             rand_thermo = thermo_class(hoomd.context.current.mpcd.data)
-            rand_thermo.enableLogging(False)
             hoomd.context.current.system.addCompute(rand_thermo, "mpcd_at_thermo")
             hoomd.context.current.mpcd._at_thermo = rand_thermo
 
@@ -265,7 +264,7 @@ class at(_collision_method):
             self._cpp.setTemperature(self.kT.cpp_variant)
 
 class srd(_collision_method):
-    """ Stochastic rotation dynamics method
+    r""" Stochastic rotation dynamics method
 
     Args:
         seed (int): Seed to the collision method random number generator (must be positive)

@@ -4,13 +4,13 @@
 ## Find CUDA
 # If CUDA is enabled, set it up
 if (ENABLE_CUDA)
-	find_package(CUDA 7.0 REQUIRED)
+    find_package(CUDA 8.0 REQUIRED)
     find_package(Thrust 1.5.0 REQUIRED)
 
     # first thrust, then CUDA (to allow for local thrust installation
     # that overrides CUDA toolkit)
     include_directories(${THRUST_INCLUDE_DIR})
-	include_directories(${CUDA_INCLUDE_DIRS})
+    include_directories(${CUDA_INCLUDE_DIRS})
 
     get_directory_property(DIRS INCLUDE_DIRECTORIES SYSTEM)
     # hide some variables users don't need to see
@@ -24,6 +24,13 @@ if (ENABLE_CUDA)
     mark_as_advanced(CUDA_dl_LIBRARY)
     mark_as_advanced(CUDA_rt_LIBRARY)
     mark_as_advanced(THRUST_INCLUDE_DIR)
+
+    # make sure the cudadevrt library has been found (needed in old FindCUDA)
+    if (NOT CUDA_cudadevrt_LIBRARY)
+        get_filename_component(CUDA_LIB_PATH ${CUDA_CUDART_LIBRARY} DIRECTORY)
+        find_library(CUDA_cudadevrt_LIBRARY cudadevrt PATHS ${CUDA_LIB_PATH} NO_DEFAULT_PATH)
+        mark_as_advanced(CUDA_cudadevrt_LIBRARY)
+    endif (NOT CUDA_cudadevrt_LIBRARY)
 
     if (ENABLE_NVTOOLS)
         find_library(CUDA_nvToolsExt_LIBRARY
@@ -41,31 +48,32 @@ endif (ENABLE_CUDA)
 
 # setup CUDA compile options
 if (ENABLE_CUDA)
+    # supress warnings in random123
+    list(APPEND CUDA_NVCC_FLAGS "-Xcudafe;--diag_suppress=code_is_unreachable")
+
     # setup nvcc to build for all CUDA architectures. Allow user to modify the list if desired
     if (CUDA_VERSION VERSION_GREATER 8.99)
-        set(CUDA_ARCH_LIST 30 35 50 60 70 CACHE STRING "List of target sm_ architectures to compile CUDA code for. Separate with semicolons.")
+        set(CUDA_ARCH_LIST 35 50 60 70 CACHE STRING "List of target sm_ architectures to compile CUDA code for. Separate with semicolons.")
     elseif (CUDA_VERSION VERSION_GREATER 7.99)
-        set(CUDA_ARCH_LIST 30 35 50 60 CACHE STRING "List of target sm_ architectures to compile CUDA code for. Separate with semicolons.")
-    elseif (CUDA_VERSION VERSION_GREATER 6.99)
-        set(CUDA_ARCH_LIST 30 35 50 CACHE STRING "List of target sm_ architectures to compile CUDA code for. Separate with semicolons.")
+        set(CUDA_ARCH_LIST 35 50 60 CACHE STRING "List of target sm_ architectures to compile CUDA code for. Separate with semicolons.")
     endif()
 
     foreach(_cuda_arch ${CUDA_ARCH_LIST})
         list(APPEND CUDA_NVCC_FLAGS "-gencode=arch=compute_${_cuda_arch},code=sm_${_cuda_arch}")
     endforeach (_cuda_arch)
 
-    # need to know the minumum supported CUDA_ARCH
+    # need to know the minimum supported CUDA_ARCH
     set(_cuda_arch_list_sorted ${CUDA_ARCH_LIST})
     list(SORT _cuda_arch_list_sorted)
     list(GET _cuda_arch_list_sorted 0 _cuda_min_arch)
     list(GET _cuda_arch_list_sorted -1 _cuda_max_arch)
     add_definitions(-DCUDA_ARCH=${_cuda_min_arch})
 
-    if (_cuda_min_arch LESS 30)
-        message(SEND_ERROR "HOOMD requires compute 3.0 or newer")
+    if (_cuda_min_arch LESS 35)
+        message(SEND_ERROR "HOOMD requires compute 3.5 or newer")
     endif ()
 
-    # only generage ptx code for the maximum supported CUDA_ARCH (saves on file size)
+    # only generate ptx code for the maximum supported CUDA_ARCH (saves on file size)
     list(REVERSE _cuda_arch_list_sorted)
     list(GET _cuda_arch_list_sorted 0 _cuda_max_arch)
     list(APPEND CUDA_NVCC_FLAGS "-gencode=arch=compute_${_cuda_max_arch},code=compute_${_cuda_max_arch}")
@@ -82,28 +90,17 @@ endif (ENABLE_CUDA)
 
 # set CUSOLVER_AVAILABLE depending on CUDA Toolkit version
 if (ENABLE_CUDA)
-    if(${CUDA_VERSION} VERSION_LESS 7.5)
-        set(CUSOLVER_AVAILABLE FALSE)
-    elseif(${CUDA_VERSION} VERSION_LESS 8.0)
-        # CUDA 7.5 has a functioning cusolver, if cmake found it
-        if (NOT ${CUDA_cusolver_LIBRARY} STREQUAL "")
-            set(CUSOLVER_AVAILABLE TRUE)
-        else()
-            set(CUSOLVER_AVAILABLE FALSE)
-        endif()
-    else()
-        # CUDA 8.0 requires that libgomp be linked in - see if we can link it
-        try_compile(_can_link_gomp
-                    ${CMAKE_CURRENT_BINARY_DIR}/tmp
-                    ${CMAKE_CURRENT_LIST_DIR}/test.cc
-                    LINK_LIBRARIES gomp
-                   )
+    # CUDA 8.0 requires that libgomp be linked in - see if we can link it
+    try_compile(_can_link_gomp
+                ${CMAKE_CURRENT_BINARY_DIR}/tmp
+                ${CMAKE_CURRENT_LIST_DIR}/test.cc
+                LINK_LIBRARIES gomp
+               )
 
-        if (NOT ${CUDA_cusolver_LIBRARY} STREQUAL "" AND _can_link_gomp)
-            set(CUSOLVER_AVAILABLE TRUE)
-        else()
-            set(CUSOLVER_AVAILABLE FALSE)
-        endif()
+    if (NOT ${CUDA_cusolver_LIBRARY} STREQUAL "" AND _can_link_gomp)
+        set(CUSOLVER_AVAILABLE TRUE)
+    else()
+        set(CUSOLVER_AVAILABLE FALSE)
     endif()
 
 if (NOT CUSOLVER_AVAILABLE)

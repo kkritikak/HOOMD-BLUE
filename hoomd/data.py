@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: joaander
@@ -247,7 +247,7 @@ and can change it::
 **All** particles must **always** remain inside the box. If a box is set in this way such that a particle ends up outside of the box, expect
 errors to be thrown or for hoomd to just crash. The dimensionality of the system cannot change after initialization.
 
-.. rubric:: Particle properties<
+.. rubric:: Particle properties
 
 For a list of all particle properties that can be read and/or set, see :py:class:`hoomd.data.particle_data_proxy`.
 The examples here only demonstrate changing a few of them.
@@ -348,7 +348,7 @@ of type 'A', do::
         if p.type == 'A'
             tags.append(p.tag)
 
-Then remove each of the bonds by their unique tag::
+Then remove each of the particles by their unique tag::
 
     for t in tags:
         system.particles.remove(t)
@@ -366,7 +366,7 @@ particles of type A to 0::
     for p in groupA:
         p.velocity = (0,0,0)
 
-.. rubric:: Bond Data<
+.. rubric:: Bond Data
 
 Bonds may be added at any time in the job script::
 
@@ -444,7 +444,7 @@ To add a constraint of length 1.5 between particles 0 and 1::
 
 To remove it again::
 
-    >>> system.contraints.remove(t)
+    >>> system.constraints.remove(t)
 
 .. rubric:: Forces
 
@@ -519,17 +519,17 @@ class boxdim(hoomd.meta._metadata):
         volume (float): Scale the given box dimensions up to the this volume (area if dimensions=2)
 
     Simulation boxes in hoomd are specified by six parameters, *Lx*, *Ly*, *Lz*, *xy*, *xz* and *yz*. For full details,
-    see TODO: ref page. A boxdim provides a way to specify all six parameters for a given box and perform some common
+    see :ref:`boxdim`. A boxdim provides a way to specify all six parameters for a given box and perform some common
     operations with them. Modifying a boxdim does not modify the underlying simulation box in hoomd. A boxdim can be passed
-    to an initialization method or to assigned to a saved sysdef variable (`system.box = new_box`) to set the simulation
+    to an initialization method or to assigned to a saved sysdef variable (``system.box = new_box``) to set the simulation
     box.
 
     Access attributes directly::
 
-        b = data.boxdim(L=20);
-        b.xy = 1.0;
-        b.yz = 0.5;
-        b.Lz = 40;
+        b = data.boxdim(L=20)
+        b.xy = 1.0
+        b.yz = 0.5
+        b.Lz = 40
 
 
     .. rubric:: Two dimensional systems
@@ -543,18 +543,17 @@ class boxdim(hoomd.meta._metadata):
 
     .. rubric:: Shorthand notation
 
-    data.boxdim accepts the keyword argument *L=x* as shorthand notation for `Lx=x, Ly=x, Lz=x` in 3D
-    and `Lx=x, Ly=z, Lz=1` in 2D. If you specify both `L=` and `Lx,Ly, or Lz`, then the value for `L` will override
+    data.boxdim accepts the keyword argument ``L=x`` as shorthand notation for ``Lx=x, Ly=x, Lz=x`` in 3D
+    and ``Lx=x, Ly=x, Lz=1`` in 2D. If you specify both ``L`` and ``Lx``, ``Ly``, or ``Lz``, then the value for ``L`` will override
     the others.
 
     Examples:
 
-    * Cubic box with given volume: `data.boxdim(volume=V)`
-    * Triclinic box in 2D with given area: `data.boxdim(xy=1.0, dimensions=2, volume=A)`
-    * Rectangular box in 2D with given area and aspect ratio: `data.boxdim(Lx=1, Ly=aspect, dimensions=2, volume=A)`
-    * Cubic box with given length: `data.boxdim(L=10)`
-    * Fully define all box parameters: `data.boxdim(Lx=10, Ly=20, Lz=30, xy=1.0, xz=0.5, yz=0.1)`
-
+    * Cubic box with given volume: ``data.boxdim(volume=V)``
+    * Triclinic box in 2D with given area: ``data.boxdim(xy=1.0, dimensions=2, volume=A)``
+    * Rectangular box in 2D with given area and aspect ratio: ``data.boxdim(Lx=1, Ly=aspect, dimensions=2, volume=A)``
+    * Cubic box with given length: ``data.boxdim(L=10)``
+    * Fully define all box parameters: ``data.boxdim(Lx=10, Ly=20, Lz=30, xy=1.0, xz=0.5, yz=0.1)``
     """
     def __init__(self, Lx=1.0, Ly=1.0, Lz=1.0, xy=0.0, xz=0.0, yz=0.0, dimensions=3, L=None, volume=None):
         if L is not None:
@@ -734,7 +733,7 @@ class system_data(hoomd.meta._metadata):
         particles (:py:class:`hoomd.data.particle_data_proxy`)
         bonds (:py:class:`hoomd.data.bond_data_proxy`)
         angles (:py:class:`hoomd.data.angle_data_proxy`)
-        diehdrals (:py:class:`hoomd.data.dihedral_data_proxy`)
+        dihedrals (:py:class:`hoomd.data.dihedral_data_proxy`)
         impropers (:py:class:`hoomd.data.dihedral_data_proxy`)
         constraint (:py:class:`hoomd.data.constraint_data_proxy`)
         pairs (:py:class:`hoomd.data.bond_data_proxy`)
@@ -873,7 +872,7 @@ class system_data(hoomd.meta._metadata):
 
         Example use cases in which a simulation may be restarted from a snapshot include python-script-level
         Monte-Carlo schemes, where the system state is stored after a move has been accepted (according to
-        some criterium), and where the system is re-initialized from that same state in the case
+        some criterion), and where the system is re-initialized from that same state in the case
         when a move is not accepted.
 
         Example::
@@ -894,6 +893,20 @@ class system_data(hoomd.meta._metadata):
 
         """
         hoomd.util.print_status_line();
+
+        if hoomd.comm.get_rank() == 0:
+            if snapshot.has_particle_data and len(snapshot.particles.types) != self.sysdef.getParticleData().getNTypes():
+                raise RuntimeError("Number of particle types must remain the same")
+            if snapshot.has_bond_data and len(snapshot.bonds.types) != self.sysdef.getBondData().getNTypes():
+                raise RuntimeError("Number of bond types must remain the same")
+            if snapshot.has_angle_data and len(snapshot.angles.types) != self.sysdef.getAngleData().getNTypes():
+                raise RuntimeError("Number of angle types must remain the same")
+            if snapshot.has_dihedral_data and len(snapshot.dihedrals.types) != self.sysdef.getDihedralData().getNTypes():
+                raise RuntimeError("Number of dihedral types must remain the same")
+            if snapshot.has_improper_data and len(snapshot.impropers.types) != self.sysdef.getImproperData().getNTypes():
+                raise RuntimeError("Number of dihedral types must remain the same")
+            if snapshot.has_pair_data and len(snapshot.pairs.types) != self.sysdef.getPairData().getNTypes():
+                raise RuntimeError("Number of pair types must remain the same")
 
         self.sysdef.initializeFromSnapshot(snapshot);
 
@@ -1008,7 +1021,7 @@ class pdata_types_proxy(object):
         return result
 
     ## \internal
-    # \brief Return an interator
+    # \brief Return an iterator
     def __iter__(self):
         return pdata_types_proxy.pdata_types_iterator(self);
 
@@ -1149,7 +1162,7 @@ class particle_data_proxy(object):
     See :py:mod:`hoomd.data` for examples.
 
     Attributes:
-        tag (int): A uniqe name for the particle in the system. Tags run from 0 to N-1.
+        tag (int): A unique name for the particle in the system. Tags run from 0 to N-1.
         acceleration (tuple): A 3-tuple of floats (x, y, z). Acceleration is a calculated quantity and cannot be set. (in acceleration units)
         typeid (int): The type id of the particle.
         position (tuple): (x, y, z) (float, in distance units).
@@ -1159,7 +1172,7 @@ class particle_data_proxy(object):
         mass (float): (in mass units).
         diameter (float): (in distance units).
         type (str): Particle type name.
-        body (int): Rigid body id (-1 for free particles).
+        body (int): Body id. -1 for free particles, 0 or larger for rigid bodies, and -2 or lesser for floppy bodies.
         orientation (tuple) : (w,x,y,z) (float, quaternion).
         net_force (tuple): Net force on particle (x, y, z) (float, in force units).
         net_energy (float): Net contribution of particle to the potential energy (in energy units).
@@ -1433,7 +1446,7 @@ class force_data(object):
         return result
 
     ## \internal
-    # \brief Return an interator
+    # \brief Return an iterator
     def __iter__(self):
         return force_data.force_data_iterator(self);
 
@@ -1597,7 +1610,7 @@ class bond_data(hoomd.meta._metadata):
         return result
 
     ## \internal
-    # \brief Return an interator
+    # \brief Return an iterator
     def __iter__(self):
         return bond_data.bond_data_iterator(self);
 
@@ -1733,7 +1746,7 @@ class constraint_data(hoomd.meta._metadata):
         return constraint_data_proxy(self.cdata, tag);
 
     ## \internal
-    # \brief Get a constriant_data_proxy reference to the bond with tag \a tag
+    # \brief Get a constraint_data_proxy reference to the bond with tag \a tag
     # \param tag Bond tag to access
     def get(self, tag):
         if tag > self.cdata.getMaximumTag() or tag < 0:
@@ -1768,7 +1781,7 @@ class constraint_data(hoomd.meta._metadata):
         return result
 
     ## \internal
-    # \brief Return an interator
+    # \brief Return an iterator
     def __iter__(self):
         return constraint_data.constraint_data_iterator(self);
 
@@ -1868,7 +1881,7 @@ class angle_data(hoomd.meta._metadata):
     # \param type Type name of the angle to add
     # \param a Tag of the first particle in the angle
     # \param b Tag of the second particle in the angle
-    # \param c Tag of the thrid particle in the angle
+    # \param c Tag of the third particle in the angle
     # \returns Unique tag identifying this bond
     def add(self, type, a, b, c):
         typeid = self.adata.getTypeByName(type);
@@ -1931,7 +1944,7 @@ class angle_data(hoomd.meta._metadata):
         return result;
 
     ## \internal
-    # \brief Return an interator
+    # \brief Return an iterator
     def __iter__(self):
         return angle_data.angle_data_iterator(self);
 
@@ -2051,7 +2064,7 @@ class dihedral_data(hoomd.meta._metadata):
     # \param type Type name of the dihedral to add
     # \param a Tag of the first particle in the dihedral
     # \param b Tag of the second particle in the dihedral
-    # \param c Tag of the thrid particle in the dihedral
+    # \param c Tag of the third particle in the dihedral
     # \param d Tag of the fourth particle in the dihedral
     # \returns Unique tag identifying this bond
     def add(self, type, a, b, c, d):
@@ -2115,7 +2128,7 @@ class dihedral_data(hoomd.meta._metadata):
         return result;
 
     ## \internal
-    # \brief Return an interator
+    # \brief Return an iterator
     def __iter__(self):
         return dihedral_data.dihedral_data_iterator(self);
 
@@ -2210,16 +2223,16 @@ def set_snapshot_box(snapshot, box):
 ## \internal
 # \brief Broadcast snapshot to all ranks
 def broadcast_snapshot(cpp_snapshot):
-    hoomd.util.print_status_line();
     hoomd.context._verify_init();
+    hoomd.util.print_status_line();
     # broadcast from rank 0
     cpp_snapshot._broadcast(0, hoomd.context.exec_conf);
 
 ## \internal
 # \brief Broadcast snapshot to all ranks
 def broadcast_snapshot_all(cpp_snapshot):
-    hoomd.util.print_status_line();
     hoomd.context._verify_init();
+    hoomd.util.print_status_line();
     # broadcast from rank 0
     cpp_snapshot._broadcast_all(0, hoomd.context.exec_conf);
 
@@ -2319,18 +2332,18 @@ class SnapshotParticleData:
     Attributes:
         N (int): Number of particles in the snapshot
         types (list): List of string type names (assignable)
-        position (ndarray Nx3): numpy array containing the position of each particle (float or double)
-        orientation (ndarray Nx4): numpy array containing the orientation quaternion of each particle (float or double)
-        velocity (ndarray Nx3): numpy array containing the velocity of each particle (float or double)
-        acceleration (ndarray Nx3): numpy array containing the acceleration of each particle (float or double)
-        typeid (ndarray): N length numpy array containing the type id of each particle (32-bit unsigned int)
-        mass (ndarray): N length numpy array containing the mass of each particle (float or double)
-        charge (ndarray): N length numpy array containing the charge of each particle (float or double)
-        diameter (ndarray): N length numpy array containing the diameter of each particle (float or double)
-        image (ndarray Nx3): numpy array containing the image of each particle (32-bit int)
-        body (ndarray): N length numpy array containing the body of each particle (32-bit unsigned int)
-        moment_inertia (ndarray Nx3): numpy array containing the principal moments of inertia of each particle (float or double)
-        angmom (ndarray Nx4): numpy array containing the angular momentum quaternion of each particle (float or double)
+        position (numpy.ndarray): (Nx3) numpy array containing the position of each particle (float or double)
+        orientation (numpy.ndarray): (Nx4) numpy array containing the orientation quaternion of each particle (float or double)
+        velocity (numpy.ndarray): (Nx3) numpy array containing the velocity of each particle (float or double)
+        acceleration (numpy.ndarray): (Nx3) numpy array containing the acceleration of each particle (float or double)
+        typeid (numpy.ndarray): Length N numpy array containing the type id of each particle (32-bit unsigned int)
+        mass (numpy.ndarray): Length N numpy array containing the mass of each particle (float or double)
+        charge (numpy.ndarray): Length N numpy array containing the charge of each particle (float or double)
+        diameter (numpy.ndarray): Length N numpy array containing the diameter of each particle (float or double)
+        image (numpy.ndarray): (Nx3) numpy array containing the image of each particle (32-bit int)
+        body (numpy.ndarray): Length N numpy array containing the body of each particle (32-bit unsigned int). -1 indicates a free particle, and larger negative numbers indicate floppy bodies.
+        moment_inertia (numpy.ndarray): (Nx3) numpy array containing the principal moments of inertia of each particle (float or double)
+        angmom (numpy.ndarray): (Nx4) numpy array containing the angular momentum quaternion of each particle (float or double)
 
     See Also:
         :py:mod:`hoomd.data`

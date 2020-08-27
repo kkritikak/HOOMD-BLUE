@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: joaander / All Developers are free to add commands for new features
@@ -132,7 +132,7 @@ class coeff:
 
         # update each of the values provided
         if len(coeffs) == 0:
-            hoomd.context.msg.error("No coefficents specified\n");
+            hoomd.context.msg.error("No coefficients specified\n");
         for name, val in coeffs.items():
             self.values[type][name] = val;
 
@@ -211,7 +211,7 @@ class harmonic(force._force):
 
     .. math::
 
-        V(r) = \frac{1}{2}k \left( 1 + d \cos\left(n * \phi(r) \right) \right)
+        V(r) = \frac{1}{2}k \left( 1 + d \cos\left(n * \phi(r) - \phi_0 \right) \right)
 
     where :math:`\phi` is angle between two sides of the dihedral.
 
@@ -220,6 +220,7 @@ class harmonic(force._force):
     - :math:`k` - strength of force (in energy units)
     - :math:`d` - sign factor (unitless)
     - :math:`n` - angle scaling factor (unitless)
+    - :math:`\phi_0` - phase shift  ``phi_0`` (in radians) - *optional*: defaults to 0.0
 
     Coefficients :math:`k`, :math:`d`, :math:`n` must be set for each type of dihedral in the simulation using
     :py:meth:`dihedral_coeff.set() <coeff.set()>`.
@@ -227,7 +228,7 @@ class harmonic(force._force):
     Examples::
 
         harmonic.dihedral_coeff.set('phi-ang', k=30.0, d=-1, n=3)
-        harmonic.dihedral_coeff.set('psi-ang', k=100.0, d=1, n=4)
+        harmonic.dihedral_coeff.set('psi-ang', k=100.0, d=1, n=4, phi_0=math.pi/2)
     """
     def __init__(self):
         hoomd.util.print_status_line();
@@ -249,7 +250,8 @@ class harmonic(force._force):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        self.required_coeffs = ['k', 'd', 'n'];
+        self.required_coeffs = ['k', 'd', 'n', 'phi_0'];
+        self.dihedral_coeff.set_default_coeff('phi_0', 0.0);
 
     ## \internal
     # \brief Update coefficients in C++
@@ -272,7 +274,7 @@ class harmonic(force._force):
             for name in coeff_list:
                 coeff_dict[name] = self.dihedral_coeff.get(type_list[i], name);
 
-            self.cpp_force.setParams(i, coeff_dict['k'], coeff_dict['d'], coeff_dict['n']);
+            self.cpp_force.setParams(i, coeff_dict['k'], coeff_dict['d'], coeff_dict['n'], coeff_dict['phi_0']);
 
     ## \internal
     # \brief Get metadata
@@ -327,7 +329,7 @@ class table(force._force):
     .. rubric:: Set a table from a file
 
     When you have no function for for *V* or *T*, or you otherwise have the data listed in a file, dihedral.table can use the given
-    values direcly. You must first specify the number of rows in your tables when initializing :py:class:`table`. Then use
+    values directly. You must first specify the number of rows in your tables when initializing :py:class:`table`. Then use
     :py:meth:`set_from_file()` to read the file.
 
         dtable = dihedral.table(width=1000)
@@ -349,7 +351,7 @@ class table(force._force):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent matrix
+        # setup the coefficient matrix
         self.dihedral_coeff = coeff();
 
         # stash the width for later use
@@ -377,7 +379,7 @@ class table(force._force):
 
 
     def update_coeffs(self):
-        # check that the dihedral coefficents are valid
+        # check that the dihedral coefficients are valid
         if not self.dihedral_coeff.verify(["func", "coeff"]):
             hoomd.context.msg.error("Not all dihedral coefficients are set for dihedral.table\n");
             raise RuntimeError("Error updating dihedral coefficients");

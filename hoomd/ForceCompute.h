@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -6,6 +6,9 @@
 #include "Compute.h"
 #include "Index1D.h"
 #include "ParticleGroup.h"
+
+#include "GlobalArray.h"
+#include "GlobalArray.h"
 
 #ifdef ENABLE_CUDA
 #include "ParticleData.cuh"
@@ -80,6 +83,12 @@ class PYBIND11_EXPORT ForceCompute : public Compute
         //! Sum the potential energy of a group
         Scalar calcEnergyGroup(std::shared_ptr<ParticleGroup> group);
 
+        //! Sum the all forces for a group
+        vec3<double> calcForceGroup(std::shared_ptr<ParticleGroup> group);
+
+        //! Sum all virial terms for a group
+        std::vector<Scalar> calcVirialGroup(std::shared_ptr<ParticleGroup> group);
+
         //! Easy access to the torque on a single particle
         Scalar4 getTorque(unsigned int tag);
 
@@ -93,19 +102,19 @@ class PYBIND11_EXPORT ForceCompute : public Compute
         Scalar getEnergy(unsigned int tag);
 
         //! Get the array of computed forces
-        GPUArray<Scalar4>& getForceArray()
+        GlobalArray<Scalar4>& getForceArray()
             {
             return m_force;
             }
 
         //! Get the array of computed virials
-        GPUArray<Scalar>& getVirialArray()
+        GlobalArray<Scalar>& getVirialArray()
             {
             return m_virial;
             }
 
         //! Get the array of computed torques
-        GPUArray<Scalar4>& getTorqueArray()
+        GlobalArray<Scalar4>& getTorqueArray()
             {
             return m_torque;
             }
@@ -159,19 +168,22 @@ class PYBIND11_EXPORT ForceCompute : public Compute
         //! Reallocate internal arrays
         void reallocate();
 
+        //! Update GPU memory hints
+        void updateGPUAdvice();
+
         Scalar m_deltaT;  //!< timestep size (required for some types of non-conservative forces)
 
-        GPUArray<Scalar4> m_force;            //!< m_force.x,m_force.y,m_force.z are the x,y,z components of the force, m_force.u is the PE
+        GlobalArray<Scalar4> m_force;            //!< m_force.x,m_force.y,m_force.z are the x,y,z components of the force, m_force.u is the PE
 
-        /*! per-particle virial, a 2D GPUArray with width=number
+        /*! per-particle virial, a 2D array with width=number
             of particles and height=6. The elements of the (upper triangular)
             3x3 virial matrix \f$ \left(\mathrm{virial}_{ij}\right),k \f$ for
             particle \f$k\f$ are stored in the rows and are indexed in the
             order xx, xy, xz, yy, yz, zz
          */
-        GPUArray<Scalar>  m_virial;
+        GlobalArray<Scalar>  m_virial;
         unsigned int m_virial_pitch;    //!< The pitch of the 2D virial array
-        GPUArray<Scalar4> m_torque;    //!< per-particle torque
+        GlobalArray<Scalar4> m_torque;    //!< per-particle torque
         int m_nbytes;                   //!< stores the number of bytes of memory allocated
 
         Scalar m_external_virial[6]; //!< Stores external contribution to virial

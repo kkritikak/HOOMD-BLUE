@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -20,7 +20,7 @@ namespace py = pybind11;
 /*! \param sysdef system to compute the cell list of
 */
 CellList::CellList(std::shared_ptr<SystemDefinition> sysdef)
-    : Compute(sysdef),  m_nominal_width(Scalar(1.0)), m_radius(1), m_compute_tdb(false),
+    : Compute(sysdef),  m_nominal_width(Scalar(1.0)), m_radius(1), m_compute_xyzf(true), m_compute_tdb(false),
       m_compute_orientation(false), m_compute_idx(false), m_flag_charge(false), m_flag_type(false), m_sort_cell_list(false),
       m_compute_adj_list(true)
     {
@@ -34,9 +34,14 @@ CellList::CellList(std::shared_ptr<SystemDefinition> sysdef)
     m_box_changed = false;
     m_multiple = 1;
 
-    GPUFlags<uint3> conditions(exec_conf);
-    m_conditions.swap(conditions);
-    resetConditions();
+    GlobalArray<uint3> conditions(1, m_exec_conf);
+    std::swap(m_conditions, conditions);
+
+        {
+        // reset conditions
+        ArrayHandle<uint3> h_conditions(m_conditions, access_location::host, access_mode::overwrite);
+        *h_conditions.data = make_uint3(0,0,0);
+        }
 
     m_actual_width = make_scalar3(0.0,0.0,0.0);
     m_ghost_width = make_scalar3(0.0,0.0,0.0);
@@ -53,7 +58,7 @@ CellList::~CellList()
     }
 
 //! Round down to the nearest multiple
-/*! \param v Value to ound
+/*! \param v Value to round
     \param m Multiple
     \returns \a v if it is a multiple of \a m, otherwise, \a v rounded down to the nearest multiple of \a m.
 */
@@ -75,10 +80,6 @@ uint3 CellList::computeDimensions()
 
     Scalar3 L = box.getNearestPlaneDistance();
 
-    dim.x = roundDown((unsigned int)((L.x) / (m_nominal_width)), m_multiple);
-    dim.y = roundDown((unsigned int)((L.y) / (m_nominal_width)), m_multiple);
-    dim.z = (m_sysdef->getNDimensions() == 3) ? roundDown((unsigned int)((L.z) / (m_nominal_width)), m_multiple) : 1;
-
     // size the ghost layer width
     m_ghost_width = make_scalar3(0.0, 0.0, 0.0);
 #ifdef ENABLE_MPI
@@ -99,24 +100,9 @@ uint3 CellList::computeDimensions()
         }
 #endif
 
-    // expand for ghost width if communicating ghosts
-#ifdef ENABLE_MPI
-    if (m_comm)
-        {
-        const Scalar3 cell_size = make_scalar3(L.x / Scalar(dim.x), L.y / Scalar(dim.y), L.z / Scalar(dim.z));
-
-        // add cells up to the next integer to cover the whole ghost width
-        if (!box.getPeriodic().x)
-            dim.x += static_cast<int>(ceil(m_ghost_width.x/cell_size.x));
-
-        if (!box.getPeriodic().y)
-            dim.y += static_cast<int>(ceil(m_ghost_width.y/cell_size.y));
-
-        if (m_sysdef->getNDimensions() == 3 && !box.getPeriodic().z)
-            dim.z += static_cast<int>(ceil(m_ghost_width.z/cell_size.z));
-        }
-#endif
-
+    dim.x = roundDown((unsigned int)((L.x + 2.0*m_ghost_width.x) / (m_nominal_width)), m_multiple);
+    dim.y = roundDown((unsigned int)((L.y + 2.0*m_ghost_width.y) / (m_nominal_width)), m_multiple);
+    dim.z = (m_sysdef->getNDimensions() == 3) ? roundDown((unsigned int)((L.z + 2.0*m_ghost_width.z) / (m_nominal_width)), m_multiple) : 1;
 
     // In extremely small boxes, the calculated dimensions could go to zero, but need at least one cell in each dimension
     // for particles to be in a cell and to pass the checkCondition tests.
@@ -208,7 +194,7 @@ double CellList::benchmark(unsigned int num_iters)
     {
     ClockSource t;
 
-    // ensure that any changed parameters have been propagaged and memory allocated
+    // ensure that any changed parameters have been propagated and memory allocated
     compute(0);
 
     // warm up run
@@ -292,8 +278,9 @@ void CellList::initializeMemory()
     m_cell_list_indexer = Index2D(m_Nmax, m_cell_indexer.getNumElements());
 
     // allocate memory
-    GPUArray<unsigned int> cell_size(m_cell_indexer.getNumElements(), m_exec_conf);
+    GlobalArray<unsigned int> cell_size(m_cell_indexer.getNumElements(), m_exec_conf);
     m_cell_size.swap(cell_size);
+    TAG_ALLOCATION(m_cell_size);
 
     if (m_compute_adj_list)
         {
@@ -311,54 +298,67 @@ void CellList::initializeMemory()
 
         m_cell_adj_indexer = Index2D(n_adj, m_cell_indexer.getNumElements());
 
-        GPUArray<unsigned int> cell_adj(m_cell_adj_indexer.getNumElements(), m_exec_conf);
+        GlobalArray<unsigned int> cell_adj(m_cell_adj_indexer.getNumElements(), m_exec_conf);
         m_cell_adj.swap(cell_adj);
+        TAG_ALLOCATION(m_cell_adj);
         }
     else
         {
         m_cell_adj_indexer = Index2D();
 
         // array is not needed, discard it
-        GPUArray<unsigned int> cell_adj;
+        GlobalArray<unsigned int> cell_adj;
         m_cell_adj.swap(cell_adj);
         }
 
-    GPUArray<Scalar4> xyzf(m_cell_list_indexer.getNumElements(), m_exec_conf);
-    m_xyzf.swap(xyzf);
+    if (m_compute_xyzf)
+        {
+        GlobalArray<Scalar4> xyzf(m_cell_list_indexer.getNumElements(), m_exec_conf);
+        m_xyzf.swap(xyzf);
+        TAG_ALLOCATION(m_xyzf);
+        }
+    else
+        {
+        GlobalArray<Scalar4> xyzf;
+        m_xyzf.swap(xyzf);
+        }
 
     if (m_compute_tdb)
         {
-        GPUArray<Scalar4> tdb(m_cell_list_indexer.getNumElements(), m_exec_conf);
+        GlobalArray<Scalar4> tdb(m_cell_list_indexer.getNumElements(), m_exec_conf);
         m_tdb.swap(tdb);
+        TAG_ALLOCATION(m_tdb);
         }
     else
         {
         // array is no longer needed, discard it
-        GPUArray<Scalar4> tdb;
+        GlobalArray<Scalar4> tdb;
         m_tdb.swap(tdb);
         }
 
     if (m_compute_orientation)
         {
-        GPUArray<Scalar4> orientation(m_cell_list_indexer.getNumElements(), m_exec_conf);
+        GlobalArray<Scalar4> orientation(m_cell_list_indexer.getNumElements(), m_exec_conf);
         m_orientation.swap(orientation);
+        TAG_ALLOCATION(m_orientation);
         }
     else
         {
         // array is no longer needed, discard it
-        GPUArray<Scalar4> orientation;
+        GlobalArray<Scalar4> orientation;
         m_orientation.swap(orientation);
         }
 
     if (m_compute_idx || m_sort_cell_list)
         {
-        GPUArray<unsigned int> idx(m_cell_list_indexer.getNumElements(), m_exec_conf);
+        GlobalArray<unsigned int> idx(m_cell_list_indexer.getNumElements(), m_exec_conf);
         m_idx.swap(idx);
+        TAG_ALLOCATION(m_idx);
         }
     else
         {
         // array is no longer needed, discard it
-        GPUArray<unsigned int> idx;
+        GlobalArray<unsigned int> idx;
         m_idx.swap(idx);
         }
 
@@ -537,7 +537,11 @@ void CellList::computeCellList()
 
         if (offset < m_Nmax)
             {
-            h_xyzf.data[cli(offset, bin)] = make_scalar4(h_pos.data[n].x, h_pos.data[n].y, h_pos.data[n].z, flag);
+            if (m_compute_xyzf)
+                {
+                h_xyzf.data[cli(offset, bin)] = make_scalar4(h_pos.data[n].x, h_pos.data[n].y, h_pos.data[n].z, flag);
+                }
+
             if (m_compute_tdb)
                 {
                 h_tdb.data[cli(offset, bin)] = make_scalar4(h_pos.data[n].w,
@@ -565,8 +569,11 @@ void CellList::computeCellList()
         h_cell_size.data[bin]++;
         }
 
-    // write out conditions
-    m_conditions.resetFlags(conditions);
+        {
+        // write out conditions
+        ArrayHandle<uint3> h_conditions(m_conditions, access_location::host, access_mode::overwrite);
+        *h_conditions.data = conditions;
+        }
 
     if (m_prof)
         m_prof->pop();
@@ -591,7 +598,8 @@ bool CellList::checkConditions()
         {
         unsigned int n = conditions.y - 1;
         ArrayHandle<unsigned int> h_tag(m_pdata->getTags(), access_location::host, access_mode::read);
-        m_exec_conf->msg->error() << "Particle with unique tag " << h_tag.data[n] << " has NaN for its position." << endl;
+        m_exec_conf->msg->errorAllRanks() << "Particle with unique tag " << h_tag.data[n]
+                                          << " has NaN for its position." << endl;
         throw runtime_error("Error computing cell list");
         }
 
@@ -602,18 +610,19 @@ bool CellList::checkConditions()
         ArrayHandle<Scalar4> h_pos(m_pdata->getPositions(), access_location::host, access_mode::read);
         ArrayHandle<unsigned int> h_tag(m_pdata->getTags(), access_location::host, access_mode::read);
 
-        m_exec_conf->msg->error() <<"Particle with unique tag " << h_tag.data[n] << " is no longer in the simulation box."
-                                  << endl << endl;
-
-        m_exec_conf->msg->error() << "Cartesian coordinates: " << std::endl;
-        m_exec_conf->msg->error() << "x: " << h_pos.data[n].x << " y: " << h_pos.data[n].y << " z: " << h_pos.data[n].z << std::endl;
-        m_exec_conf->msg->error() << "Fractional coordinates: " << std::endl;
         Scalar3 f = m_pdata->getBox().makeFraction(make_scalar3(h_pos.data[n].x, h_pos.data[n].y, h_pos.data[n].z));
-        m_exec_conf->msg->error() << "f.x: " << f.x << " f.y: " << f.y << " f.z: " << f.z << std::endl;
         Scalar3 lo = m_pdata->getBox().getLo();
         Scalar3 hi = m_pdata->getBox().getHi();
-        m_exec_conf->msg->error() << "Local box lo: (" << lo.x << ", " << lo.y << ", " << lo.z << ")" << std::endl;
-        m_exec_conf->msg->error() << "          hi: (" << hi.x << ", " << hi.y << ", " << hi.z << ")" << std::endl;
+
+        m_exec_conf->msg->errorAllRanks()
+           << "Particle with unique tag " << h_tag.data[n]
+           << " is no longer in the simulation box." << std::endl << std::endl
+           << "Cartesian coordinates: " << std::endl
+           << "x: " << h_pos.data[n].x << " y: " << h_pos.data[n].y << " z: " << h_pos.data[n].z << std::endl
+           << "Fractional coordinates: " << std::endl
+           << "f.x: " << f.x << " f.y: " << f.y << " f.z: " << f.z << std::endl
+           << "Local box lo: (" << lo.x << ", " << lo.y << ", " << lo.z << ")" << std::endl
+           << "          hi: (" << hi.x << ", " << hi.y << ", " << hi.z << ")" << std::endl;
         throw runtime_error("Error computing cell list");
         }
 
@@ -622,12 +631,15 @@ bool CellList::checkConditions()
 
 void CellList::resetConditions()
     {
-    m_conditions.resetFlags(make_uint3(0,0,0));
+    // reset conditions
+    ArrayHandle<uint3> h_conditions(m_conditions, access_location::host, access_mode::overwrite);
+    *h_conditions.data = make_uint3(0,0,0);
     }
 
 uint3 CellList::readConditions()
     {
-    return m_conditions.readFlags();
+    ArrayHandle<uint3> h_conditions(m_conditions, access_location::host, access_mode::read);
+    return *h_conditions.data;
     }
 
 /*! Generic statistics that apply to any cell list, Derived classes should
@@ -635,7 +647,7 @@ uint3 CellList::readConditions()
  */
 void CellList::printStats()
     {
-    // return earsly if the notice level is less than 1
+    // return early if the notice level is less than 1
     if (m_exec_conf->msg->getNoticeLevel() < 1)
         return;
 

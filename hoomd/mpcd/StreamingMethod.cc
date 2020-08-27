@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
@@ -42,44 +42,6 @@ mpcd::StreamingMethod::StreamingMethod(std::shared_ptr<mpcd::SystemData> sysdata
 mpcd::StreamingMethod::~StreamingMethod()
     {
     m_exec_conf->msg->notice(5) << "Destroying MPCD StreamingMethod" << std::endl;
-    }
-
-/*!
- * \param timestep Current time to stream
- */
-void mpcd::StreamingMethod::stream(unsigned int timestep)
-    {
-    if (!shouldStream(timestep)) return;
-
-    if (m_prof) m_prof->push("MPCD stream");
-
-    const BoxDim& box = m_mpcd_sys->getCellList()->getCoverageBox();
-
-    ArrayHandle<Scalar4> h_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::readwrite);
-    ArrayHandle<Scalar4> h_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::read);
-
-    for (unsigned int cur_p = 0; cur_p < m_mpcd_pdata->getN(); ++cur_p)
-        {
-        const Scalar4 postype = h_pos.data[cur_p];
-        Scalar3 pos = make_scalar3(postype.x, postype.y, postype.z);
-        const unsigned int type = __scalar_as_int(postype.w);
-
-        const Scalar4 vel_cell = h_vel.data[cur_p];
-        const Scalar3 vel = make_scalar3(vel_cell.x, vel_cell.y, vel_cell.z);
-
-        // propagate the particle to its new position ballistically
-        pos += m_mpcd_dt * vel;
-
-        // wrap and update the position
-        int3 image = make_int3(0,0,0);
-        box.wrap(pos, image);
-
-        h_pos.data[cur_p] = make_scalar4(pos.x, pos.y, pos.z, __int_as_scalar(type));
-        }
-
-    // particles have moved, so the cell cache is no longer valid
-    m_mpcd_pdata->invalidateCellCache();
-    if (m_prof) m_prof->pop();
     }
 
 /*!
@@ -153,5 +115,7 @@ void mpcd::detail::export_StreamingMethod(pybind11::module& m)
     namespace py = pybind11;
     py::class_<mpcd::StreamingMethod, std::shared_ptr<mpcd::StreamingMethod> >(m, "StreamingMethod")
         .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int>())
-        .def("setPeriod", &mpcd::StreamingMethod::setPeriod);
+        .def("setPeriod", &mpcd::StreamingMethod::setPeriod)
+        .def("setField", &mpcd::StreamingMethod::setField)
+        .def("removeField", &mpcd::StreamingMethod::removeField);
     }

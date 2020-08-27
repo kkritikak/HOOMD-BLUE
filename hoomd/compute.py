@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: joaander / All Developers are free to add commands for new features
@@ -113,13 +113,13 @@ class _compute:
 
     def _connect_gsd(self, gsd):
         # This is an internal method, and should not be called directly. See gsd.dump_state() instead
-        if isinstance(gsd, hoomd.dump.gsd) and hasattr(self.cpp_compute, "connectGSDSignal"):
-            self.cpp_compute.connectGSDSignal(gsd.cpp_analyzer, self._gsd_state_name());
+        if isinstance(gsd, hoomd.dump.gsd) and hasattr(self.cpp_compute, "connectGSDStateSignal"):
+            self.cpp_compute.connectGSDStateSignal(gsd.cpp_analyzer, self._gsd_state_name());
         else:
-            raise NotImplementedError("GSD Schema is not implemented for {}".format(cls.__name__));
+            raise NotImplementedError("GSD Schema is not implemented for {}".format(self.__class__.__name__));
 
     def restore_state(self):
-        """ Resore the state information from the file used to initialize the simulations
+        """ Restore the state information from the file used to initialize the simulations
         """
         hoomd.util.print_status_line();
         if isinstance(hoomd.context.current.state_reader, _hoomd.GSDReader) and hasattr(self.cpp_compute, "restoreStateGSD"):

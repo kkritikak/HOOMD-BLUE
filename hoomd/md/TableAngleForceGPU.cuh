@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -30,7 +30,6 @@ cudaError_t gpu_compute_table_angle_forces(Scalar4* d_force,
                                      const Scalar2 *d_tables,
                                      const unsigned int table_width,
                                      const Index2D &table_value,
-                                     const unsigned int block_size,
-                                     const unsigned int compute_capability);
+                                     const unsigned int block_size);
 
 #endif

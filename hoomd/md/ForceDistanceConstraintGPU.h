@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -113,7 +113,7 @@ class ForceDistanceConstraintGPU : public ForceDistanceConstraint
 
         GPUVector<double> m_sparse_val;    //!< Sparse matrix value list
 
-        //! Populate the quantities in the constraint-force equatino
+        //! Populate the quantities in the constraint-force equation
         virtual void fillMatrixVector(unsigned int timestep);
 
         //! Solve the matrix equation

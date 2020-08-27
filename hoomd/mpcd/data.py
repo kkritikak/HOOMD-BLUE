@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: mphoward
@@ -152,7 +152,7 @@ class snapshot(hoomd.meta._metadata):
         This method is intended only to be used with
         :py:meth:`hoomd.data.system_data.replicate()` **prior** to initialization
         of the MPCD system. The MPCD snapshot must be replicated to a size consistent
-        with the system at the time of initialization. An error will be rasied
+        with the system at the time of initialization. An error will be raised
         otherwise.
 
         """
@@ -201,10 +201,6 @@ class system(hoomd.meta._metadata):
                 self.comm = _mpcd.Communicator(self.data)
             else:
                 self.comm = _mpcd.CommunicatorGPU(self.data)
-
-            # ensure system data members get their communicators set now
-            # (why bother deferring until runtime?)
-            self.cell.setMPCDCommunicator(self.comm)
         else:
             self.comm = None
 
@@ -262,7 +258,7 @@ class system(hoomd.meta._metadata):
 
         """
         if cell is not None:
-            self.cell.setCellSize(cell)
+            self.cell.cell_size = cell
 
     def take_snapshot(self, particles=True):
         R""" Takes a snapshot of the current state of the MPCD system

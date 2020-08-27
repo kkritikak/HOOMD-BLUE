@@ -1,8 +1,9 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
 
+#include "utils.h"
 #include "hoomd/mpcd/SRDCollisionMethod.h"
 #ifdef ENABLE_CUDA
 #include "hoomd/mpcd/SRDCollisionMethodGPU.h"
@@ -57,6 +58,8 @@ void srd_collision_method_basic_test(std::shared_ptr<ExecutionConfiguration> exe
 
     // create a thermo, and use it to check the current
     auto thermo = std::make_shared<mpcd::CellThermoCompute>(mpcd_sys);
+    AllThermoRequest thermo_req(thermo);
+
     std::shared_ptr<mpcd::SRDCollisionMethod> collide = std::make_shared<CM>(mpcd_sys, 0, 2, 1, 42, thermo);
     collide->enableGridShifting(false);
     // 130 degrees, forces all components of the rotation matrix to act
@@ -277,6 +280,8 @@ void srd_collision_method_embed_test(std::shared_ptr<ExecutionConfiguration> exe
 
     // create a thermo, and use it to check the current
     auto thermo = std::make_shared<mpcd::CellThermoCompute>(mpcd_sys);
+    AllThermoRequest thermo_req(thermo);
+
     std::shared_ptr<mpcd::SRDCollisionMethod> collide = std::make_shared<CM>(mpcd_sys, 0, 1, -1, 827, thermo);
     collide->enableGridShifting(false);
     // 130 degrees, forces all components of the rotation matrix to act

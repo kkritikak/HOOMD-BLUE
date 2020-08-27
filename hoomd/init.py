@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: joaander / All Developers are free to add commands for new features
@@ -60,11 +60,10 @@ def create_lattice(unitcell, n):
         hoomd.init.create_lattice(unitcell=hoomd.lattice.hex(a=1.0),
                                   n=[100,58]);
     """
+    hoomd.context._verify_init();
     hoomd.util.print_status_line();
 
-    hoomd.context._verify_init();
-
-    # check if initialization has already occured
+    # check if initialization has already occurred
     if is_initialized():
         hoomd.context.msg.error("Cannot initialize more than once\n");
         raise RuntimeError("Error initializing");
@@ -167,11 +166,10 @@ def read_getar(filename, modes={'any': 'any'}):
        "velocity", "float", "(N, 3)", "velocity of each particle in the system"
 
     """
+    hoomd.context._verify_init();
     hoomd.util.print_status_line();
 
-    hoomd.context._verify_init();
-
-    # check if initialization has already occured
+    # check if initialization has already occurred
     if is_initialized():
         hoomd.context.msg.error("Cannot initialize more than once\n");
         raise RuntimeError("Error initializing");
@@ -229,11 +227,10 @@ def read_snapshot(snapshot):
     See Also:
         :py:mod:`hoomd.data`
     """
+    hoomd.context._verify_init();
     hoomd.util.print_status_line();
 
-    hoomd.context._verify_init();
-
-    # check if initialization has already occured
+    # check if initialization has already occurred
     if is_initialized():
         hoomd.context.msg.error("Cannot initialize more than once\n");
         raise RuntimeError("Error initializing");
@@ -279,11 +276,10 @@ def read_gsd(filename, restart = None, frame = 0, time_step = None):
     See Also:
         :py:class:`hoomd.dump.gsd`
     """
+    hoomd.context._verify_init();
     hoomd.util.print_status_line();
 
-    hoomd.context._verify_init();
-
-    # check if initialization has already occured
+    # check if initialization has already occurred
     if is_initialized():
         hoomd.context.msg.error("Cannot initialize more than once\n");
         raise RuntimeError("Error initializing");

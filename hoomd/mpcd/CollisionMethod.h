@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
@@ -22,6 +22,10 @@ namespace mpcd
 {
 
 //! MPCD collision method
+/*!
+ * This class forms the generic base for an MPCD collision method. It handles the boiler plate of setting up the method
+ * and implementing the collision. Each deriving class should implement a rule() that gives the physics of the collision.
+ */
 class PYBIND11_EXPORT CollisionMethod
     {
     public:
@@ -35,7 +39,7 @@ class PYBIND11_EXPORT CollisionMethod
         virtual ~CollisionMethod() { }
 
         //! Implementation of the collision rule
-        virtual void collide(unsigned int timestep) { }
+        void collide(unsigned int timestep);
 
         //! Peek if a collision will occur on this timestep
         virtual bool peekCollide(unsigned int timestep) const;
@@ -97,6 +101,9 @@ class PYBIND11_EXPORT CollisionMethod
 
         //! Check if a collision should occur and advance the timestep counter
         virtual bool shouldCollide(unsigned int timestep);
+
+        //! Call the collision rule
+        virtual void rule(unsigned int timestep) {}
 
         bool m_enable_grid_shift;   //!< Flag to enable grid shifting
     };

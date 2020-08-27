@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mspells
@@ -40,6 +40,8 @@ class DEMEvaluator
             }
 
         Real getRcutSq() const {return m_potential.getRcutSq();}
+
+        Real getRadius() const {return m_potential.getRadius();}
 
         /*! Evaluate the force and torque contributions for particles i
           and j, with centers of mass separated by rij. The appropriate

@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: joaander / All Developers are free to add commands for new features
@@ -59,7 +59,7 @@ class rescale_temp(_updater):
         self.cpp_updater = _md.TempRescaleUpdater(hoomd.context.current.system_definition, thermo.cpp_compute, kT.cpp_variant);
         self.setupUpdater(period, phase);
 
-        # store metadta
+        # store metadata
         self.kT = kT
         self.period = period
         self.metadata_fields = ['kT','period']
@@ -217,8 +217,8 @@ class mueller_plathe_flow(_updater):
 
     The simulation box is divided in a number of slabs.
     Two distinct slabs of those are chosen. The "max" slab searched for the
-    max. velocity componend in flow direction, the "min" is searched for the min. velocity component.
-    Afterwards, both velocity components are swapped.
+    max. velocity component in flow direction, the "min" is searched for the min. velocity component.
+    Afterward, both velocity components are swapped.
 
     This introduces a momentum flow, which drives the flow. The strength of this flow,
     can be controlled by the flow_target variant, which defines the integrated target momentum
@@ -227,7 +227,7 @@ class mueller_plathe_flow(_updater):
 
     Args:
         group (:py:mod:`hoomd.group`): Group for which the update will be set
-        flow_target (:py:mod:`hoomd.variant`): Integrated target flow. The unit is the in the natural units of the simulation: [flow_target] = [timesteps] x :math:`\mathcal{M}` x :math:`\frac{\mathcal{D}}{\tau}`. The unit of [timesteps] is your discretisation dt x :math:`\mathcal{\tau}`.
+        flow_target (:py:mod:`hoomd.variant`): Integrated target flow. The unit is the in the natural units of the simulation: [flow_target] = [timesteps] x :math:`\mathcal{M}` x :math:`\frac{\mathcal{D}}{\tau}`. The unit of [timesteps] is your discretization dt x :math:`\mathcal{\tau}`.
         slab_direction (:py:attr:`X`, :py:attr:`Y`, or :py:attr:`Z`): Direction perpendicular to the slabs..
         flow_direction (:py:attr:`X`, :py:attr:`Y`, or :py:attr:`Z`): Direction of the flow..
         n_slabs (int): Number of slabs. You want as many as possible for small disturbed volume, where the unphysical swapping is done. But each slab has to contain a sufficient number of particle.
@@ -260,6 +260,11 @@ class mueller_plathe_flow(_updater):
             min_slab = 0
         if max_slab < 0:
             max_slab = n_slabs/2
+
+        #Cast input to int to avoid mismatch of types in calling the constructor
+        n_slabs = int(n_slabs)
+        min_slab = int(min_slab)
+        max_slab = int(max_slab)
 
         assert (max_slab>-1 and max_slab < n_slabs),"Invalid max_slab in [0,"+str(n_slabs)+")."
         assert (min_slab>-1 and min_slab < n_slabs),"Invalid min_slab in [0,"+str(n_slabs)+")."

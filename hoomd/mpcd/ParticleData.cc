@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
@@ -44,7 +44,7 @@ mpcd::ParticleData::ParticleData(unsigned int N,
                                  unsigned int ndimensions,
                                  std::shared_ptr<ExecutionConfiguration> exec_conf,
                                  std::shared_ptr<DomainDecomposition> decomposition)
-    : m_N(0), m_N_global(0), m_N_max(0), m_exec_conf(exec_conf), m_mass(1.0), m_valid_cell_cache(false)
+    : m_N(0), m_N_virtual(0), m_N_global(0), m_N_max(0), m_exec_conf(exec_conf), m_mass(1.0), m_valid_cell_cache(false)
     {
     m_exec_conf->msg->notice(5) << "Constructing MPCD ParticleData" << endl;
 
@@ -72,7 +72,7 @@ mpcd::ParticleData::ParticleData(std::shared_ptr<mpcd::ParticleDataSnapshot> sna
                                  const BoxDim& global_box,
                                  std::shared_ptr<const ExecutionConfiguration> exec_conf,
                                  std::shared_ptr<DomainDecomposition> decomposition)
-    : m_N(0), m_N_global(0), m_N_max(0), m_exec_conf(exec_conf), m_mass(1.0), m_valid_cell_cache(false)
+    : m_N(0), m_N_virtual(0), m_N_global(0), m_N_max(0), m_exec_conf(exec_conf), m_mass(1.0), m_valid_cell_cache(false)
     {
     m_exec_conf->msg->notice(5) << "Constructing MPCD ParticleData" << endl;
 
@@ -150,6 +150,7 @@ void mpcd::ParticleData::initializeFromSnapshot(const std::shared_ptr<const mpcd
             {
             const Index3D& di = m_decomposition->getDomainIndexer();
             unsigned int n_ranks = m_exec_conf->getNRanks();
+            ArrayHandle<unsigned int> h_cart_ranks(m_decomposition->getCartRanks(), access_location::host, access_mode::read);
 
             // loop over particles in snapshot, place them into domains
             for (auto it = snapshot->position.begin(); it != snapshot->position.end(); ++it)
@@ -189,7 +190,7 @@ void mpcd::ParticleData::initializeFromSnapshot(const std::shared_ptr<const mpcd
                 wrapping_box.wrap(pos, img, flags);
 
                 // place particle into the computational domain
-                unsigned int rank = m_decomposition->placeParticle(global_box, pos);
+                unsigned int rank = m_decomposition->placeParticle(global_box, pos, h_cart_ranks.data);
                 if (rank >= n_ranks)
                     {
                     m_exec_conf->msg->error() << "init.*: Particle " << snap_idx << " out of bounds." << std::endl;
@@ -668,7 +669,7 @@ void mpcd::ParticleData::reallocate(unsigned int N_max)
     {
     m_N_max = N_max;
 
-    //! Reallocate the particle data
+    // Reallocate the particle data
     m_pos.resize(N_max);
     m_vel.resize(N_max);
     m_tag.resize(N_max);
@@ -771,7 +772,7 @@ std::string mpcd::ParticleData::getNameByType(unsigned int type) const
     // check for an invalid request
     if (type >= m_type_mapping.size())
         {
-        m_exec_conf->msg->error() << "Requesting name for non-existant MPCD particle type " << type << endl;
+        m_exec_conf->msg->error() << "Requesting name for non-existent MPCD particle type " << type << endl;
         throw runtime_error("Error mapping MPCD type name");
         }
 
@@ -846,6 +847,33 @@ unsigned int mpcd::ParticleData::getTag(unsigned int idx) const
     return h_tag.data[idx];
     }
 
+/*!
+ * \param N Allocate space for \a N additional virtualq particles in the particle data arrays
+ */
+void mpcd::ParticleData::addVirtualParticles(unsigned int N)
+    {
+    if (N == 0) return;
+
+    // increase number of virtual particles
+    m_N_virtual += N;
+
+    // minimum size of new arrays must accommodate current particles plus virtual
+    const unsigned int N_min = m_N + m_N_virtual;
+
+    // compute the new size of the array using amortized growth
+    unsigned int N_max = m_N_max;
+    if (N_min > N_max)
+        {
+        while (N_min > N_max)
+            {
+            N_max = ((unsigned int) (((float) N_max) * resize_factor)) + 1;
+            }
+        reallocate(N_max);
+        }
+
+    notifyNumVirtual();
+    }
+
 #ifdef ENABLE_MPI
 /*!
  * \param out Buffer into which particle data is packed
@@ -862,6 +890,12 @@ void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>&
                                          unsigned int mask,
                                          unsigned int timestep)
     {
+    if (m_N_virtual > 0)
+        {
+        m_exec_conf->msg->error() << "MPCD particles cannot be removed with virtual particles set." << std::endl;
+        throw std::runtime_error("MPCD particles cannot be removed with virtual particles set");
+        }
+
     // partition the remove / keep particle indexes
     // this makes it so that all particles we remove are at the front in the order they were in the arrays
     // and all particles to be removed are at the end of the array in reverse order of their original sorting
@@ -934,6 +968,12 @@ void mpcd::ParticleData::addParticles(const GPUVector<mpcd::detail::pdata_elemen
                                       unsigned int mask,
                                       unsigned int timestep)
     {
+    if (m_N_virtual > 0)
+        {
+        m_exec_conf->msg->error() << "MPCD particles cannot be added with virtual particles set." << std::endl;
+        throw std::runtime_error("MPCD particles cannot be added with virtual particles set");
+        }
+
     unsigned int num_add_ptls = in.size();
 
     unsigned int old_nparticles = m_N;
@@ -984,6 +1024,12 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
                                             unsigned int mask,
                                             unsigned int timestep)
     {
+    if (m_N_virtual > 0)
+        {
+        m_exec_conf->msg->error() << "MPCD particles cannot be removed with virtual particles set." << std::endl;
+        throw std::runtime_error("MPCD particles cannot be removed with virtual particles set");
+        }
+
     // quit early if there are no particles to remove
     if (m_N == 0)
         {
@@ -1076,6 +1122,12 @@ void mpcd::ParticleData::addParticlesGPU(const GPUVector<mpcd::detail::pdata_ele
                                          unsigned int mask,
                                          unsigned int timestep)
     {
+    if (m_N_virtual > 0)
+        {
+        m_exec_conf->msg->error() << "MPCD particles cannot be added with virtual particles set." << std::endl;
+        throw std::runtime_error("MPCD particles cannot be added with virtual particles set");
+        }
+
     unsigned int old_nparticles = m_N;
     unsigned int num_add_ptls = in.size();
     unsigned int new_nparticles = old_nparticles + num_add_ptls;

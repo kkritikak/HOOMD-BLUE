@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -16,6 +16,7 @@
 #include "hoomd/HOOMDMath.h"
 #include "hoomd/Index1D.h"
 #include "hoomd/ParticleData.cuh"
+#include "hoomd/GPUPartition.cuh"
 
 //! Kernel driver for gpu_nlist_needs_update_check_new_kernel()
 cudaError_t gpu_nlist_needs_update_check_new(unsigned int *d_result,
@@ -28,7 +29,8 @@ cudaError_t gpu_nlist_needs_update_check_new(unsigned int *d_result,
                                              const unsigned int ntypes,
                                              const Scalar lambda_min,
                                              const Scalar3 lambda,
-                                             const unsigned int checkn);
+                                             const unsigned int checkn,
+                                             const GPUPartition& gpu_partition);
 
 //! Kernel driver for gpu_nlist_filter_kernel()
 cudaError_t gpu_nlist_filter(unsigned int *d_n_neigh,

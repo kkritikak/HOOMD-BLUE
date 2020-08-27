@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -181,10 +181,10 @@ void DomainDecomposition::initializeDomainGrid(Scalar3 L,
     m_index = Index3D(m_nx,m_ny,m_nz);
 
     // map cartesian grid onto ranks
-    GPUArray<unsigned int> cart_ranks(nranks, m_exec_conf);
+    GlobalArray<unsigned int> cart_ranks(nranks, m_exec_conf);
     m_cart_ranks.swap(cart_ranks);
 
-    GPUArray<unsigned int> cart_ranks_inv(nranks, m_exec_conf);
+    GlobalArray<unsigned int> cart_ranks_inv(nranks, m_exec_conf);
     m_cart_ranks_inv.swap(cart_ranks_inv);
 
     ArrayHandle<unsigned int> h_cart_ranks(m_cart_ranks, access_location::host, access_mode::overwrite);
@@ -326,7 +326,7 @@ bool DomainDecomposition::findDecomposition(unsigned int nranks, const Scalar3 L
     assert(L.y > 0);
     assert(L.z > 0);
 
-    // Calulate the number of sub-domains in every direction
+    // Calculate the number of sub-domains in every direction
     // by minimizing the surface area between domains at constant number of domains
     double min_surface_area = L.x*L.y*(double)(nranks-1);
 
@@ -370,7 +370,7 @@ bool DomainDecomposition::findDecomposition(unsigned int nranks, const Scalar3 L
     return found_decomposition;
     }
 
-//! Find a two-level decompositon of the global grid
+//! Find a two-level decomposition of the global grid
 void DomainDecomposition::subdivide(unsigned int n_node_ranks, Scalar3 L,
     unsigned int nx, unsigned int ny, unsigned int nz,
     unsigned int& nx_intra, unsigned int &ny_intra, unsigned int& nz_intra)
@@ -557,7 +557,7 @@ const BoxDim DomainDecomposition::calculateLocalBox(const BoxDim & global_box)
  * \param pos Particle position
  * \returns the rank of the processor that should receive the particle
  */
-unsigned int DomainDecomposition::placeParticle(const BoxDim& global_box, Scalar3 pos)
+unsigned int DomainDecomposition::placeParticle(const BoxDim& global_box, Scalar3 pos, const unsigned int *cart_ranks)
     {
     // get fractional coordinates in the global box
     Scalar3 f = global_box.makeFraction(pos);
@@ -607,8 +607,7 @@ unsigned int DomainDecomposition::placeParticle(const BoxDim& global_box, Scalar
     else if (iz >= (int)m_nz)
         iz--;
 
-    ArrayHandle<unsigned int> h_cart_ranks(m_cart_ranks, access_location::host, access_mode::read);
-    unsigned int rank = h_cart_ranks.data[m_index(ix, iy, iz)];
+    unsigned int rank = cart_ranks[m_index(ix, iy, iz)];
 
     return rank;
     }

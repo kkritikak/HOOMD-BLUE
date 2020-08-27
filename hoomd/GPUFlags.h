@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -185,7 +185,7 @@ a = b;
 b = c;
     \endcode
 
-    But it will be done in a super-efficent way by just swapping the internal pointers, thus avoiding all the expensive
+    But it will be done in a super-efficient way by just swapping the internal pointers, thus avoiding all the expensive
     memory deallocations/allocations and copies using the copy constructor and assignment operator.
 */
 template<class T> void GPUFlags<T>::swap(GPUFlags& from)
@@ -219,7 +219,7 @@ template<class T> void GPUFlags<T>::allocate()
             int retval = posix_memalign(&ptr, getpagesize(), sizeof(T));
             if (retval != 0)
                 {
-                m_exec_conf->msg->error() << "Error allocating aligned memory" << std::endl;
+                m_exec_conf->msg->errorAllRanks() << "Error allocating aligned memory" << std::endl;
                 throw std::runtime_error("Error allocating GPUArray.");
                 }
             h_data = (T *) ptr;
@@ -238,7 +238,7 @@ template<class T> void GPUFlags<T>::allocate()
             int retval = posix_memalign(&ptr, getpagesize(), sizeof(T));
             if (retval != 0)
                 {
-                m_exec_conf->msg->error() << "Error allocating aligned memory" << std::endl;
+                m_exec_conf->msg->errorAllRanks() << "Error allocating aligned memory" << std::endl;
                 throw std::runtime_error("Error allocating GPUArray.");
                 }
             h_data = (T *) ptr;
@@ -333,7 +333,7 @@ template<class T> void GPUFlags<T>::memclear()
     }
 
 /*! \returns Current value of the flags
-    \note readFlags implicitly syncrhonizes with the GPU execution stream. If there are any previous asynch kernel
+    \note readFlags implicitly synchronizes with the GPU execution stream. If there are any previous asynch kernel
     launches that may set the flags, readFlags() will wait until they complete and will return any flags possibly
     set by those kernels.
 */

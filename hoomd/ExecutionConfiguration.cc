@@ -1,11 +1,10 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: joaander
 
 #include "ExecutionConfiguration.h"
 #include "HOOMDVersion.h"
-
 
 #ifdef ENABLE_CUDA
 #include <cuda_runtime.h>
@@ -33,38 +32,46 @@ using namespace std;
 */
 
 /*! \param mode Execution mode to set (cpu or gpu)
-    \param gpu_id ID of the GPU on which to run, or -1 for automatic selection
+    \param gpu_id List of GPU IDs on which to run, or empty for automatic selection
     \param min_cpu If set to true, cudaDeviceBlockingSync is set to keep the CPU usage of HOOMD to a minimum
     \param ignore_display If set to true, try to ignore GPUs attached to the display
+    \param mpi_config MPI configuration object
     \param _msg Messenger to use for status message printing
-    \param n_ranks Number of ranks per partition
 
-    Explicitly force the use of either CPU or GPU execution. If GPU exeuction is selected, then a default GPU choice
+    Explicitly force the use of either CPU or GPU execution. If GPU execution is selected, then a default GPU choice
     is made by not calling cudaSetDevice.
 */
 ExecutionConfiguration::ExecutionConfiguration(executionMode mode,
-                                               int gpu_id,
+                                               std::vector<int> gpu_id,
                                                bool min_cpu,
                                                bool ignore_display,
-                                               std::shared_ptr<Messenger> _msg,
-                                               unsigned int n_ranks
-                                               #ifdef ENABLE_MPI
-                                               , MPI_Comm hoomd_world
-                                               #endif
+                                               std::shared_ptr<MPIConfiguration> mpi_config,
+                                               std::shared_ptr<Messenger> _msg
                                                )
-    : m_cuda_error_checking(false), msg(_msg)
+    : m_cuda_error_checking(false), m_mpi_config(mpi_config), msg(_msg)
     {
-    if (!msg)
-        msg = std::shared_ptr<Messenger>(new Messenger());
+    if (! m_mpi_config)
+        {
+        // create mpi config internally
+        m_mpi_config = std::shared_ptr<MPIConfiguration>(new MPIConfiguration());
+        }
 
-    msg->notice(5) << "Constructing ExecutionConfiguration: " << gpu_id << " " << min_cpu << " " << ignore_display << endl;
+    if (!msg)
+        {
+        // create Messenger internally
+        msg = std::shared_ptr<Messenger>(new Messenger(m_mpi_config));
+        }
+
+    ostringstream s;
+    for (auto it = gpu_id.begin(); it != gpu_id.end(); ++it)
+        {
+        s << *it << " ";
+        }
+
+    msg->notice(5) << "Constructing ExecutionConfiguration: ( " << s.str() << ") " <<  min_cpu << " " << ignore_display << endl;
     exec_mode = mode;
 
-    m_rank = 0;
-
 #ifdef ENABLE_CUDA
-    m_gpu_id = -1;
-
     // scan the available GPUs
     scanGPUs(ignore_display);
     int dev_count = getNumCapableGPUs();
@@ -79,20 +86,35 @@ ExecutionConfiguration::ExecutionConfiguration(executionMode mode,
             exec_mode = CPU;
         }
 
+    m_concurrent = exec_mode==GPU;
+    m_in_multigpu_block = false;
+
     // now, exec_mode should be either CPU or GPU - proceed with initialization
 
     // initialize the GPU if that mode was requested
     if (exec_mode == GPU)
         {
-        if (gpu_id == -1 && !m_system_compute_exclusive)
+        bool found_local_rank = false;
+        int local_rank = guessLocalRank(found_local_rank);
+        if (!gpu_id.size() && found_local_rank)
             {
-            // if we are not running in compute exclusive mode, use
-            // local MPI rank as preferred GPU id
-            msg->notice(2) << "This system is not compute exclusive, using local rank to select GPUs" << std::endl;
-            gpu_id = (guessLocalRank() % dev_count);
+            // if we found a local rank, use that to select the GPU
+            gpu_id.push_back((local_rank % dev_count));
             }
 
-        initializeGPU(gpu_id, min_cpu);
+        cudaSetValidDevices(&m_gpu_list[0], (int)m_gpu_list.size());
+
+        if (! gpu_id.size())
+            {
+            // auto-detect a single GPU
+            initializeGPU(-1, min_cpu);
+            }
+        else
+            {
+            // initialize all requested GPUs
+            for (auto it = gpu_id.begin(); it != gpu_id.end(); ++it)
+                initializeGPU(*it, min_cpu);
+            }
         }
 #else
     if (exec_mode == GPU)
@@ -102,21 +124,52 @@ ExecutionConfiguration::ExecutionConfiguration(executionMode mode,
         }
     // "auto-select" the CPU
     exec_mode = CPU;
+    m_concurrent = false;
 #endif
-
-    #ifdef ENABLE_MPI
-    m_n_rank = n_ranks;
-    m_hoomd_world = hoomd_world;
-    splitPartitions(hoomd_world);
-    #endif
 
     setupStats();
 
     #ifdef ENABLE_CUDA
     if (exec_mode == GPU)
         {
+        if (! m_concurrent && gpu_id.size() > 1)
+            {
+            msg->errorAllRanks() << "Multi-GPU execution requested, but not all GPUs support concurrent managed access" << endl;
+            throw runtime_error("Error initializing execution configuration");
+            }
+
+        #ifndef ALWAYS_USE_MANAGED_MEMORY
+        // disable managed memory when running on single GPU
+        if (m_gpu_id.size() == 1)
+            {
+            m_concurrent = false;
+            }
+        #endif
+
+        if (m_concurrent)
+            {
+            // compare compute capabilities
+            for (unsigned int idev = 0; idev < gpu_id.size(); ++idev)
+                {
+                if (m_dev_prop[idev].major != m_dev_prop[0].major
+                    || m_dev_prop[idev].minor != m_dev_prop[0].minor)
+                    {
+                    // the autotuner may pick up different block sizes for different GPUs
+                    msg->warning() << "Multi-GPU execution requested, but GPUs have differing compute capabilities" << endl;
+                    msg->warning() << "Continuing anyways, but autotuner may not work correctly and simulation may crash." << endl;
+                    }
+                }
+            }
+
+        // select first device by default
+        cudaSetDevice(m_gpu_id[0]);
+
+        cudaError_t err_sync = cudaGetLastError();
+        handleCUDAError(err_sync, __FILE__, __LINE__);
+
         // initialize cached allocator, max allocation 0.5*global mem
-        m_cached_alloc = new CachedAllocator((unsigned int)(0.5f*(float)dev_prop.totalGlobalMem));
+        m_cached_alloc.reset(new CachedAllocator(false, (unsigned int)(0.5f*(float)dev_prop.totalGlobalMem)));
+        m_cached_alloc_managed.reset(new CachedAllocator(true, (unsigned int)(0.5f*(float)dev_prop.totalGlobalMem)));
         }
     #endif
 
@@ -125,14 +178,14 @@ ExecutionConfiguration::ExecutionConfiguration(executionMode mode,
     if (getNRanks() > 1)
         {
         executionMode rank0_mode = exec_mode;
-        bcast(rank0_mode, 0, getMPICommunicator());
+        bcast(rank0_mode, 0, m_mpi_config->getCommunicator());
 
         // ensure that all ranks terminate here
         int errors = 0;
         if (rank0_mode != exec_mode)
             errors = 1;
 
-        MPI_Allreduce(MPI_IN_PLACE, &errors, 1, MPI_INT, MPI_SUM, getMPICommunicator());
+        MPI_Allreduce(MPI_IN_PLACE, &errors, 1, MPI_INT, MPI_SUM, m_mpi_config->getCommunicator());
 
         if (errors != 0)
             {
@@ -141,7 +194,7 @@ ExecutionConfiguration::ExecutionConfiguration(executionMode mode,
             }
         }
 
-    if (hoomd_launch_timing && getNRanksGlobal() > 1)
+    if (hoomd_launch_timing && m_mpi_config->getNRanksGlobal() > 1)
         {
         // compute the number of seconds to get an exec conf
         timeval t;
@@ -150,17 +203,17 @@ ExecutionConfiguration::ExecutionConfiguration(executionMode mode,
 
         // get the min and max times
         unsigned int start_time_min, start_time_max, mpi_init_time_min, mpi_init_time_max, conf_time_min, conf_time_max;
-        MPI_Reduce(&hoomd_start_time, &start_time_min, 1, MPI_UNSIGNED, MPI_MIN, 0, m_hoomd_world);
-        MPI_Reduce(&hoomd_start_time, &start_time_max, 1, MPI_UNSIGNED, MPI_MAX, 0, m_hoomd_world);
+        MPI_Reduce(&hoomd_start_time, &start_time_min, 1, MPI_UNSIGNED, MPI_MIN, 0, m_mpi_config->getHOOMDWorldCommunicator());
+        MPI_Reduce(&hoomd_start_time, &start_time_max, 1, MPI_UNSIGNED, MPI_MAX, 0, m_mpi_config->getHOOMDWorldCommunicator());
 
-        MPI_Reduce(&hoomd_mpi_init_time, &mpi_init_time_min, 1, MPI_UNSIGNED, MPI_MIN, 0, m_hoomd_world);
-        MPI_Reduce(&hoomd_mpi_init_time, &mpi_init_time_max, 1, MPI_UNSIGNED, MPI_MAX, 0, m_hoomd_world);
+        MPI_Reduce(&hoomd_mpi_init_time, &mpi_init_time_min, 1, MPI_UNSIGNED, MPI_MIN, 0, m_mpi_config->getHOOMDWorldCommunicator());
+        MPI_Reduce(&hoomd_mpi_init_time, &mpi_init_time_max, 1, MPI_UNSIGNED, MPI_MAX, 0, m_mpi_config->getHOOMDWorldCommunicator());
 
-        MPI_Reduce(&conf_time, &conf_time_min, 1, MPI_UNSIGNED, MPI_MIN, 0, m_hoomd_world);
-        MPI_Reduce(&conf_time, &conf_time_max, 1, MPI_UNSIGNED, MPI_MAX, 0, m_hoomd_world);
+        MPI_Reduce(&conf_time, &conf_time_min, 1, MPI_UNSIGNED, MPI_MIN, 0, m_mpi_config->getHOOMDWorldCommunicator());
+        MPI_Reduce(&conf_time, &conf_time_max, 1, MPI_UNSIGNED, MPI_MAX, 0, m_mpi_config->getHOOMDWorldCommunicator());
 
         // write them out to a file
-        if (getRankGlobal() == 0)
+        if (m_mpi_config->getRankGlobal() == 0)
             {
             msg->notice(2) << "start_time:    [" << start_time_min << ", " << start_time_max << "]" << std::endl;
             msg->notice(2) << "mpi_init_time: [" << mpi_init_time_min << ", " << mpi_init_time_max << "]" << std::endl;
@@ -180,74 +233,41 @@ ExecutionConfiguration::ExecutionConfiguration(executionMode mode,
         setNumThreads(num_threads);
         }
     #endif
+
+    #ifdef ENABLE_CUDA
+    // setup synchronization events
+    m_events.resize(m_gpu_id.size());
+    for (int idev = m_gpu_id.size()-1; idev >= 0; --idev)
+        {
+        cudaSetDevice(m_gpu_id[idev]);
+        cudaEventCreateWithFlags(&m_events[idev],cudaEventDisableTiming);
+        }
+    #endif
     }
 
 ExecutionConfiguration::~ExecutionConfiguration()
     {
     msg->notice(5) << "Destroying ExecutionConfiguration" << endl;
 
-    #if defined(ENABLE_CUDA)
-    if (exec_mode == GPU)
+    #ifdef ENABLE_CUDA
+    for (int idev = m_gpu_id.size()-1; idev >= 0; --idev)
         {
-        delete m_cached_alloc;
-
-        #ifndef ENABLE_MPI_CUDA
-        cudaDeviceReset();
-        #endif
+        cudaEventDestroy(m_events[idev]);
         }
     #endif
 
-    #ifdef ENABLE_MPI
-    // enable Messenger to gracefully finish any MPI-IO
-    msg->unsetMPICommunicator();
+    #ifdef ENABLE_CUDA
+    // the destructors of these objects can issue cuda calls, so free them before the device reset
+    m_cached_alloc.reset();
+    m_cached_alloc_managed.reset();
     #endif
     }
 
-#ifdef ENABLE_MPI
-void ExecutionConfiguration::splitPartitions(MPI_Comm mpi_comm)
-    {
-    m_mpi_comm = mpi_comm;
-
-    int num_total_ranks;
-    MPI_Comm_size(m_mpi_comm, &num_total_ranks);
-
-    unsigned int partition = 0;
-
-    if  (m_n_rank != 0)
-        {
-        int rank;
-        MPI_Comm_rank(m_mpi_comm, &rank);
-
-        if (num_total_ranks % m_n_rank != 0)
-            {
-            msg->error() << "Invalid setting --nrank" << std::endl;
-            throw(runtime_error("Error setting up MPI."));
-            }
-
-        partition = rank / m_n_rank;
-
-        // Split the communicator
-        MPI_Comm new_comm;
-        MPI_Comm_split(m_mpi_comm, partition, rank, &new_comm);
-
-        // update communicator
-        m_mpi_comm = new_comm;
-        }
-
-    int rank;
-    MPI_Comm_rank(m_mpi_comm, &rank);
-    m_rank = rank;
-
-    msg->setRank(rank, partition);
-    msg->setMPICommunicator(m_mpi_comm);
-    }
-#endif
-
-std::string ExecutionConfiguration::getGPUName() const
+std::string ExecutionConfiguration::getGPUName(unsigned int idev) const
     {
     #ifdef ENABLE_CUDA
     if (exec_mode == GPU)
-        return string(dev_prop.name);
+        return string(m_dev_prop[idev].name);
     else
         return string();
     #else
@@ -258,30 +278,30 @@ std::string ExecutionConfiguration::getGPUName() const
 
 #ifdef ENABLE_CUDA
 /*! \returns Compute capability of GPU 0 as a string
-    \note Silently returns an emtpy string if no GPUs are specified
+    \note Silently returns an empty string if no GPUs are specified
 */
-std::string ExecutionConfiguration::getComputeCapabilityAsString() const
+std::string ExecutionConfiguration::getComputeCapabilityAsString(unsigned int idev) const
     {
     ostringstream s;
 
     if (exec_mode == GPU)
         {
-        s << dev_prop.major << "." << dev_prop.minor;
+        s << m_dev_prop[idev].major << "." << m_dev_prop[idev].minor;
         }
 
     return s.str();
     }
 
-/*! \returns Compute capability of the GPU formated as 210 (for compute 2.1 as an example)
+/*! \returns Compute capability of the GPU formatted as 210 (for compute 2.1 as an example)
     \note Silently returns 0 if no GPU is being used
 */
-unsigned int ExecutionConfiguration::getComputeCapability() const
+unsigned int ExecutionConfiguration::getComputeCapability(unsigned int idev) const
     {
     unsigned int result = 0;
 
     if (exec_mode == GPU)
         {
-        result = dev_prop.major * 100 + dev_prop.minor * 10;
+        result = m_dev_prop[idev].major * 100 + m_dev_prop[idev].minor * 10;
         }
 
     return result;
@@ -297,8 +317,8 @@ void ExecutionConfiguration::handleCUDAError(cudaError_t err, const char *file, 
             file += strlen(HOOMD_SOURCE_DIR);
 
         // print an error message
-        msg->error() << string(cudaGetErrorString(err)) << " before "
-                     << file << ":" << line << endl;
+        msg->errorAllRanks() << string(cudaGetErrorString(err)) << " before "
+                             << file << ":" << line << endl;
 
         // throw an error exception
         throw(runtime_error("CUDA Error"));
@@ -311,7 +331,7 @@ void ExecutionConfiguration::handleCUDAError(cudaError_t err, const char *file, 
     \pre scanGPUs has been called
 
     initializeGPU will loop through the specified list of GPUs, validate that each one is available for CUDA use
-    and then setup CUDA to use the given GPU. After initialzeGPU completes, cuda calls can be made by the main
+    and then setup CUDA to use the given GPU. After initializeGPU completes, cuda calls can be made by the main
     application.
 */
 void ExecutionConfiguration::initializeGPU(int gpu_id, bool min_cpu)
@@ -319,7 +339,7 @@ void ExecutionConfiguration::initializeGPU(int gpu_id, bool min_cpu)
     int capable_count = getNumCapableGPUs();
     if (capable_count == 0)
         {
-        msg->error() << "No capable GPUs were found!" << endl;
+        msg->errorAllRanks() << "No capable GPUs were found!" << endl;
         throw runtime_error("Error initializing execution configuration");
         }
 
@@ -336,29 +356,28 @@ void ExecutionConfiguration::initializeGPU(int gpu_id, bool min_cpu)
 
     if (gpu_id < -1)
         {
-        msg->error() << "The specified GPU id (" << gpu_id << ") is invalid." << endl;
+        msg->errorAllRanks() << "The specified GPU id (" << gpu_id << ") is invalid." << endl;
         throw runtime_error("Error initializing execution configuration");
         }
 
     if (gpu_id >= (int)getNumTotalGPUs())
         {
-        msg->error() << "The specified GPU id (" << gpu_id << ") is not present in the system." << endl;
-        msg->error() << "CUDA reports only " << getNumTotalGPUs() << endl;
+        msg->errorAllRanks() << "The specified GPU id (" << gpu_id << ") is not present in the system." << endl;
+        msg->errorAllRanks() << "CUDA reports only " << getNumTotalGPUs() << endl;
         throw runtime_error("Error initializing execution configuration");
         }
 
     if (!isGPUAvailable(gpu_id))
         {
-        msg->error() << "The specified GPU id (" << gpu_id << ") is not available for executing HOOMD." << endl;
+        msg->errorAllRanks() << "The specified GPU id (" << gpu_id << ") is not available for executing HOOMD." << endl;
         throw runtime_error("Error initializing execution configuration");
         }
 
     cudaSetDeviceFlags(flags | cudaDeviceMapHost);
-    cudaSetValidDevices(&m_gpu_list[0], (int)m_gpu_list.size());
 
     if (gpu_id != -1)
         {
-        cudaSetDevice(gpu_id);
+        cudaSetDevice(m_gpu_list[gpu_id]);
         }
     else
         {
@@ -366,7 +385,11 @@ void ExecutionConfiguration::initializeGPU(int gpu_id, bool min_cpu)
         cudaFree(0);
         }
 
-    cudaGetDevice(&m_gpu_id);
+    int cuda_gpu_id;
+    cudaGetDevice(&cuda_gpu_id);
+
+    // add to list of active GPUs
+    m_gpu_id.push_back(cuda_gpu_id);
 
     cudaError_t err_sync = cudaGetLastError();
     handleCUDAError(err_sync, __FILE__, __LINE__);
@@ -381,32 +404,43 @@ void ExecutionConfiguration::printGPUStats()
     // build a status line
     ostringstream s;
 
-    // start with the device ID and name
-    int dev;
-    cudaGetDevice(&dev);
+    for (unsigned int idev = 0; idev < m_gpu_id.size(); ++idev)
+        {
+        // start with the device ID and name
+        unsigned int dev = m_gpu_id[idev];
 
-    s << " [" << dev << "]";
-    s << setw(22) << dev_prop.name;
+        s << " [" << dev << "]";
+        s << setw(22) << m_dev_prop[idev].name;
 
-    // then print the SM count and version
-    s << setw(4) << dev_prop.multiProcessorCount << " SM_" << dev_prop.major << "." << dev_prop.minor;
+        // then print the SM count and version
+        s << setw(4) << m_dev_prop[idev].multiProcessorCount << " SM_" << m_dev_prop[idev].major << "." << m_dev_prop[idev].minor;
 
-    // and the clock rate
-    float ghz = float(dev_prop.clockRate)/1e6;
-    s.precision(3);
-    s.fill('0');
-    s << " @ " << setw(4) << ghz << " GHz";
-    s.fill(' ');
+        // and the clock rate
+        float ghz = float(m_dev_prop[idev].clockRate)/1e6;
+        s.precision(3);
+        s.fill('0');
+        s << " @ " << setw(4) << ghz << " GHz";
+        s.fill(' ');
 
-    // and the total amount of memory
-    int mib = int(float(dev_prop.totalGlobalMem) / float(1024*1024));
-    s << ", " << setw(4) << mib << " MiB DRAM";
+        // and the total amount of memory
+        int mib = int(float(m_dev_prop[idev].totalGlobalMem) / float(1024*1024));
+        s << ", " << setw(4) << mib << " MiB DRAM";
 
-    // follow up with some flags to signify device features
-    if (dev_prop.kernelExecTimeoutEnabled)
-        s << ", DIS";
+        // follow up with some flags to signify device features
+        if (m_dev_prop[idev].kernelExecTimeoutEnabled)
+            s << ", DIS";
 
-    s << std::endl;
+        // follow up with some flags to signify device features
+        if (m_dev_prop[idev].concurrentManagedAccess)
+            {
+            s << ", MNG";
+            }
+        else
+            m_concurrent = false;
+
+        s << std::endl;
+        }
+
     // We print this information in rank order
     msg->collectiveNoticeStr(1,s.str());
     }
@@ -442,37 +476,20 @@ void ExecutionConfiguration::scanGPUs(bool ignore_display)
     {
     // check the CUDA driver version
     int driverVersion = 0;
-    cudaDriverGetVersion(&driverVersion);
+    cudaError_t error = cudaDriverGetVersion(&driverVersion);
 
-    // first handle the situation where no driver is installed (or it is a CUDA 2.1 or earlier driver)
-    if (driverVersion == 0)
+    if (error != cudaSuccess)
         {
-        msg->notice(2) << "NVIDIA driver not installed or is too old, ignoring any GPUs in the system." << endl;
-        return;
-        }
-
-    // next, check to see if the driver is capable of running the version of CUDART that HOOMD was compiled against
-    if (driverVersion < CUDART_VERSION)
-        {
-        int driver_major = driverVersion / 1000;
-        int driver_minor = (driverVersion - driver_major * 1000) / 10;
-        int cudart_major = CUDART_VERSION / 1000;
-        int cudart_minor = (CUDART_VERSION - cudart_major * 1000) / 10;
-
-        msg->notice(2) << "The NVIDIA driver only supports CUDA versions up to " << driver_major << "."
-             << driver_minor << ", but HOOMD was built against CUDA " << cudart_major << "." << cudart_minor << endl;
-        msg->notice(2) << "Ignoring any GPUs in the system." << endl;
+        msg->notice(1) << string(cudaGetErrorString(error)) << endl;
         return;
         }
 
     // determine the number of GPUs that CUDA thinks there is
     int dev_count;
-    cudaError_t error = cudaGetDeviceCount(&dev_count);
+    error = cudaGetDeviceCount(&dev_count);
     if (error != cudaSuccess)
         {
-        msg->notice(2) << "Error calling cudaGetDeviceCount(). No NVIDIA driver is present, or this user" << endl;
-        msg->notice(2) << "does not have readwrite permissions on /dev/nvidia*" << endl;
-        msg->notice(2) << "Ignoring any GPUs in the system." << endl;
+        msg->notice(1) << string(cudaGetErrorString(error)) << endl;
         return;
         }
 
@@ -488,7 +505,7 @@ void ExecutionConfiguration::scanGPUs(bool ignore_display)
         cudaError_t error = cudaGetDeviceProperties(&prop, dev);
         if (error != cudaSuccess)
             {
-            msg->error() << "Error calling cudaGetDeviceProperties()" << endl;
+            msg->errorAllRanks() << "Error calling cudaGetDeviceProperties()" << endl;
             throw runtime_error("Error initializing execution configuration");
             }
 
@@ -549,7 +566,7 @@ void ExecutionConfiguration::scanGPUs(bool ignore_display)
             cudaError_t error = cudaGetDeviceProperties(&prop, dev);
             if (error != cudaSuccess)
                 {
-                msg->error() << "Error calling cudaGetDeviceProperties()" << endl;
+                msg->errorAllRanks() << "Error calling cudaGetDeviceProperties()" << endl;
                 throw runtime_error("Error initializing execution configuration");
                 }
 
@@ -599,7 +616,7 @@ bool ExecutionConfiguration::isGPUAvailable(int gpu_id)
 
 
 /*! \pre scanGPUs() has been called
-    \return The count of avaialble GPUs deteremined by scanGPUs
+    \return The count of available GPUs determined by scanGPUs
 */
 int ExecutionConfiguration::getNumCapableGPUs()
     {
@@ -613,61 +630,6 @@ int ExecutionConfiguration::getNumCapableGPUs()
     }
 #endif
 
-int ExecutionConfiguration::guessLocalRank()
-    {
-    #ifdef ENABLE_MPI
-    std::vector<std::string> env_vars;
-    char *env;
-
-    // setup common environment variables containing local rank information
-    env_vars.push_back("MV2_COMM_WORLD_LOCAL_RANK");
-    env_vars.push_back("OMPI_COMM_WORLD_LOCAL_RANK");
-
-    std::vector<std::string>::iterator it;
-
-    for (it = env_vars.begin(); it != env_vars.end(); it++)
-        {
-        if ((env = getenv(it->c_str())) != NULL)
-            {
-            msg->notice(3) << "Found local rank in " << *it << std::endl;
-            return atoi(env);
-            }
-        }
-
-    // try SLURM_LOCALID
-    if (((env = getenv("SLURM_LOCALID"))) != NULL)
-        {
-        int num_total_ranks = 0;
-        int errors = 0;
-        int slurm_localid = atoi(env);
-
-        if (slurm_localid == 0)
-            errors = 1;
-
-        // some SLURMs set LOCALID to 0 on all ranks, check for this
-        MPI_Allreduce(MPI_IN_PLACE, &errors, 1, MPI_INT, MPI_SUM, m_hoomd_world);
-        MPI_Comm_size(m_hoomd_world, &num_total_ranks);
-        if (errors == num_total_ranks)
-            {
-            msg->notice(3) << "SLURM_LOCALID is 0 on all ranks" << std::endl;
-            }
-        else
-            {
-            return slurm_localid;
-            }
-        }
-
-    // fall back on global rank id
-    msg->notice(2) << "Unable to identify node local rank information" << std::endl;
-    msg->notice(2) << "Using global rank to select GPUs" << std::endl;
-    int global_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &global_rank);
-    return global_rank;
-    #else
-    return 0;
-    #endif
-    }
-
 /*! Print out GPU stats if running on the GPU, otherwise determine and print out the CPU stats
 */
 void ExecutionConfiguration::setupStats()
@@ -677,9 +639,17 @@ void ExecutionConfiguration::setupStats()
     #ifdef ENABLE_CUDA
     if (exec_mode == GPU)
         {
-        int dev;
-        cudaGetDevice(&dev);
-        cudaGetDeviceProperties(&dev_prop, dev);
+        m_dev_prop.resize(m_gpu_id.size());
+
+        for (int idev = m_gpu_id.size()-1; idev >= 0; idev--)
+            {
+            cudaSetDevice(m_gpu_id[idev]);
+            cudaGetDeviceProperties(&m_dev_prop[idev], m_gpu_id[idev]);
+            }
+
+        // initialize dev_prop with device properties of first device for now
+        dev_prop = m_dev_prop[0];
+
         printGPUStats();
 
         // GPU runs only use 1 CPU core
@@ -696,51 +666,190 @@ void ExecutionConfiguration::setupStats()
         }
     }
 
-#ifdef ENABLE_MPI
-unsigned int ExecutionConfiguration::getNRanks() const
+void ExecutionConfiguration::multiGPUBarrier() const
     {
-    int size;
-    MPI_Comm_size(m_mpi_comm, &size);
-    return size;
+    #ifdef ENABLE_CUDA
+    if (getNumActiveGPUs() > 1)
+        {
+        // record the synchronization point on every GPU after the last kernel has finished, count down in reverse
+        for (int idev = m_gpu_id.size() - 1; idev >= 0; --idev)
+            {
+            cudaSetDevice(m_gpu_id[idev]);
+            cudaEventRecord(m_events[idev], 0);
+            }
+
+        // wait for all those events on all GPUs
+        for (int idev_i = m_gpu_id.size()-1; idev_i >= 0; --idev_i)
+            {
+            cudaSetDevice(m_gpu_id[idev_i]);
+            for (int idev_j = 0; idev_j < (int) m_gpu_id.size(); ++idev_j)
+                cudaStreamWaitEvent(0, m_events[idev_j], 0);
+            }
+        }
+    #endif
     }
-#endif
+
+void ExecutionConfiguration::beginMultiGPU() const
+    {
+    m_in_multigpu_block = true;
+
+    #ifdef ENABLE_CUDA
+    // implement a one-to-n barrier
+    if (getNumActiveGPUs() > 1)
+        {
+        // record a syncrhonization point on GPU 0
+        cudaEventRecord(m_events[0], 0);
+
+        // wait for that event on all GPUs (except GPU 0, for which we rely on implicit synchronization)
+        for (int idev = m_gpu_id.size()-1; idev >= 1; --idev)
+            {
+            cudaSetDevice(m_gpu_id[idev]);
+            cudaStreamWaitEvent(0, m_events[0], 0);
+            }
+
+        // set GPU 0
+        cudaSetDevice(m_gpu_id[0]);
+
+        if (isCUDAErrorCheckingEnabled())
+            {
+            cudaError_t err_sync = cudaGetLastError();
+            handleCUDAError(err_sync, __FILE__, __LINE__);
+            }
+        }
+    #endif
+    }
+
+void ExecutionConfiguration::endMultiGPU() const
+    {
+    m_in_multigpu_block = false;
+
+    #ifdef ENABLE_CUDA
+    // implement an n-to-one barrier
+    if (getNumActiveGPUs() > 1)
+        {
+        // record the synchronization point on every GPU, except GPU 0
+        for (int idev = m_gpu_id.size() - 1; idev >= 1; --idev)
+            {
+            cudaSetDevice(m_gpu_id[idev]);
+            cudaEventRecord(m_events[idev], 0);
+            }
+
+        // wait for these events on GPU 0
+        cudaSetDevice(m_gpu_id[0]);
+        for (int idev = m_gpu_id.size()-1; idev >= 1; --idev)
+            {
+            cudaStreamWaitEvent(0, m_events[idev], 0);
+            }
+
+        if (isCUDAErrorCheckingEnabled())
+            {
+            cudaError_t err_sync = cudaGetLastError();
+            handleCUDAError(err_sync, __FILE__, __LINE__);
+            }
+        }
+    #endif
+    }
+
+int ExecutionConfiguration::guessLocalRank(bool &found)
+    {
+    found = false;
+
+    #ifdef ENABLE_MPI
+    // single rank simulations emulate the ENABLE_MPI=off behavior
+
+    int size;
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    if (size == 1)
+        {
+        found = false;
+        return 0;
+        }
+
+    std::vector<std::string> env_vars;
+    char *env;
+
+    // setup common environment variables containing local rank information
+    env_vars.push_back("MV2_COMM_WORLD_LOCAL_RANK");
+    env_vars.push_back("OMPI_COMM_WORLD_LOCAL_RANK");
+    env_vars.push_back("JSM_NAMESPACE_LOCAL_RANK");
+
+    std::vector<std::string>::iterator it;
+
+    for (it = env_vars.begin(); it != env_vars.end(); it++)
+        {
+        if ((env = getenv(it->c_str())) != NULL)
+            {
+            msg->notice(3) << "Found local rank in: " << *it << std::endl;
+            found = true;
+            return atoi(env);
+            }
+        }
+
+    // try SLURM_LOCALID
+    if (((env = getenv("SLURM_LOCALID"))) != NULL)
+        {
+        int num_total_ranks = 0;
+        int errors = 0;
+        int slurm_localid = atoi(env);
+
+        if (slurm_localid == 0)
+            errors = 1;
+
+        // some SLURMs set LOCALID to 0 on all ranks, check for this
+        MPI_Allreduce(MPI_IN_PLACE, &errors, 1, MPI_INT, MPI_SUM, m_mpi_config->getHOOMDWorldCommunicator());
+        MPI_Comm_size(m_mpi_config->getHOOMDWorldCommunicator(), &num_total_ranks);
+        if (errors == num_total_ranks)
+            {
+            msg->notice(3) << "SLURM_LOCALID is 0 on all ranks, it cannot be used" << std::endl;
+            }
+        else
+            {
+            msg->notice(3) << "Found local rank in: SLURM_LOCALID" << std::endl;
+            found = true;
+            return slurm_localid;
+            }
+        }
+
+    // fall back on global rank id
+    msg->notice(3) << "Using global rank to select GPUs" << std::endl;
+    int global_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &global_rank);
+    found = true;
+    return global_rank;
+    #else
+    return 0;
+    #endif
+    }
+
 
 void export_ExecutionConfiguration(py::module& m)
     {
     py::class_<ExecutionConfiguration, std::shared_ptr<ExecutionConfiguration> > executionconfiguration(m,"ExecutionConfiguration");
-    executionconfiguration.def(py::init< ExecutionConfiguration::executionMode, int, bool, bool, std::shared_ptr<Messenger>, unsigned int >())
+    executionconfiguration.def(py::init< ExecutionConfiguration::executionMode, std::vector<int>, bool, bool,
+        std::shared_ptr<MPIConfiguration>, std::shared_ptr<Messenger> >())
+        .def("getMPIConfig", &ExecutionConfiguration::getMPIConfig)
         .def("isCUDAEnabled", &ExecutionConfiguration::isCUDAEnabled)
         .def("setCUDAErrorChecking", &ExecutionConfiguration::setCUDAErrorChecking)
+        .def("getNumActiveGPUs", &ExecutionConfiguration::getNumActiveGPUs)
+#ifdef ENABLE_CUDA
+        .def("cudaProfileStart", &ExecutionConfiguration::cudaProfileStart)
+        .def("cudaProfileStop", &ExecutionConfiguration::cudaProfileStop)
+#endif
         .def("getGPUName", &ExecutionConfiguration::getGPUName)
         .def_readonly("n_cpu", &ExecutionConfiguration::n_cpu)
         .def_readonly("msg", &ExecutionConfiguration::msg)
 #ifdef ENABLE_CUDA
         .def("getComputeCapability", &ExecutionConfiguration::getComputeCapabilityAsString)
 #endif
-#ifdef ENABLE_MPI
         .def("getPartition", &ExecutionConfiguration::getPartition)
         .def("getNRanks", &ExecutionConfiguration::getNRanks)
         .def("getRank", &ExecutionConfiguration::getRank)
-        .def("guessLocalRank", &ExecutionConfiguration::guessLocalRank)
-        .def("barrier", &ExecutionConfiguration::barrier)
-        .def_static("getNRanksGlobal", &ExecutionConfiguration::getNRanksGlobal)
-        .def_static("getRankGlobal", &ExecutionConfiguration::getRankGlobal)
-        .def_static("_make_exec_conf_mpi_comm",  [](ExecutionConfiguration::executionMode mode,
-                                                    int gpu_id,
-                                                    bool min_cpu,
-                                                    bool ignore_display,
-                                                    std::shared_ptr<Messenger> _msg,
-                                                    unsigned int n_ranks,
-                                                    py::object mpi_comm) -> std::shared_ptr<ExecutionConfiguration>
-            {
-            MPI_Comm *comm = (MPI_Comm*)PyLong_AsVoidPtr(mpi_comm.ptr());
-            return std::make_shared<ExecutionConfiguration>(mode, gpu_id, min_cpu, ignore_display, _msg, n_ranks, *comm);
-            })
-#endif
 #ifdef ENABLE_TBB
         .def("setNumThreads", &ExecutionConfiguration::setNumThreads)
 #endif
         .def("getNumThreads", &ExecutionConfiguration::getNumThreads)
+        .def("setMemoryTracing", &ExecutionConfiguration::setMemoryTracing)
+        .def("getMemoryTracer", &ExecutionConfiguration::getMemoryTracer);
     ;
 
     py::enum_<ExecutionConfiguration::executionMode>(executionconfiguration,"executionMode")

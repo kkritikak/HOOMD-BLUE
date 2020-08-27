@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -460,7 +460,7 @@ UP_TEST( ParticleData_test )
     ArrayHandle<unsigned int> h_rtag(a.getRTags(), access_location::host, access_mode::readwrite);
     ArrayHandle<unsigned int> h_body(a.getBodies(), access_location::host, access_mode::readwrite);
 
-    // begin by verifying that the defaults the class adversizes are set
+    // begin by verifying that the defaults the class advertises are set
     UP_ASSERT(a.getPositions().getNumElements() == 1);
     UP_ASSERT(a.getVelocities().getNumElements() == 1);
     UP_ASSERT(a.getAccelerations().getNumElements() == 1);
@@ -570,7 +570,7 @@ UP_TEST( ParticleData_test )
     ArrayHandle<unsigned int> h_rtag(b.getRTags(), access_location::host, access_mode::read);
     ArrayHandle<unsigned int> h_body(b.getBodies(), access_location::host, access_mode::read);
 
-    // begin by verifying that the defaults the class adversizes are set
+    // begin by verifying that the defaults the class advertises are set
     UP_ASSERT(b.getPositions().getNumElements() == N);
     UP_ASSERT(b.getVelocities().getNumElements() == N);
     UP_ASSERT(b.getAccelerations().getNumElements() == N);

@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -36,7 +36,8 @@
     \sa export_AnisoPotentialPairGPU()
 */
 template< class evaluator, cudaError_t gpu_cgpf(const a_pair_args_t& pair_args,
-                                                const typename evaluator::param_type *d_params) >
+                                                const typename evaluator::param_type *d_params,
+                                                const typename evaluator::shape_param_type *d_shape_params) >
 class AnisoPotentialPairGPU : public AnisoPotentialPair<evaluator>
     {
     public:
@@ -77,13 +78,14 @@ class AnisoPotentialPairGPU : public AnisoPotentialPair<evaluator>
     };
 
 template< class evaluator, cudaError_t gpu_cgpf(const a_pair_args_t& pair_args,
-                                                const typename evaluator::param_type *d_params) >
+                                                const typename evaluator::param_type *d_params,
+                                                const typename evaluator::shape_param_type *d_shape_params) >
 AnisoPotentialPairGPU< evaluator, gpu_cgpf >::AnisoPotentialPairGPU(std::shared_ptr<SystemDefinition> sysdef,
                                                           std::shared_ptr<NeighborList> nlist, const std::string& log_suffix)
     : AnisoPotentialPair<evaluator>(sysdef, nlist, log_suffix), m_param(0)
     {
     // can't run on the GPU if there aren't any GPUs in the execution configuration
-    if (!this->exec_conf->isCUDAEnabled())
+    if (!this->m_exec_conf->isCUDAEnabled())
         {
         this->m_exec_conf->msg->error() << "ai_pair." << evaluator::getName()
                   << ": Creating a AnisoPotentialPairGPU with no GPU in the execution configuration"
@@ -111,13 +113,14 @@ AnisoPotentialPairGPU< evaluator, gpu_cgpf >::AnisoPotentialPairGPU(std::shared_
     }
 
 template< class evaluator, cudaError_t gpu_cgpf(const a_pair_args_t& pair_args,
-                                                const typename evaluator::param_type *d_params) >
+                                                const typename evaluator::param_type *d_params,
+                                                const typename evaluator::shape_param_type *d_shape_params) >
 void AnisoPotentialPairGPU< evaluator, gpu_cgpf >::computeForces(unsigned int timestep)
     {
     this->m_nlist->compute(timestep);
 
     // start the profile
-    if (this->m_prof) this->m_prof->push(this->exec_conf, this->m_prof_name);
+    if (this->m_prof) this->m_prof->push(this->m_exec_conf, this->m_prof_name);
 
     // The GPU implementation CANNOT handle a half neighborlist, error out now
     bool third_law = this->m_nlist->getStorageMode() == NeighborList::half;
@@ -139,12 +142,14 @@ void AnisoPotentialPairGPU< evaluator, gpu_cgpf >::computeForces(unsigned int ti
     ArrayHandle<Scalar> d_diameter(this->m_pdata->getDiameters(), access_location::device, access_mode::read);
     ArrayHandle<Scalar> d_charge(this->m_pdata->getCharges(), access_location::device, access_mode::read);
     ArrayHandle<Scalar4> d_orientation(this->m_pdata->getOrientationArray(),access_location::device,access_mode::read);
+    ArrayHandle<unsigned int> d_tag(this->m_pdata->getTags(), access_location::device, access_mode::read);
 
     BoxDim box = this->m_pdata->getBox();
 
     // access parameters
     ArrayHandle<Scalar> d_rcutsq(this->m_rcutsq, access_location::device, access_mode::read);
     ArrayHandle<typename evaluator::param_type> d_params(this->m_params, access_location::device, access_mode::read);
+    ArrayHandle<typename evaluator::shape_param_type> d_shape_params(this->m_shape_params, access_location::device, access_mode::read);
 
     ArrayHandle<Scalar4> d_force(this->m_force, access_location::device, access_mode::overwrite);
     ArrayHandle<Scalar4> d_torque(this->m_torque, access_location::device, access_mode::overwrite);
@@ -153,10 +158,16 @@ void AnisoPotentialPairGPU< evaluator, gpu_cgpf >::computeForces(unsigned int ti
     // access flags
     PDataFlags flags = this->m_pdata->getFlags();
 
+    this->m_exec_conf->beginMultiGPU();
+
     if (! m_param) this->m_tuner->begin();
     unsigned int param = !m_param ?  this->m_tuner->getParam() : m_param;
     unsigned int block_size = param / 10000;
     unsigned int threads_per_particle = param % 10000;
+
+    // On the first iteration, shape parameters are updated. For optimization,
+    // could track this between calls to avoid extra copying.
+    bool first = true;
 
     gpu_cgpf(a_pair_args_t(d_force.data,
                            d_torque.data,
@@ -168,6 +179,7 @@ void AnisoPotentialPairGPU< evaluator, gpu_cgpf >::computeForces(unsigned int ti
                            d_diameter.data,
                            d_charge.data,
                            d_orientation.data,
+                           d_tag.data,
                            box,
                            d_n_neigh.data,
                            d_nlist.data,
@@ -177,14 +189,21 @@ void AnisoPotentialPairGPU< evaluator, gpu_cgpf >::computeForces(unsigned int ti
                            block_size,
                            this->m_shift_mode,
                            flags[pdata_flag::pressure_tensor] || flags[pdata_flag::isotropic_virial],
-                           threads_per_particle),
-             d_params.data);
+                           threads_per_particle,
+                           this->m_pdata->getGPUPartition(),
+                           this->m_exec_conf->dev_prop,
+                           first
+                           ),
+             d_params.data,
+             d_shape_params.data);
     if (!m_param) this->m_tuner->end();
 
-    if (this->exec_conf->isCUDAErrorCheckingEnabled())
+    if (this->m_exec_conf->isCUDAErrorCheckingEnabled())
         CHECK_CUDA_ERROR();
 
-    if (this->m_prof) this->m_prof->pop(this->exec_conf);
+    this->m_exec_conf->endMultiGPU();
+
+    if (this->m_prof) this->m_prof->pop(this->m_exec_conf);
     }
 
 //! Export this pair potential to python

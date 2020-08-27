@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -21,6 +21,10 @@
 
 #ifdef NVCC
 #error This header cannot be compiled by nvcc
+#endif
+
+#ifdef ENABLE_CUDA
+#include "hoomd/GPUPartition.cuh"
 #endif
 
 #include <hoomd/extern/pybind/include/pybind11/pybind11.h>
@@ -61,9 +65,7 @@ class PYBIND11_EXPORT ForceComposite : public MolecularForceCompute
         virtual CommFlags getRequestedCommFlags(unsigned int timestep);
         #endif
 
-        //! Update the constituent particles of a composite particle
-        /*  Using the position, velocity and orientation of the central particle
-         */
+        //! Update the constituent particles of a composite particle using the position, velocity and orientation of the central particle
         virtual void updateCompositeParticles(unsigned int timestep);
 
         //! Validate or create copies of rigid body constituent particles
@@ -75,10 +77,10 @@ class PYBIND11_EXPORT ForceComposite : public MolecularForceCompute
         bool m_bodies_changed;          //!< True if constituent particles have changed
         bool m_ptls_added_removed;      //!< True if particles have been added or removed
 
-        GPUArray<unsigned int> m_body_types;    //!< Constituent ptl types per type id (2D)
-        GPUArray<Scalar3> m_body_pos;           //!< Constituent ptl offsets per type id (2D)
-        GPUArray<Scalar4> m_body_orientation;   //!< Constituent ptl orientations per type id (2D)
-        GPUArray<unsigned int> m_body_len;      //!< Length of body per type id
+        GlobalArray<unsigned int> m_body_types;    //!< Constituent ptl types per type id (2D)
+        GlobalArray<Scalar3> m_body_pos;           //!< Constituent ptl offsets per type id (2D)
+        GlobalArray<Scalar4> m_body_orientation;   //!< Constituent ptl orientations per type id (2D)
+        GlobalArray<unsigned int> m_body_len;      //!< Length of body per type id
 
         std::vector<std::vector<Scalar> > m_body_charge;      //!< Constituent ptl charges
         std::vector<std::vector<Scalar> > m_body_diameter;    //!< Constituent ptl diameters
@@ -88,6 +90,8 @@ class PYBIND11_EXPORT ForceComposite : public MolecularForceCompute
         std::vector<bool> m_d_max_changed;                        //!< True if maximum body diameter changed (per type)
         std::vector<Scalar> m_body_max_diameter;                  //!< List of diameters for all body types
         Scalar m_global_max_d;                                    //!< Maximum over all body diameters
+
+        bool m_memory_initialized;                  //!< True if arrays are allocated
 
         //! Helper function to be called when the number of types changes
         void slotNumTypesChange();
@@ -101,6 +105,8 @@ class PYBIND11_EXPORT ForceComposite : public MolecularForceCompute
         //! Returns the maximum diameter over all rigid bodies
         Scalar getMaxBodyDiameter()
             {
+            lazyInitMem();
+
             if (m_global_max_d_changed)
                 {
                 // find maximum diameter over all bodies
@@ -134,7 +140,7 @@ class PYBIND11_EXPORT ForceComposite : public MolecularForceCompute
 
             if (!m_comm_ghost_layer_connected)
                 {
-                // register this class with the communciator
+                // register this class with the communicator
                 m_comm->getExtraGhostLayerWidthRequestSignal().connect<ForceComposite, &ForceComposite::requestExtraGhostLayerWidth>(this);
                 m_comm_ghost_layer_connected = true;
                 }
@@ -146,6 +152,9 @@ class PYBIND11_EXPORT ForceComposite : public MolecularForceCompute
 
         //! Helper method to calculate the body diameter
         Scalar getBodyDiameter(unsigned int body_type);
+
+        //! Initialize memory
+        virtual void lazyInitMem();
 
     private:
         #ifdef ENABLE_MPI

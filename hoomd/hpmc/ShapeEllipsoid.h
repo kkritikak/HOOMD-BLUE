@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #include "hoomd/HOOMDMath.h"
@@ -18,8 +18,10 @@
 // DEVICE is __device__ when included in nvcc and blank when included into the host compiler
 #ifdef NVCC
 #define DEVICE __device__
+#define HOSTDEVICE __host__ __device__
 #else
 #define DEVICE
+#define HOSTDEVICE
 #include <iostream>
 #include <iomanip>
 #endif
@@ -38,7 +40,7 @@ namespace hpmc
 {
 
 //! Ellipsoid shape template
-/*! ShapeEllipsoid implements IntegragorHPMC's shape protocol.
+/*! ShapeEllipsoid implements IntegratorHPMC's shape protocol.
 
     The parameter defining an ellipsoid is a OverlapReal4. First three components list the major axis in that direction.
     The last component (w) is a ignore flag for overlaps. If w!=0, for both particles in overlap check, then overlaps
@@ -93,6 +95,18 @@ struct ShapeEllipsoid
         // not implemented
         return OverlapReal(0.0);
         }
+
+    #ifndef NVCC
+    std::string getShapeSpec() const
+        {
+        std::ostringstream shapedef;
+        shapedef << "{\"type\": \"Ellipsoid\", \"a\": " << axes.x <<
+                    ", \"b\": " << axes.y <<
+                    ", \"c\": " << axes.z <<
+                    "}";
+        return shapedef.str();
+        }
+    #endif
 
     //! Support function of the shape (in local coordinates), used in getAABB
     /*! \param n Vector to query support function (must be normalized)
@@ -294,7 +308,7 @@ DEVICE inline int test_overlap_ellipsoids(OverlapReal *M1, OverlapReal *M2)
                      M2[0] * t0_1 - M2[1] * t1_1 + M2[3] * t2_1 - M2[6] * t3_1;
     double a0 = M2[0] * t0_0 - M2[1] * t1_0 + M2[3] * t2_0 - M2[6] * t3_0;
 
-    // SECOND: analyse the polynomial for overlaps
+    // SECOND: analyze the polynomial for overlaps
     // a4 * x^4 + a3 * x^3 + a2 * x^2 + a1 * x + a0 = 0
     // We are looking for one (at least one) positive root of this polynomial.
     // If there is one, then the ellipsoids overlap!
@@ -303,7 +317,7 @@ DEVICE inline int test_overlap_ellipsoids(OverlapReal *M1, OverlapReal *M2)
     //NOTE [BEN]: Above comment appears to be an error.
     //In the implementation, it appears as though the we're actually searching for
     //roots between -infinity and 0, so a1 and a3 flip sign. All of these sign changes cancel
-    //out in the sturm thereom check
+    //out in the sturm theorem check
 
     //(i) Descartes rule of signs check (if all coeffs are <0, then overlap)
     if (a1 < 0.0 && a2 < 0.0 && a3 < 0.0) return ELLIPSOID_OVERLAP_TRUE;
@@ -449,4 +463,6 @@ DEVICE inline bool test_overlap<ShapeEllipsoid,ShapeEllipsoid>(const vec3<Scalar
 
 }; // end namespace hpmc
 
+#undef DEVICE
+#undef HOSTDEVICE
 #endif //__SHAPE_ELLIPSOID_H__

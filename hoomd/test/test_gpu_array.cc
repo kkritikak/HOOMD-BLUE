@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -120,7 +120,7 @@ UP_TEST( GPUArray_transfer_tests )
             }
         }
 
-    // data has been overwitten on the host. Increment it on the device in overwrite mode
+    // data has been overwritten on the host. Increment it on the device in overwrite mode
     // and verify that the data was not copied from the host to device
         {
         ArrayHandle<int> d_handle(gpu_array, access_location::device, access_mode::overwrite);

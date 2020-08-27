@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 /*! \file LogPlainTXT.cc
@@ -133,7 +133,7 @@ void LogPlainTXT::analyze(unsigned int timestep)
     if (!m_file.good())
         {
         m_exec_conf->msg->error() << "analyze.log: I/O error while writing log file" << endl;
-        throw runtime_error("Error writting log file");
+        throw runtime_error("Error writing log file");
         }
 
     if (m_prof) m_prof->pop();
@@ -141,7 +141,7 @@ void LogPlainTXT::analyze(unsigned int timestep)
 
 /*! \param quantities A list of quantities to log
 
-    When analyze() is called, each quantitiy in the list will, in order, be requested
+    When analyze() is called, each quantity in the list will, in order, be requested
     from the matching registered compute or updater and written to the file separated
     by delimiters. After all quantities are written to the file a newline is written.
 

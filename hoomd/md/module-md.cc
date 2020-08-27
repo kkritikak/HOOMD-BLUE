@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -122,6 +122,52 @@ void export_tersoff_params(py::module& m)
     m.def("make_tersoff_params", &make_tersoff_params);
 }
 
+
+//! Function to make the Fourier parameter type
+inline pair_fourier_params make_pair_fourier_params(py::list a, py::list b)
+    {
+    pair_fourier_params retval;
+    for (int i = 0; i < 3; ++i)
+        {
+        retval.a[i] = py::cast<Scalar>(a[i]);
+        retval.b[i] = py::cast<Scalar>(b[i]);
+        }
+    return retval;
+    }
+
+//! Function to make the Gay-Berne parameter type
+inline pair_gb_params make_pair_gb_params(Scalar epsilon, Scalar lperp, Scalar lpar)
+    {
+    pair_gb_params retval;
+    retval.epsilon = epsilon;
+    retval.lperp = lperp;
+    retval.lpar = lpar;
+    return retval;
+    }
+
+//! Function to make the dipole parameter type
+inline pair_dipole_params make_pair_dipole_params(Scalar mu, Scalar A, Scalar kappa)
+    {
+    pair_dipole_params retval;
+    retval.mu = mu;
+    retval.A = A;
+    retval.kappa = kappa;
+    return retval;
+    }
+
+//! Function to export the fourier parameter type to python
+void export_pair_params(py::module& m)
+{
+    py::class_<pair_fourier_params>(m, "pair_fourier_params").def(py::init<>());
+    m.def("make_pair_fourier_params", &make_pair_fourier_params);
+
+    py::class_<pair_dipole_params>(m, "pair_dipole_params").def(py::init<>());
+    m.def("make_pair_dipole_params", &make_pair_dipole_params);
+
+    py::class_<pair_gb_params>(m, "pair_gb_params").def(py::init<>());
+    m.def("make_pair_gb_params", &make_pair_gb_params);
+}
+
 //! Helper function for converting python wall group structure to wall_type
 wall_type make_wall_field_params(py::object walls, std::shared_ptr<const ExecutionConfiguration> m_exec_conf)
     {
@@ -238,7 +284,9 @@ PYBIND11_MODULE(_md, m)
     export_PotentialPair<PotentialPairMie>(m, "PotentialPairMie");
     export_PotentialPair<PotentialPairReactionField>(m, "PotentialPairReactionField");
     export_PotentialPair<PotentialPairDLVO>(m, "PotentialPairDLVO");
+    export_PotentialPair<PotentialPairFourier>(m, "PotentialPairFourier");
     export_tersoff_params(m);
+    export_pair_params(m);
     export_AnisoPotentialPair<AnisoPotentialPairGB>(m, "AnisoPotentialPairGB");
     export_AnisoPotentialPair<AnisoPotentialPairDipole>(m, "AnisoPotentialPairDipole");
     export_PotentialPair<PotentialPairForceShiftedLJ>(m, "PotentialPairForceShiftedLJ");
@@ -284,6 +332,7 @@ PYBIND11_MODULE(_md, m)
     export_PotentialPairGPU<PotentialPairYukawaGPU, PotentialPairYukawa>(m, "PotentialPairYukawaGPU");
     export_PotentialPairGPU<PotentialPairReactionFieldGPU, PotentialPairReactionField>(m, "PotentialPairReactionFieldGPU");
     export_PotentialPairGPU<PotentialPairDLVOGPU, PotentialPairDLVO>(m, "PotentialPairDLVOGPU");
+    export_PotentialPairGPU<PotentialPairFourierGPU, PotentialPairFourier>(m, "PotentialPairFourierGPU");
     export_PotentialPairGPU<PotentialPairEwaldGPU, PotentialPairEwald>(m, "PotentialPairEwaldGPU");
     export_PotentialPairGPU<PotentialPairMorseGPU, PotentialPairMorse>(m, "PotentialPairMorseGPU");
     export_PotentialPairGPU<PotentialPairDPDGPU, PotentialPairDPD>(m, "PotentialPairDPDGPU");

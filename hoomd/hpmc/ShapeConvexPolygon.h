@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #include "hoomd/HOOMDMath.h"
@@ -19,8 +19,10 @@
 // DEVICE is __device__ when included in nvcc and blank when included into the host compiler
 #ifdef NVCC
 #define DEVICE __device__
+#define HOSTDEVICE __host__ __device__
 #else
 #define DEVICE
+#define HOSTDEVICE
 #include <iostream>
 #if defined (__SSE__)
 #include <immintrin.h>
@@ -258,7 +260,7 @@ class SupportFuncConvexPolygon
 }; // end namespace detail
 
 //! Convex Polygon shape template
-/*! ShapeConvexPolygon implements IntegragorHPMC's shape protocol. It serves at the simplest example of an orientable
+/*! ShapeConvexPolygon implements IntegratorHPMC's shape protocol. It serves at the simplest example of an orientable
     shape for HPMC.
 
     The parameter defining a polygon is a structure containing a list of N vertices. They are assumed to be listed
@@ -297,6 +299,20 @@ struct ShapeConvexPolygon
         // not implemented
         return OverlapReal(0.0);
         }
+
+    #ifndef NVCC
+    std::string getShapeSpec() const
+        {
+        std::ostringstream shapedef;
+        shapedef << "{\"type\": \"Polygon\", \"rounding_radius\": " << verts.sweep_radius << ", \"vertices\": [";
+        for (unsigned int i = 0; i < verts.N-1; i++)
+            {
+            shapedef << "[" << verts.x[i] << ", " << verts.y[i] << "], ";
+            }
+        shapedef << "[" << verts.x[verts.N-1] << ", " << verts.y[verts.N-1] << "]]}";
+        return shapedef.str();
+        }
+    #endif
 
     //! Return the bounding box of the shape in world coordinates
     DEVICE detail::AABB getAABB(const vec3<Scalar>& pos) const
@@ -520,4 +536,6 @@ DEVICE inline bool test_overlap<ShapeConvexPolygon,ShapeConvexPolygon>(const vec
 
 }; // end namespace hpmc
 
+#undef DEVICE
+#undef HOSTDEVICE
 #endif //__SHAPE_CONVEX_POLYGON_H__

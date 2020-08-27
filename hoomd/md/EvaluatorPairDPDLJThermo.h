@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -12,7 +12,8 @@
 #endif
 
 #include "hoomd/HOOMDMath.h"
-#include "hoomd/Saru.h"
+#include "hoomd/RandomNumbers.h"
+#include "hoomd/RNGIdentifiers.h"
 
 
 /*! \file EvaluatorPairDPDLJThermo.h
@@ -77,8 +78,8 @@ class EvaluatorPairDPDLJThermo
         typedef Scalar4 param_type;
 
         //! Constructs the pair potential evaluator
-        /*! \param _rsq Squared distance beteen the particles
-            \param _rcutsq Sqauared distance at which the potential goes to 0
+        /*! \param _rsq Squared distance between the particles
+            \param _rcutsq Squared distance at which the potential goes to 0
             \param _params Per type pair parameters of this potential
         */
         DEVICE EvaluatorPairDPDLJThermo(Scalar _rsq, Scalar _rcutsq, const param_type& _params)
@@ -137,7 +138,7 @@ class EvaluatorPairDPDLJThermo
             \note There is no need to check if rsq < rcutsq in this method. Cutoff tests are performed
                   in PotentialPair.
 
-            \return True if they are evaluated or false if they are not because we are beyond the cuttoff
+            \return True if they are evaluated or false if they are not because we are beyond the cutoff
         */
         DEVICE bool evalForceAndEnergy(Scalar& force_divr, Scalar& pair_eng, bool energy_shift)
             {
@@ -173,7 +174,7 @@ class EvaluatorPairDPDLJThermo
             \note The conservative part \b only must be output to \a force_divr_cons so that the virial may be
                   computed correctly.
 
-            \return True if they are evaluated or false if they are not because we are beyond the cuttoff
+            \return True if they are evaluated or false if they are not because we are beyond the cutoff
         */
 
         DEVICE bool evalForceEnergyThermo(Scalar& force_divr, Scalar& force_divr_cons, Scalar& pair_eng, bool energy_shift)
@@ -201,11 +202,11 @@ class EvaluatorPairDPDLJThermo
                    m_oj = m_j;
                    }
 
-                hoomd::detail::Saru rng(m_oi, m_oj, m_seed + m_timestep);
+                hoomd::RandomGenerator rng(hoomd::RNGIdentifier::EvaluatorPairDPDThermo, m_seed, m_oi, m_oj, m_timestep);
 
 
                 // Generate a single random number
-                Scalar alpha = rng.s<Scalar>(-1,1);
+                Scalar alpha = hoomd::UniformDistribution<Scalar>(-1,1)(rng);
 
                 // conservative lj
                 force_divr = r2inv * r6inv * (Scalar(12.0)*lj1*r6inv - Scalar(6.0)*lj2);
@@ -244,6 +245,11 @@ class EvaluatorPairDPDLJThermo
             {
             return std::string("dpdlj");
             }
+
+       std::string getShapeSpec() const
+          {
+          throw std::runtime_error("Shape definition not supported for this pair potential.");
+          }
         #endif
 
     protected:

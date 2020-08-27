@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -44,11 +44,11 @@ CGCMMAngleForceComputeGPU::CGCMMAngleForceComputeGPU(std::shared_ptr<SystemDefin
     cgPow2[3]  = Scalar(6.0);
 
     // allocate and zero device memory
-    GPUArray<Scalar2> params (m_CGCMMAngle_data->getNTypes(),exec_conf);
+    GPUArray<Scalar2> params (m_CGCMMAngle_data->getNTypes(),m_exec_conf);
     m_params.swap(params);
-    GPUArray<Scalar2> CGCMMsr(m_CGCMMAngle_data->getNTypes(),exec_conf);
+    GPUArray<Scalar2> CGCMMsr(m_CGCMMAngle_data->getNTypes(),m_exec_conf);
     m_CGCMMsr.swap(CGCMMsr);
-    GPUArray<Scalar4> CGCMMepow(m_CGCMMAngle_data->getNTypes(),exec_conf);
+    GPUArray<Scalar4> CGCMMepow(m_CGCMMAngle_data->getNTypes(),m_exec_conf);
     m_CGCMMepow.swap(CGCMMepow);
 
     m_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "cgcmm_angle", this->m_exec_conf));
@@ -133,8 +133,7 @@ void CGCMMAngleForceComputeGPU::computeForces(unsigned int timestep)
                                    d_CGCMMsr.data,
                                    d_CGCMMepow.data,
                                    m_CGCMMAngle_data->getNTypes(),
-                                   m_tuner->getParam(),
-                                   m_exec_conf->getComputeCapability());
+                                   m_tuner->getParam());
 
     if(m_exec_conf->isCUDAErrorCheckingEnabled())
         CHECK_CUDA_ERROR();

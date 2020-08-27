@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #ifndef _EXTERNAL_FIELD_LATTICE_H_
@@ -9,7 +9,6 @@
 */
 
 #include "hoomd/Compute.h"
-#include "hoomd/Saru.h"
 #include "hoomd/VectorMath.h"
 #include "hoomd/HOOMDMPI.h"
 
@@ -389,7 +388,11 @@ class ExternalFieldLattice : public ExternalFieldMono<Shape>
                 BoxDim newBox = m_pdata->getBox();
                 Scalar newVol = newBox.getVolume();
                 Scalar lastVol = m_box.getVolume();
-                Scalar scale = pow((newVol/lastVol), Scalar(1.0/3.0));
+                Scalar scale;
+                if (this->m_sysdef->getNDimensions() == 2)
+                    scale = pow((newVol/lastVol), Scalar(1.0/2.0));
+                else
+                    scale = pow((newVol/lastVol), Scalar(1.0/3.0));
                 m_latticePositions.scale(scale);
                 m_box = newBox;
             }
@@ -437,7 +440,7 @@ class ExternalFieldLattice : public ExternalFieldMono<Shape>
                 }
             else
                 {
-                m_exec_conf->msg->error() << "compute.lattice_field: " << quantity << " is not a valid log quantity" << std::endl;
+                m_exec_conf->msg->error() << "field.lattice_field: " << quantity << " is not a valid log quantity" << std::endl;
                 throw std::runtime_error("Error getting log value");
                 }
             }

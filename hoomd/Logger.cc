@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -32,6 +32,12 @@ Logger::Logger(std::shared_ptr<SystemDefinition> sysdef)
 Logger::~Logger()
     {
     m_exec_conf->msg->notice(5) << "Destroying Logger" << endl;
+
+    // decrease the reference count on all held callbacks
+    for(auto i : m_callback_quantities)
+        {
+        pybind11::handle(i.second).dec_ref();
+        }
     }
 
 /*! \param compute The Compute to register
@@ -78,6 +84,7 @@ void Logger::registerUpdater(std::shared_ptr<Updater> updater)
             m_exec_conf->msg->warning() << "analyze.log: The log quantity " << provided_quantities[i] <<
                  " has been registered more than once. Only the most recent registration takes effect" << endl;
         m_updater_quantities[provided_quantities[i]] = updater;
+        m_exec_conf->msg->notice(6) << "analyze.log: Registering log quantity " << provided_quantities[i] << endl;
         }
     }
 
@@ -87,7 +94,7 @@ void Logger::registerUpdater(std::shared_ptr<Updater> updater)
     After the callback is registered \a name is available as a logger quantity. The callback must return a scalar
     value and accept the time step as an argument.
 */
-void Logger::registerCallback(std::string name, py::object callback)
+void Logger::registerCallback(std::string name, pybind11::handle callback)
     {
     // first check if this quantity is already set, printing a warning if so
     if (   m_compute_quantities.count(name)
@@ -96,7 +103,9 @@ void Logger::registerCallback(std::string name, py::object callback)
         )
     m_exec_conf->msg->warning() << "analyze.log: The log quantity " << name <<
                          " has been registered more than once. Only the most recent registration takes effect" << endl;
-    m_callback_quantities[name] = callback;
+
+    pybind11::handle(callback).inc_ref(); // increase the reference count on this handle while we hold it
+    m_callback_quantities[name] = callback.ptr();
     }
 
 /*! After calling removeAll(), no quantities are registered for logging
@@ -112,7 +121,7 @@ void Logger::removeAll()
 
 /*! \param quantities A list of quantities to log
 
-    When analyze() is called, each quantitiy in the list will, in order, be requested
+    When analyze() is called, each quantity in the list will, in order, be requested
     from the matching registered compute or updater.
 */
 void Logger::setLoggedQuantities(const std::vector< std::string >& quantities)
@@ -198,7 +207,7 @@ Scalar Logger::getValue(const std::string &quantity, int timestep)
         // get a quantity from a callback
         try
             {
-            py::object rv = m_callback_quantities[quantity](timestep);
+            py::object rv = pybind11::reinterpret_borrow<py::object>(m_callback_quantities[quantity])(timestep);
             Scalar extracted_rv = rv.cast<Scalar>();
             return extracted_rv;
             }

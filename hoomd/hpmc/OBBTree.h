@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -386,7 +386,7 @@ inline unsigned int OBBTree::buildNode(OBB *obbs,
             else
                 {
                 // if on the right side, need to swap the current obb with the one at start_right-1, subtract
-                // one off of start_right to indicate the addition of one to the right side and subtrace 1
+                // one off of start_right to indicate the addition of one to the right side and subtract 1
                 // from i to look at the current index (new obb). This is quick and easy to write, but will
                 // randomize indices - might need to look into a stable partitioning algorithm!
                 std::swap(obbs[start+i], obbs[start+start_right-1]);

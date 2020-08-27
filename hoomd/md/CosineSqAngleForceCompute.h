@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -60,7 +60,7 @@ class PYBIND11_EXPORT CosineSqAngleForceCompute : public ForceCompute
         #endif
 
     protected:
-        Scalar* m_K;    //!< K parameter for multiple angle tyes
+        Scalar* m_K;    //!< K parameter for multiple angle types
         Scalar* m_t_0;  //!< r_0 parameter for multiple angle types
 
         std::shared_ptr<AngleData> m_angle_data;  //!< Angle data to use in computing angles

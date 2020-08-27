@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -140,7 +140,7 @@ void POSDumpWriter::analyze(unsigned int timestep)
 
         vec3<Scalar> tmp_pos = pos;
 
-        if (m_unwrap_rigid && snap.body[j] != NO_BODY)
+        if (m_unwrap_rigid && snap.body[j] < MIN_FLOPPY)
             {
             unsigned int central_ptl_tag = snap.body[j];
             assert(central_ptl_tag < snap.size);
@@ -170,14 +170,14 @@ void POSDumpWriter::analyze(unsigned int timestep)
         if (!m_file.good())
             {
             m_exec_conf->msg->error() << "Unexpected error writing pos dump file" << endl << endl;
-            throw runtime_error("Error writting pos dump file");
+            throw runtime_error("Error writing pos dump file");
             }
         }
 
     if (!m_file.good())
         {
         m_exec_conf->msg->error() << "Unexpected error writing pos dump file" << endl << endl;
-        throw runtime_error("Error writting pos dump file");
+        throw runtime_error("Error writing pos dump file");
         }
 
     m_file << "eof" << endl;

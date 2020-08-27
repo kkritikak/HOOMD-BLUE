@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: joaander / All Developers are free to add commands for new features
@@ -17,12 +17,13 @@ Example::
 """
 
 import hoomd;
-import json, collections;
+import json
 import time
 import datetime
 import copy
 
 from collections import OrderedDict
+from collections.abc import Mapping
 
 ## \internal
 # \brief A Mixin to facilitate storage of simulation metadata
@@ -84,7 +85,7 @@ def dump_metadata(filename=None,user=None,indent=4):
     metadata = dict()
 
     if user is not None:
-        if not isinstance(user, collections.Mapping):
+        if not isinstance(user, Mapping):
             hoomd.context.msg.warning("Extra meta data needs to be a mapping type. Ignoring.\n")
         else:
             metadata['user'] = _metadata_from_dict(user);

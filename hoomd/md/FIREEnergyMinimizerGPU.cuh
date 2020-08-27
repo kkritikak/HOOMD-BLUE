@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -11,7 +11,7 @@
 #define __FIRE_ENERGY_MINIMIZER_GPU_CUH__
 
 /*! \file FIREEnergyMinimizerGPU.cuh
-    \brief Defines the interace to GPU kernal drivers used by FIREEnergyMinimizerGPU.
+    \brief Defines the interface to GPU kernel drivers used by FIREEnergyMinimizerGPU.
 */
 
 //! Kernel driver for zeroing velocities called by FIREEnergyMinimizerGPU

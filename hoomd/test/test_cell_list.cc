@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -92,7 +92,7 @@ void celllist_dimension_test(std::shared_ptr<ExecutionConfiguration> exec_conf)
     CHECK_EQUAL_UINT(adji.getNumElements(), 5*5*5*27);
     CHECK_EQUAL_UINT(cl->getCellAdjArray().getNumElements(), 5*5*5*27);
 
-    // ********* change the nominal width and verify the reusults *********
+    // ********* change the nominal width and verify the results *********
     cl->setNominalWidth(Scalar(0.5));
     cl->compute(0);
 

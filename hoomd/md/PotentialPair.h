@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -15,9 +15,14 @@
 
 #include "hoomd/HOOMDMath.h"
 #include "hoomd/Index1D.h"
-#include "hoomd/GPUArray.h"
+#include "hoomd/GlobalArray.h"
 #include "hoomd/ForceCompute.h"
 #include "NeighborList.h"
+#include "hoomd/GSDShapeSpecWriter.h"
+
+#ifdef ENABLE_CUDA
+#include <cuda_runtime.h>
+#endif
 
 #ifdef ENABLE_MPI
 #include "hoomd/Communicator.h"
@@ -38,13 +43,13 @@
 /*! <b>Overview:</b>
     PotentialPair computes standard pair potentials (and forces) between all particle pairs in the simulation. It
     employs the use of a neighbor list to limit the number of computations done to only those particles with the
-    cuttoff radius of each other. The computation of the actual V(r) is not performed directly by this class, but
-    by an evaluator class (e.g. EvaluatorPairLJ) which is passed in as a template parameter so the compuations
+    cutoff radius of each other. The computation of the actual V(r) is not performed directly by this class, but
+    by an evaluator class (e.g. EvaluatorPairLJ) which is passed in as a template parameter so the computations
     are performed as efficiently as possible.
 
     PotentialPair handles most of the gory internal details common to all standard pair potentials.
-     - A cuttoff radius to be specified per particle type pair
-     - The energy can be globally shifted to 0 at the cuttoff
+     - A cutoff radius to be specified per particle type pair
+     - The energy can be globally shifted to 0 at the cutoff
      - XPLOR switching can be enabled
      - Per type pair parameters are stored and a set method is provided
      - Logging methods are provided for the energy
@@ -53,10 +58,10 @@
     A note on the design of XPLOR switching:
     We need to be able to handle smooth XPLOR switching in systems of mixed LJ/WCA particles. There are three modes to
     enable all of the various use-cases:
-     - Mode 1: No shifting. All pair potentials are computed as is and not shifted to 0 at the cuttoff.
-     - Mode 2: Shift everything. All pair potentials (no matter what type pair) are shifted so they are 0 at the cuttoff
+     - Mode 1: No shifting. All pair potentials are computed as is and not shifted to 0 at the cutoff.
+     - Mode 2: Shift everything. All pair potentials (no matter what type pair) are shifted so they are 0 at the cutoff
      - Mode 3: XPLOR switching enabled. A r_on value is specified per type pair. When r_on is less than r_cut, normal
-       XPLOR switching will be applied to the unshifted potential. When r_on is greather than r_cut, the energy will
+       XPLOR switching will be applied to the unshifted potential. When r_on is greater than r_cut, the energy will
        be shifted. In this manner, a valid r_on value can be given for the LJ interactions and r_on > r_cut can be set
        for WCA (which will then be shifted).
 
@@ -67,15 +72,15 @@
     <b>Implementation details</b>
 
     rcutsq, ronsq, and the params are stored per particle type pair. It wastes a little bit of space, but benchmarks
-    show that storing the symmetric type pairs and indexing with Index2D is faster than not storing redudant pairs
-    and indexing with Index2DUpperTriangular. All of these values are stored in GPUArray
+    show that storing the symmetric type pairs and indexing with Index2D is faster than not storing redundant pairs
+    and indexing with Index2DUpperTriangular. All of these values are stored in GlobalArray
     for easy access on the GPU by a derived class. The type of the parameters is defined by \a param_type in the
     potential evaluator class passed in. See the appropriate documentation for the evaluator for the definition of each
     element of the parameters.
 
     For profiling and logging, PotentialPair needs to know the name of the potential. For now, that will be queried from
     the evaluator. Perhaps in the future we could allow users to change that so multiple pair potentials could be logged
-    independantly.
+    independently.
 
     \sa export_PotentialPair()
 */
@@ -99,6 +104,12 @@ class PotentialPair : public ForceCompute
         virtual void setRcut(unsigned int typ1, unsigned int typ2, Scalar rcut);
         //! Set ron for a single type pair
         virtual void setRon(unsigned int typ1, unsigned int typ2, Scalar ron);
+
+        //! Method that is called whenever the GSD file is written if connected to a GSD file.
+        int slotWriteGSDShapeSpec(gsd_handle&) const;
+
+        //! Method that is called to connect to the gsd write state signal
+        void connectGSDShapeSpec(std::shared_ptr<GSDDumpWriter> writer);
 
         //! Returns a list of log quantities this compute calculates
         virtual std::vector< std::string > getProvidedLogQuantities();
@@ -133,13 +144,25 @@ class PotentialPair : public ForceCompute
         Scalar computeEnergyBetweenSetsPythonList(  pybind11::array_t<int, pybind11::array::c_style> tags1,
                                                     pybind11::array_t<int, pybind11::array::c_style> tags2);
 
+        std::vector<std::string> getTypeShapeMapping(const GlobalArray<param_type> &params) const
+            {
+            ArrayHandle<param_type> h_params(params, access_location::host, access_mode::read);
+            std::vector<std::string> type_shape_mapping(m_pdata->getNTypes());
+            for (unsigned int i = 0; i < type_shape_mapping.size(); i++)
+                {
+                evaluator eval(Scalar(0.0),Scalar(0.0), h_params.data[m_typpair_idx(i,i)]);
+                type_shape_mapping[i] = eval.getShapeSpec();
+                }
+            return type_shape_mapping;
+            }
+
     protected:
         std::shared_ptr<NeighborList> m_nlist;    //!< The neighborlist to use for the computation
         energyShiftMode m_shift_mode;               //!< Store the mode with which to handle the energy shift at r_cut
         Index2D m_typpair_idx;                      //!< Helper class for indexing per type pair arrays
-        GPUArray<Scalar> m_rcutsq;                  //!< Cuttoff radius squared per type pair
-        GPUArray<Scalar> m_ronsq;                   //!< ron squared per type pair
-        GPUArray<param_type> m_params;              //!< Pair parameters per type pair
+        GlobalArray<Scalar> m_rcutsq;                  //!< Cutoff radius squared per type pair
+        GlobalArray<Scalar> m_ronsq;                   //!< ron squared per type pair
+        GlobalArray<param_type> m_params;              //!< Pair parameters per type pair
         std::string m_prof_name;                    //!< Cached profiler name
         std::string m_log_name;                     //!< Cached log name
 
@@ -151,7 +174,7 @@ class PotentialPair : public ForceCompute
             {
             // skip the reallocation if the number of types does not change
             // this keeps old potential coefficients when restoring a snapshot
-            // it will result in invalid coeficients if the snapshot has a different type id -> name mapping
+            // it will result in invalid coefficients if the snapshot has a different type id -> name mapping
             if (m_pdata->getNTypes() == m_typpair_idx.getW())
                 return;
 
@@ -159,12 +182,33 @@ class PotentialPair : public ForceCompute
             m_typpair_idx = Index2D(m_pdata->getNTypes());
 
             // reallocate parameter arrays
-            GPUArray<Scalar> rcutsq(m_typpair_idx.getNumElements(), m_exec_conf);
+            GlobalArray<Scalar> rcutsq(m_typpair_idx.getNumElements(), m_exec_conf);
             m_rcutsq.swap(rcutsq);
-            GPUArray<Scalar> ronsq(m_typpair_idx.getNumElements(), m_exec_conf);
+            GlobalArray<Scalar> ronsq(m_typpair_idx.getNumElements(), m_exec_conf);
             m_ronsq.swap(ronsq);
-            GPUArray<param_type> params(m_typpair_idx.getNumElements(), m_exec_conf);
+            GlobalArray<param_type> params(m_typpair_idx.getNumElements(), m_exec_conf);
             m_params.swap(params);
+
+            #ifdef ENABLE_CUDA
+            if (m_pdata->getExecConf()->isCUDAEnabled() && m_pdata->getExecConf()->allConcurrentManagedAccess())
+                {
+                cudaMemAdvise(m_rcutsq.get(), m_rcutsq.getNumElements()*sizeof(Scalar), cudaMemAdviseSetReadMostly, 0);
+                cudaMemAdvise(m_ronsq.get(), m_ronsq.getNumElements()*sizeof(Scalar), cudaMemAdviseSetReadMostly, 0);
+                cudaMemAdvise(m_params.get(), m_params.getNumElements()*sizeof(param_type), cudaMemAdviseSetReadMostly, 0);
+
+                // prefetch
+                auto& gpu_map = m_exec_conf->getGPUIds();
+
+                for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
+                    {
+                    // prefetch data on all GPUs
+                    cudaMemPrefetchAsync(m_rcutsq.get(), sizeof(Scalar)*m_rcutsq.getNumElements(), gpu_map[idev]);
+                    cudaMemPrefetchAsync(m_ronsq.get(), sizeof(Scalar)*m_ronsq.getNumElements(),gpu_map[idev]);
+                    cudaMemPrefetchAsync(m_params.get(), sizeof(param_type)*m_params.getNumElements(), gpu_map[idev]);
+                    }
+                CHECK_CUDA_ERROR();
+                }
+            #endif
             }
     };
 
@@ -183,12 +227,32 @@ PotentialPair< evaluator >::PotentialPair(std::shared_ptr<SystemDefinition> sysd
     assert(m_pdata);
     assert(m_nlist);
 
-    GPUArray<Scalar> rcutsq(m_typpair_idx.getNumElements(), m_exec_conf);
+    GlobalArray<Scalar> rcutsq(m_typpair_idx.getNumElements(), m_exec_conf);
     m_rcutsq.swap(rcutsq);
-    GPUArray<Scalar> ronsq(m_typpair_idx.getNumElements(), m_exec_conf);
+    GlobalArray<Scalar> ronsq(m_typpair_idx.getNumElements(), m_exec_conf);
     m_ronsq.swap(ronsq);
-    GPUArray<param_type> params(m_typpair_idx.getNumElements(), m_exec_conf);
+    GlobalArray<param_type> params(m_typpair_idx.getNumElements(), m_exec_conf);
     m_params.swap(params);
+
+    #ifdef ENABLE_CUDA
+    if (m_pdata->getExecConf()->isCUDAEnabled() && m_exec_conf->allConcurrentManagedAccess())
+        {
+        cudaMemAdvise(m_rcutsq.get(), m_rcutsq.getNumElements()*sizeof(Scalar), cudaMemAdviseSetReadMostly, 0);
+        cudaMemAdvise(m_ronsq.get(), m_ronsq.getNumElements()*sizeof(Scalar), cudaMemAdviseSetReadMostly, 0);
+        cudaMemAdvise(m_params.get(), m_params.getNumElements()*sizeof(param_type), cudaMemAdviseSetReadMostly, 0);
+
+        // prefetch
+        auto& gpu_map = m_exec_conf->getGPUIds();
+
+        for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
+            {
+            // prefetch data on all GPUs
+            cudaMemPrefetchAsync(m_rcutsq.get(), sizeof(Scalar)*m_rcutsq.getNumElements(), gpu_map[idev]);
+            cudaMemPrefetchAsync(m_ronsq.get(), sizeof(Scalar)*m_ronsq.getNumElements(),gpu_map[idev]);
+            cudaMemPrefetchAsync(m_params.get(), sizeof(param_type)*m_params.getNumElements(), gpu_map[idev]);
+            }
+        }
+    #endif
 
     // initialize name
     m_prof_name = std::string("Pair ") + evaluator::getName();
@@ -217,7 +281,7 @@ void PotentialPair< evaluator >::setParams(unsigned int typ1, unsigned int typ2,
     {
     if (typ1 >= m_pdata->getNTypes() || typ2 >= m_pdata->getNTypes())
         {
-        this->m_exec_conf->msg->error() << "pair." << evaluator::getName() << ": Trying to set pair params for a non existant type! "
+        this->m_exec_conf->msg->error() << "pair." << evaluator::getName() << ": Trying to set pair params for a non existent type! "
                   << typ1 << "," << typ2 << std::endl;
         throw std::runtime_error("Error setting parameters in PotentialPair");
         }
@@ -229,7 +293,7 @@ void PotentialPair< evaluator >::setParams(unsigned int typ1, unsigned int typ2,
 
 /*! \param typ1 First type index in the pair
     \param typ2 Second type index in the pair
-    \param rcut Cuttoff radius to set
+    \param rcut Cutoff radius to set
     \note When setting the value for (\a typ1, \a typ2), the parameter for (\a typ2, \a typ1) is automatically
           set.
 */
@@ -238,7 +302,7 @@ void PotentialPair< evaluator >::setRcut(unsigned int typ1, unsigned int typ2, S
     {
     if (typ1 >= m_pdata->getNTypes() || typ2 >= m_pdata->getNTypes())
         {
-        this->m_exec_conf->msg->error() << "pair." << evaluator::getName() << ": Trying to set rcut for a non existant type! "
+        this->m_exec_conf->msg->error() << "pair." << evaluator::getName() << ": Trying to set rcut for a non existent type! "
                   << typ1 << "," << typ2 << std::endl;
         throw std::runtime_error("Error setting parameters in PotentialPair");
         }
@@ -259,7 +323,7 @@ void PotentialPair< evaluator >::setRon(unsigned int typ1, unsigned int typ2, Sc
     {
     if (typ1 >= m_pdata->getNTypes() || typ2 >= m_pdata->getNTypes())
         {
-        this->m_exec_conf->msg->error() << "pair." << evaluator::getName() << ": Trying to set ron for a non existant type! "
+        this->m_exec_conf->msg->error() << "pair." << evaluator::getName() << ": Trying to set ron for a non existent type! "
                   << typ1 << "," << typ2 << std::endl;
         throw std::runtime_error("Error setting parameters in PotentialPair");
         }
@@ -267,6 +331,24 @@ void PotentialPair< evaluator >::setRon(unsigned int typ1, unsigned int typ2, Sc
     ArrayHandle<Scalar> h_ronsq(m_ronsq, access_location::host, access_mode::readwrite);
     h_ronsq.data[m_typpair_idx(typ1, typ2)] = ron * ron;
     h_ronsq.data[m_typpair_idx(typ2, typ1)] = ron * ron;
+    }
+
+template <class evaluator>
+void PotentialPair<evaluator>::connectGSDShapeSpec(std::shared_ptr<GSDDumpWriter> writer)
+    {
+    typedef hoomd::detail::SharedSignalSlot<int(gsd_handle&)> SlotType;
+    auto func = std::bind(&PotentialPair<evaluator>::slotWriteGSDShapeSpec, this, std::placeholders::_1);
+    std::shared_ptr<hoomd::detail::SignalSlot> pslot( new SlotType(writer->getWriteSignal(), func));
+    addSlot(pslot);
+    }
+
+template <class evaluator>
+int PotentialPair<evaluator>::slotWriteGSDShapeSpec(gsd_handle& handle) const
+    {
+    GSDShapeSpecWriter shapespec(m_exec_conf);
+    m_exec_conf->msg->notice(10) << "PotentialPair writing to GSD File to name: " << shapespec.getName() << std::endl;
+    int retval = shapespec.write(handle, this->getTypeShapeMapping(m_params));
+    return retval;
     }
 
 /*! PotentialPair provides:
@@ -741,6 +823,8 @@ template < class T > void export_PotentialPair(pybind11::module& m, const std::s
         .def("setRon", &T::setRon)
         .def("setShiftMode", &T::setShiftMode)
         .def("computeEnergyBetweenSets", &T::computeEnergyBetweenSetsPythonList)
+        .def("slotWriteGSDShapeSpec", &T::slotWriteGSDShapeSpec)
+        .def("connectGSDShapeSpec", &T::connectGSDShapeSpec)
     ;
 
     pybind11::enum_<typename T::energyShiftMode>(potentialpair,"energyShiftMode")

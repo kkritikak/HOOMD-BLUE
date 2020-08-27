@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -24,7 +24,6 @@
 #define __GSD_INITIALIZER_H__
 
 //! Forward declarations
-class ExecutionConfiguation;
 template <class Real> struct SnapshotSystemData;
 
 //! Reads a GSD input file
@@ -80,6 +79,14 @@ class PYBIND11_EXPORT GSDReader
             m_snapshot.reset();
             }
 
+        //! get handle
+        gsd_handle getHandle(void) const
+            {
+            return m_handle;
+            }
+
+        pybind11::list readTypeShapesPy(uint64_t frame);
+
     private:
         std::shared_ptr<const ExecutionConfiguration> m_exec_conf; //!< The execution configuration
         uint64_t m_timestep;                                         //!< Timestep at the selected frame
@@ -95,6 +102,9 @@ class PYBIND11_EXPORT GSDReader
         void readHeader();
         void readParticles();
         void readTopology();
+
+        /// Check and raise an exception if an error occurs
+        void checkError(int retval);
     };
 
 //! Exports GSDReader to python

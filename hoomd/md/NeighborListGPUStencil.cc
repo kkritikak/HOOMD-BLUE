@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -312,8 +312,7 @@ void NeighborListGPUStencil::buildNlist(unsigned int timestep)
                               m_filter_body,
                               m_diameter_shift,
                               threads_per_particle,
-                              block_size,
-                              m_exec_conf->getComputeCapability()/10);
+                              block_size);
 
     if(m_exec_conf->isCUDAErrorCheckingEnabled()) CHECK_CUDA_ERROR();
     if (tune) this->m_tuner->end();

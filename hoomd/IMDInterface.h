@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -22,7 +22,7 @@
 #ifndef __IMD_INTERFACE_H__
 #define __IMD_INTERFACE_H__
 
-//! Iterfaces with VMD through the IMD communcations port
+//! Interfaces with VMD through the IMD communications port
 /*! analyze() can be called very often. When not connected to
     VMD, it will do nothing. After a connection has been established,
     which can only happen during a call to analyze(), further calls will

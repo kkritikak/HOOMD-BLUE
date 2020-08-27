@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -30,7 +30,7 @@
     - setDeltaT results in deltaT being set on all current integration methods
     - to ensure that new methods also get set, addIntegrationMethod() also calls setDeltaT on the method
     - to interface with the python script, a removeAllIntegrationMethods() method is provided to clear the list so they
-      can be cleared and re-added from hoomd_script's internal list
+      can be cleared and re-added from hoomd's internal list
 
     To ensure that the user does not make a mistake and specify more than one method operating on a single particle,
     the particle groups are checked for intersections whenever a new method is added in addIntegrationMethod()

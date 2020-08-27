@@ -1,11 +1,11 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
 // Maintainer: joaander
 
 #include "Compute.h"
-#include "GPUArray.h"
+#include "GlobalArray.h"
 #include "ComputeThermoTypes.h"
 #include "ParticleGroup.h"
 
@@ -27,12 +27,12 @@
 
 //! Computes thermodynamic properties of a group of particles
 /*! ComputeThermo calculates instantaneous thermodynamic properties and provides them for the logger.
-    All computed values are stored in a GPUArray so that they can be accessed on the GPU without intermediate copies.
+    All computed values are stored in a GlobalArray so that they can be accessed on the GPU without intermediate copies.
     Use the enum values in thermo_index to index the array and extract the properties of interest. Convenience functions
-    are provided for accessing the values on the CPU. Certain properties, loke ndof and num_particles are always known
-    and there is no need for them to be accessible via the GPUArray.
+    are provided for accessing the values on the CPU. Certain properties, like ndof and num_particles are always known
+    and there is no need for them to be accessible via the GlobalArray.
 
-    Computed quantities available in the GPUArray:
+    Computed quantities available in the GlobalArray:
      - temperature of the group from translational degrees of freedom
      - temperature of the group from rotational degrees of freedom
      - pressure (valid for the all group)
@@ -50,7 +50,7 @@
 
     All quantities are made available for the logger. ComputerThermo can be given a suffix which it will append
     to each quantity provided to the logger. Typical usage is to provide _groupname as the suffix so that properties
-    of different groups can be logged seperately (e.g. temperature_group1 and temperature_group2).
+    of different groups can be logged separately (e.g. temperature_group1 and temperature_group2).
 
     \ingroup computes
 */
@@ -276,7 +276,7 @@ class PYBIND11_EXPORT ComputeThermo : public Compute
             }
 
         //! Get the gpu array of properties
-        const GPUArray<Scalar>& getProperties()
+        const GlobalArray<Scalar>& getProperties()
             {
             #ifdef ENABLE_MPI
             if (!m_properties_reduced) reduceProperties();
@@ -304,7 +304,7 @@ class PYBIND11_EXPORT ComputeThermo : public Compute
 
     protected:
         std::shared_ptr<ParticleGroup> m_group;     //!< Group to compute properties for
-        GPUArray<Scalar> m_properties;  //!< Stores the computed properties
+        GlobalArray<Scalar> m_properties;  //!< Stores the computed properties
         unsigned int m_ndof;            //!< Stores the number of translational degrees of freedom in the system
         unsigned int m_ndof_rot;        //!< Stores the number of rotational degrees of freedom in the system
         std::vector<std::string> m_logname_list;  //!< Cache all generated logged quantities names

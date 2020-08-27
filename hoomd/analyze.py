@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: joaander / All Developers are free to add commands for new features
@@ -18,8 +18,8 @@ import numpy
 ## \internal
 # \brief Base class for analyzers
 #
-# An analyzer in hoomd_script reflects an Analyzer in c++. It is responsible
-# for all high-level management that happens behind the scenes for hoomd_script
+# An analyzer in hoomd reflects an Analyzer in c++. It is responsible
+# for all high-level management that happens behind the scenes for hoomd
 # writers. 1) The instance of the c++ analyzer itself is tracked and added to the
 # System 2) methods are provided for disabling the analyzer and changing the
 # period which the system calls it
@@ -95,7 +95,7 @@ class _analyzer(hoomd.meta._metadata):
     def check_initialization(self):
         # check that we have been initialized properly
         if self.cpp_analyzer is None:
-            hoomd.context.msg.error('Bug in hoomd_script: cpp_analyzer not set, please report\n');
+            hoomd.context.msg.error('Bug in hoomd: cpp_analyzer not set, please report\n');
             raise RuntimeError();
 
     def disable(self):
@@ -187,13 +187,13 @@ class _analyzer(hoomd.meta._metadata):
 
     def _connect_gsd(self, gsd):
         # This is an internal method, and should not be called directly. See gsd.dump_state() instead
-        if isinstance(gsd, hoomd.dump.gsd) and hasattr(self.cpp_analyzer, "connectGSDSignal"):
-            self.cpp_analyzer.connectGSDSignal(gsd.cpp_analyzer, self._gsd_state_name());
+        if isinstance(gsd, hoomd.dump.gsd) and hasattr(self.cpp_analyzer, "connectGSDStateSignal"):
+            self.cpp_analyzer.connectGSDStateSignal(gsd.cpp_analyzer, self._gsd_state_name());
         else:
-            raise NotImplementedError("GSD Schema is not implemented for {}".format(cls.__name__));
+            raise NotImplementedError("GSD Schema is not implemented for {}".format(self.__class__.__name__));
 
     def restore_state(self):
-        """ Resore the state information from the file used to initialize the simulations
+        """ Restore the state information from the file used to initialize the simulations
         """
         hoomd.util.print_status_line();
         if isinstance(hoomd.context.current.state_reader, _hoomd.GSDReader) and hasattr(self.cpp_analyzer, "restoreStateGSD"):
@@ -277,7 +277,7 @@ class log(_analyzer):
     Quantities that can be logged at any time:
 
     - **volume** - Volume of the simulation box (in volume units)
-    - **N** - Particle nubmer (dimensionless)
+    - **N** - Particle number (dimensionless)
     - **lx** - Box length in x direction (in length units)
     - **ly** - Box length in y direction (in length units)
     - **lz** - Box length in z direction (in length units)
@@ -357,13 +357,12 @@ class log(_analyzer):
     - Integrators
 
       - **langevin_reservoir_energy_groupname** (:py:class:`hoomd.md.integrate.langevin`) - Energy reservoir for the Langevin integrator (in energy units)
-      - **nvt_reservoir_energy_groupname** (:py:class:`hoomd.md.integrate.nvt`) - Energy reservoir for the NVT thermostat (in energy units)
       - **nvt_mtk_reservoir_energy_groupname** (:py:class:`hoomd.md.integrate.nvt`) - Energy reservoir for the NVT MTK thermostat (in energy units)
       - **npt_thermostat_energy** (:py:class:`hoomd.md.integrate.npt`) - Energy of the NPT thermostat
       - **npt_barostat_energy** (:py:class:`hoomd.md.integrate.npt` & :py:class:`hoomd.md.integrate.nph`) - Energy of the NPT (or NPH) barostat
 
-    Additionally, all pair and bond poetentials can be provided user-defined names that are appended as suffixes to the
-    logged quantitiy (e.g. with ``pair.lj(r_cut=2.5, name="alpha")``, the logged quantity would be pair_lj_energy_alpha):
+    Additionally, all pair and bond potentials can be provided user-defined names that are appended as suffixes to the
+    logged quantity (e.g. with ``pair.lj(r_cut=2.5, name="alpha")``, the logged quantity would be pair_lj_energy_alpha):
 
     By specifying a force, disabling it with the *log=True* option, and then logging it, different energy terms can
     be computed while only a subset of them actually drive the simulation. Common use-cases of this capability
@@ -508,7 +507,7 @@ class log(_analyzer):
 
         Args:
             name (str): Name of the quantity
-            callback (callable): A python callable object (i.e. a lambda, function, or class that implements __call__)
+            callback (`callable`): A python callable object (i.e. a lambda, function, or class that implements __call__)
 
         The callback method must take a single argument, the current
         timestep, and return a single floating point value to be
@@ -577,7 +576,7 @@ class callback(_analyzer):
     R""" Callback analyzer.
 
     Args:
-        callback (callable): The python callback object
+        callback (`callable`): The python callback object
         period (int): The callback is called every \a period time steps
         phase (int): When -1, start on the current time step. When >= 0, execute on steps where (step + phase) % period == 0.
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -11,8 +11,8 @@
 #include "QuaternionMath.h"
 #include "hoomd/HOOMDMath.h"
 
-#include "hoomd/Saru.h"
-
+#include "hoomd/RandomNumbers.h"
+#include "hoomd/RNGIdentifiers.h"
 
 namespace py = pybind11;
 
@@ -102,11 +102,11 @@ bool IntegrationMethodTwoStep::restartInfoTestValid(const IntegratorVariables& v
 /*! \param query_group Group over which to count (translational) degrees of freedom.
     A majority of the integration methods add D degrees of freedom per particle in \a query_group that is also in the
     group assigned to the method. Hence, the base class IntegrationMethodTwoStep will implement that counting.
-    Derived classes can ovveride if needed.
+    Derived classes can override if needed.
 */
 unsigned int IntegrationMethodTwoStep::getNDOF(std::shared_ptr<ParticleGroup> query_group)
     {
-    // get the size of the intersecion between query_group and m_group
+    // get the size of the intersection between query_group and m_group
     unsigned int intersect_size = ParticleGroup::groupIntersection(query_group, m_group)->getNumMembersGlobal();
 
     return m_sysdef->getNDimensions() * intersect_size;
@@ -114,7 +114,7 @@ unsigned int IntegrationMethodTwoStep::getNDOF(std::shared_ptr<ParticleGroup> qu
 
 unsigned int IntegrationMethodTwoStep::getRotationalNDOF(std::shared_ptr<ParticleGroup> query_group)
     {
-    // get the size of the intersecion between query_group and m_group
+    // get the size of the intersection between query_group and m_group
     std::shared_ptr<ParticleGroup> intersect = ParticleGroup::groupIntersection(query_group, m_group);
 
     unsigned int local_group_size = intersect->getNumMembers();
@@ -166,24 +166,23 @@ unsigned int IntegrationMethodTwoStep::getRotationalNDOF(std::shared_ptr<Particl
 */
 void IntegrationMethodTwoStep::validateGroup()
     {
-    for (unsigned int gidx = 0; gidx < m_group->getNumMembersGlobal(); gidx++)
+    ArrayHandle<unsigned int> h_body(m_pdata->getBodies(), access_location::host, access_mode::read);
+    ArrayHandle<unsigned int> h_rtag(m_pdata->getRTags(), access_location::host, access_mode::read);
+    ArrayHandle<unsigned int> h_tag(m_pdata->getTags(), access_location::host, access_mode::read);
+    ArrayHandle<unsigned int> h_group_index(m_group->getIndexArray(), access_location::host, access_mode::read);
+
+    for (unsigned int gidx = 0; gidx < m_group->getNumMembers(); gidx++)
         {
-        unsigned int tag = m_group->getMemberTag(gidx);
-        if (m_pdata->isParticleLocal(tag))
+        unsigned int i = h_group_index.data[gidx];
+        unsigned int tag = h_tag.data[i];
+        unsigned int body = h_body.data[i];
+
+        if (body < MIN_FLOPPY && body != tag)
             {
-            ArrayHandle<unsigned int> h_body(m_pdata->getBodies(), access_location::host, access_mode::read);
-            ArrayHandle<unsigned int> h_rtag(m_pdata->getRTags(), access_location::host, access_mode::read);
-            ArrayHandle<unsigned int> h_tag(m_pdata->getTags(), access_location::host, access_mode::read);
-
-            unsigned int body = h_body.data[h_rtag.data[tag]];
-
-            if (body != NO_BODY && body != tag)
-                {
-                m_exec_conf->msg->error() << "Particle " << tag << " belongs to a rigid body, but is not its center particle. "
-                    << std::endl << "This integration method does not operate on constituent particles."
-                    << std::endl << std::endl;
-                throw std::runtime_error("Error initializing integration method");
-                }
+            m_exec_conf->msg->error() << "Particle " << tag << " belongs to a rigid body, but is not its center particle. "
+                << std::endl << "This integration method does not operate on constituent particles."
+                << std::endl << std::endl;
+            throw std::runtime_error("Error initializing integration method");
             }
         }
 
@@ -241,15 +240,16 @@ void IntegrationMethodTwoStep::randomizeVelocities(unsigned int timestep)
         unsigned int ptag = h_tag.data[j];
 
         /* Initialize the random number generator */
-        hoomd::detail::Saru saru(ptag, timestep, m_seed_randomize);
+        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::IntegrationMethodTwoStep, m_seed_randomize, ptag, timestep);
 
         /* Generate a new random linear velocity for particle j */
         Scalar mass =  h_vel.data[j].w;
         Scalar sigma = fast::sqrt(m_T_randomize / mass);
-        h_vel.data[j].x = gaussian_rng(saru, sigma);
-        h_vel.data[j].y = gaussian_rng(saru, sigma);
+        hoomd::NormalDistribution<Scalar> normal(sigma);
+        h_vel.data[j].x = normal(rng);
+        h_vel.data[j].y = normal(rng);
         if (D > 2)
-            h_vel.data[j].z = gaussian_rng(saru, sigma);
+            h_vel.data[j].z = normal(rng);
         else
             h_vel.data[j].z = 0; // For 2D systems
 
@@ -267,11 +267,11 @@ void IntegrationMethodTwoStep::randomizeVelocities(unsigned int timestep)
             /* Generate a new random angular momentum for particle j in
              * body frame */
             if (I.x >= EPSILON)
-                p_vec.x = gaussian_rng(saru, fast::sqrt(m_T_randomize * I.x));
+                p_vec.x = hoomd::NormalDistribution<Scalar>(fast::sqrt(m_T_randomize * I.x))(rng);
             if (I.y >= EPSILON)
-                p_vec.y = gaussian_rng(saru, fast::sqrt(m_T_randomize * I.y));
+                p_vec.y = hoomd::NormalDistribution<Scalar>(fast::sqrt(m_T_randomize * I.y))(rng);
             if (I.z >= EPSILON)
-                p_vec.z = gaussian_rng(saru, fast::sqrt(m_T_randomize * I.z));
+                p_vec.z = hoomd::NormalDistribution<Scalar>(fast::sqrt(m_T_randomize * I.z))(rng);
 
             /* Store the angular momentum quaternion */
             quat<Scalar> p = Scalar(2.0) * q * p_vec;

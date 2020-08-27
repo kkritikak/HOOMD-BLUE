@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 /*! \file LogMatrix.h
@@ -73,7 +73,7 @@ class LogMatrix : public Logger
         //! Cached matrix quantities
         std::vector< pybind11::array > m_cached_matrix_quantities;
     private:
-        //! Obtain the matrix qunatities for caching.
+        //! Obtain the matrix quantities for caching.
         virtual pybind11::array getMatrix(const std::string& quantity, unsigned int timestep);
     };
 

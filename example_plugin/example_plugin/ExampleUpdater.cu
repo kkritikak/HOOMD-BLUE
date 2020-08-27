@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #include "ExampleUpdater.cuh"
@@ -43,7 +43,7 @@ cudaError_t gpu_zero_velocities(Scalar4 *d_vel, unsigned int N)
     // run the kernel
     gpu_zero_velocities_kernel<<< grid, threads >>>(d_vel, N);
 
-    // this method always succeds. If you had a cuda* call in this driver, you could return its error code if not
+    // this method always succeeds. If you had a cuda* call in this driver, you could return its error code if not
     // cudaSuccess
     return cudaSuccess;
     }

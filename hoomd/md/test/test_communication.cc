@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -33,7 +33,7 @@ HOOMD_UP_MAIN()
 using namespace std;
 using namespace std::placeholders;
 
-//! Typedef for function that creates the Communnicator on the CPU or GPU
+//! Typedef for function that creates the Communicator on the CPU or GPU
 typedef std::function<std::shared_ptr<Communicator> (std::shared_ptr<SystemDefinition> sysdef,
                                                   std::shared_ptr<DomainDecomposition> decomposition)> communicator_creator;
 
@@ -532,7 +532,7 @@ void test_communicator_migrate(communicator_creator comm_creator, std::shared_pt
 
     // particle 0 crosses the global boundary in +x direction
     pdata->setPosition(0, TO_TRICLINIC(make_scalar3(1.1,-0.5,-0.5)),false);
-    //  particle 1 crosses the global bounadry in the -x direction
+    //  particle 1 crosses the global boundary in the -x direction
     pdata->setPosition(1, TO_TRICLINIC(make_scalar3(-1.1, 0.5, -0.5)),false);
     // particle 2 crosses the global boundary in the + y direction
     pdata->setPosition(2, TO_TRICLINIC(make_scalar3(0.2, 1.3, -0.5)),false);
@@ -754,14 +754,15 @@ void test_communicator_balanced_migrate(communicator_creator comm_creator, std::
     pdata->setPosition(7, TO_TRICLINIC(make_scalar3(-0.51,-0.751,0.251)),false);
 
     // validate that placing the particle would send it to the ranks that we expect
-    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(0)), 1);
-    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(1)), 2);
-    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(2)), 3);
-    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(3)), 4);
-    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(4)), 5);
-    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(5)), 6);
-    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(6)), 7);
-    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(7)), 0);
+    ArrayHandle<unsigned int> h_cart_ranks(decomposition->getCartRanks(), access_location::host, access_mode::read);
+    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(0), h_cart_ranks.data), 1);
+    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(1), h_cart_ranks.data), 2);
+    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(2), h_cart_ranks.data), 3);
+    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(3), h_cart_ranks.data), 4);
+    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(4), h_cart_ranks.data), 5);
+    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(5), h_cart_ranks.data), 6);
+    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(6), h_cart_ranks.data), 7);
+    UP_ASSERT_EQUAL(decomposition->placeParticle(pdata->getGlobalBox(), pdata->getPosition(7), h_cart_ranks.data), 0);
 
     // migrate atoms
     comm->migrateParticles();
@@ -831,7 +832,7 @@ void test_communicator_balanced_migrate(communicator_creator comm_creator, std::
 
     // particle 0 crosses the global boundary in +x direction
     pdata->setPosition(0, TO_TRICLINIC(make_scalar3(1.1,-0.751,0.251)),false);
-    //  particle 1 crosses the global bounadry in the -x direction
+    //  particle 1 crosses the global boundary in the -x direction
     pdata->setPosition(1, TO_TRICLINIC(make_scalar3(-1.1, -0.251, 0.251)),false);
     // particle 2 crosses the global boundary in the + y direction
     pdata->setPosition(2, TO_TRICLINIC(make_scalar3(0.51, 1.3, 0.251)),false);
@@ -3462,16 +3463,18 @@ UP_SUITE_BEGIN(cpu_tests);
 //! Tests particle distribution
 UP_TEST( DomainDecomposition_test)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));;
+    if (!exec_conf_cpu)
+        exec_conf_cpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));
     BoxDim box(2.0);
-    std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf, box.getL()));
-    test_domain_decomposition(exec_conf, box, decomposition);
+    std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf_cpu, box.getL()));
+    test_domain_decomposition(exec_conf_cpu, box, decomposition);
     }
 
 //! Tests balanced particle distribution on CPU
 UP_TEST( BalancedDomainDecomposition_test)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));;
+    if (!exec_conf_cpu)
+        exec_conf_cpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));
     BoxDim box(2.0);
 
     // first test the fallback to the uniform grid using the standard DomainDecomposition test
@@ -3479,46 +3482,49 @@ UP_TEST( BalancedDomainDecomposition_test)
     fxs[0] = Scalar(0.5); fxs[1] = Scalar(0.5);
     fys[0] = Scalar(0.25); fys[1] = Scalar(0.75);
     fzs[0] = Scalar(0.4); fzs[1] = Scalar(0.2); fzs[2] = Scalar(0.4);
-    std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf, box.getL(), fxs, fys, fzs));
-    test_domain_decomposition(exec_conf, box, decomposition);
+    std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf_cpu, box.getL(), fxs, fys, fzs));
+    test_domain_decomposition(exec_conf_cpu, box, decomposition);
 
     // then test the balanced decomposition in the test for nonuniform particles and decomposition
-    test_balanced_domain_decomposition(exec_conf);
+    test_balanced_domain_decomposition(exec_conf_cpu);
     }
 
 UP_TEST( communicator_migrate_test)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));;
+    if (!exec_conf_cpu)
+        exec_conf_cpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));
 
     communicator_creator communicator_creator_base = bind(base_class_communicator_creator, _1, _2);
     // cubic box
-    test_communicator_migrate(communicator_creator_base, exec_conf,BoxDim(2.0));
+    test_communicator_migrate(communicator_creator_base, exec_conf_cpu,BoxDim(2.0));
     // orthorhombic box
-    test_communicator_migrate(communicator_creator_base, exec_conf,BoxDim(1.0,2.0,3.0));
+    test_communicator_migrate(communicator_creator_base, exec_conf_cpu,BoxDim(1.0,2.0,3.0));
     // triclinic box 1
-    test_communicator_migrate(communicator_creator_base, exec_conf,BoxDim(1.0,0.5,0.6,0.8));
+    test_communicator_migrate(communicator_creator_base, exec_conf_cpu,BoxDim(1.0,0.5,0.6,0.8));
     // triclinic box 1
-    test_communicator_migrate(communicator_creator_base, exec_conf,BoxDim(1.0,-0.5,0.7,0.3));
+    test_communicator_migrate(communicator_creator_base, exec_conf_cpu,BoxDim(1.0,-0.5,0.7,0.3));
     }
 
 UP_TEST( communicator_balanced_migrate_test)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));;
+    if (!exec_conf_cpu)
+        exec_conf_cpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));
 
     communicator_creator communicator_creator_base = bind(base_class_communicator_creator, _1, _2);
     // cubic box
-    test_communicator_balanced_migrate(communicator_creator_base, exec_conf,BoxDim(2.0));
+    test_communicator_balanced_migrate(communicator_creator_base, exec_conf_cpu,BoxDim(2.0));
     // orthorhombic box
-    test_communicator_balanced_migrate(communicator_creator_base, exec_conf,BoxDim(1.0,2.0,3.0));
+    test_communicator_balanced_migrate(communicator_creator_base, exec_conf_cpu,BoxDim(1.0,2.0,3.0));
     // triclinic box 1
-    test_communicator_balanced_migrate(communicator_creator_base, exec_conf,BoxDim(1.0,0.5,0.6,0.8));
+    test_communicator_balanced_migrate(communicator_creator_base, exec_conf_cpu,BoxDim(1.0,0.5,0.6,0.8));
     // triclinic box 1
-    test_communicator_balanced_migrate(communicator_creator_base, exec_conf,BoxDim(1.0,-0.5,0.7,0.3));
+    test_communicator_balanced_migrate(communicator_creator_base, exec_conf_cpu,BoxDim(1.0,-0.5,0.7,0.3));
     }
 
 UP_TEST( communicator_ghosts_test)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));;
+    if (!exec_conf_cpu)
+        exec_conf_cpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));
 
     communicator_creator communicator_creator_base = bind(base_class_communicator_creator, _1, _2);
 
@@ -3529,27 +3535,27 @@ UP_TEST( communicator_ghosts_test)
         {
         BoxDim box(2.0);
         test_communicator_ghosts(communicator_creator_base,
-                                 exec_conf,
+                                 exec_conf_cpu,
                                  box,
-                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf,box.getL())),
+                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf_cpu,box.getL())),
                                  make_scalar3(0.0,0.0,0.0));
         }
     // triclinic box 1
         {
         BoxDim box(1.0,.1,.2,.3);
         test_communicator_ghosts(communicator_creator_base,
-                                 exec_conf,
+                                 exec_conf_cpu,
                                  box,
-                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf,box.getL())),
+                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf_cpu,box.getL())),
                                  make_scalar3(0.0,0.0,0.0));
         }
     // triclinic box 2
         {
         BoxDim box(1.0,-.6,.7,.5);
         test_communicator_ghosts(communicator_creator_base,
-                                 exec_conf,
+                                 exec_conf_cpu,
                                  box,
-                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf,box.getL())),
+                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf_cpu,box.getL())),
                                  make_scalar3(0.0,0.0,0.0));
         }
 
@@ -3564,95 +3570,100 @@ UP_TEST( communicator_ghosts_test)
         {
         BoxDim box(2.0);
         test_communicator_ghosts(communicator_creator_base,
-                                 exec_conf,
+                                 exec_conf_cpu,
                                  box,
-                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf,box.getL(), fx, fy, fz)),
+                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf_cpu,box.getL(), fx, fy, fz)),
                                  origin);
         }
     // triclinic box 1
         {
         BoxDim box(1.0,.1,.2,.3);
         test_communicator_ghosts(communicator_creator_base,
-                                 exec_conf,
+                                 exec_conf_cpu,
                                  box,
-                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf,box.getL(), fx, fy, fz)),
+                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf_cpu,box.getL(), fx, fy, fz)),
                                  origin);
         }
     // triclinic box 2
         {
         BoxDim box(1.0,-.6,.7,.5);
         test_communicator_ghosts(communicator_creator_base,
-                                 exec_conf,
+                                 exec_conf_cpu,
                                  box,
-                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf,box.getL(), fx, fy, fz)),
+                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf_cpu,box.getL(), fx, fy, fz)),
                                  origin);
         }
     }
 
 UP_TEST( communicator_bonded_ghosts_test)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));;
+    if (!exec_conf_cpu)
+        exec_conf_cpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));
 
     communicator_creator communicator_creator_base = bind(base_class_communicator_creator, _1, _2);
     // uniform version
         {
         BoxDim box(2.0);
-        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf, box.getL()));
-        test_communicator_bonded_ghosts(communicator_creator_base,exec_conf, box, decomposition);
+        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf_cpu, box.getL()));
+        test_communicator_bonded_ghosts(communicator_creator_base,exec_conf_cpu, box, decomposition);
         }
     // balanced version
         {
         BoxDim box(2.0);
         vector<Scalar> fx(1), fy(1), fz(1);
         fx[0] = 0.52; fy[0] = 0.48; fz[0] = 0.54;
-        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf, box.getL(), fx, fy, fz));
-        test_communicator_bonded_ghosts(communicator_creator_base,exec_conf, box, decomposition);
+        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf_cpu, box.getL(), fx, fy, fz));
+        test_communicator_bonded_ghosts(communicator_creator_base,exec_conf_cpu, box, decomposition);
         }
     }
 
 UP_TEST( communicator_bond_exchange_test)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));;
+    if (!exec_conf_cpu)
+        exec_conf_cpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));
 
     communicator_creator communicator_creator_base = bind(base_class_communicator_creator, _1, _2);
     // uniform version
         {
         BoxDim box(2.0);
-        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf, box.getL()));
-        test_communicator_bond_exchange(communicator_creator_base,exec_conf, box, decomposition);
+        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf_cpu, box.getL()));
+        test_communicator_bond_exchange(communicator_creator_base,exec_conf_cpu, box, decomposition);
         }
     // balanced version
         {
         BoxDim box(2.0);
         vector<Scalar> fx(1), fy(1), fz(1);
         fx[0] = 0.52; fy[0] = 0.48; fz[0] = 0.54;
-        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf, box.getL(), fx, fy, fz));
-        test_communicator_bond_exchange(communicator_creator_base,exec_conf, box, decomposition);
+        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf_cpu, box.getL(), fx, fy, fz));
+        test_communicator_bond_exchange(communicator_creator_base,exec_conf_cpu, box, decomposition);
         }
     }
 
 UP_TEST( communicator_ghost_fields_test)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));;
+    if (!exec_conf_cpu)
+        exec_conf_cpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));
 
     communicator_creator communicator_creator_base = bind(base_class_communicator_creator, _1, _2);
-    test_communicator_ghost_fields(communicator_creator_base, exec_conf);
+    test_communicator_ghost_fields(communicator_creator_base, exec_conf_cpu);
     }
 
 UP_TEST( communicator_ghost_layer_width_test)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));;
+    if (!exec_conf_cpu)
+        exec_conf_cpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));
 
     communicator_creator communicator_creator_base = bind(base_class_communicator_creator, _1, _2);
-    test_communicator_ghost_layer_width(communicator_creator_base, exec_conf);
+    test_communicator_ghost_layer_width(communicator_creator_base, exec_conf_cpu);
     }
 
 UP_TEST( communicator_ghost_layer_per_type_test)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));;
+    if (!exec_conf_cpu)
+        exec_conf_cpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));
 
     communicator_creator communicator_creator_base = bind(base_class_communicator_creator, _1, _2);
-    test_communicator_ghosts_per_type(communicator_creator_base, exec_conf,BoxDim(2.0));
+    test_communicator_ghosts_per_type(communicator_creator_base, exec_conf_cpu,BoxDim(2.0));
     }
 
 UP_SUITE_END();
@@ -3664,17 +3675,19 @@ UP_SUITE_BEGIN(gpu_tests);
 //! Tests particle distribution on GPU
 UP_TEST( DomainDecomposition_test_GPU)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
+    if (!exec_conf_gpu)
+        exec_conf_gpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     BoxDim box(2.0);
-    std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf, box.getL()));
-    test_domain_decomposition(exec_conf, box, decomposition);
+    std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf_gpu, box.getL()));
+    test_domain_decomposition(exec_conf_gpu, box, decomposition);
     }
 
 //! Tests balanced particle distribution on GPU
 UP_TEST( BalancedDomainDecomposition_test_GPU)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
+    if (!exec_conf_gpu)
+        exec_conf_gpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     BoxDim box(2.0);
 
@@ -3683,46 +3696,49 @@ UP_TEST( BalancedDomainDecomposition_test_GPU)
     fxs[0] = Scalar(0.5); fxs[1] = Scalar(0.5);
     fys[0] = Scalar(0.25); fys[1] = Scalar(0.75);
     fzs[0] = Scalar(0.4); fzs[1] = Scalar(0.2); fzs[2] = Scalar(0.4);
-    std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf, box.getL(), fxs, fys, fzs));
-    test_domain_decomposition(exec_conf, box, decomposition);
+    std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf_gpu, box.getL(), fxs, fys, fzs));
+    test_domain_decomposition(exec_conf_gpu, box, decomposition);
 
     // then test the balanced decomposition in the test for nonuniform particles and decomposition
-    test_balanced_domain_decomposition(exec_conf);
+    test_balanced_domain_decomposition(exec_conf_cpu);
     }
 
 UP_TEST( communicator_migrate_test_GPU)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
+    if (!exec_conf_gpu)
+        exec_conf_gpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     communicator_creator communicator_creator_gpu = bind(gpu_communicator_creator, _1, _2);
     // cubic box
-    test_communicator_migrate(communicator_creator_gpu, exec_conf,BoxDim(2.0));
+    test_communicator_migrate(communicator_creator_gpu, exec_conf_gpu,BoxDim(2.0));
     // orthorhombic box
-    test_communicator_migrate(communicator_creator_gpu, exec_conf,BoxDim(1.0,2.0,3.0));
+    test_communicator_migrate(communicator_creator_gpu, exec_conf_gpu,BoxDim(1.0,2.0,3.0));
     // triclinic box 1
-    test_communicator_migrate(communicator_creator_gpu, exec_conf,BoxDim(1.0,0.5,0.6,0.8));
+    test_communicator_migrate(communicator_creator_gpu, exec_conf_gpu,BoxDim(1.0,0.5,0.6,0.8));
     // triclinic box 2
-    test_communicator_migrate(communicator_creator_gpu, exec_conf,BoxDim(1.0,-0.5,0.7,0.3));
+    test_communicator_migrate(communicator_creator_gpu, exec_conf_gpu,BoxDim(1.0,-0.5,0.7,0.3));
     }
 
 UP_TEST( communicator_balanced_migrate_test_GPU)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
+    if (!exec_conf_gpu)
+        exec_conf_gpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     communicator_creator communicator_creator_gpu = bind(gpu_communicator_creator, _1, _2);
     // cubic box
-    test_communicator_balanced_migrate(communicator_creator_gpu, exec_conf,BoxDim(2.0));
+    test_communicator_balanced_migrate(communicator_creator_gpu, exec_conf_gpu,BoxDim(2.0));
     // orthorhombic box
-    test_communicator_balanced_migrate(communicator_creator_gpu, exec_conf,BoxDim(1.0,2.0,3.0));
+    test_communicator_balanced_migrate(communicator_creator_gpu, exec_conf_gpu,BoxDim(1.0,2.0,3.0));
     // triclinic box 1
-    test_communicator_balanced_migrate(communicator_creator_gpu, exec_conf,BoxDim(1.0,0.5,0.6,0.8));
+    test_communicator_balanced_migrate(communicator_creator_gpu, exec_conf_gpu,BoxDim(1.0,0.5,0.6,0.8));
     // triclinic box 1
-    test_communicator_balanced_migrate(communicator_creator_gpu, exec_conf,BoxDim(1.0,-0.5,0.7,0.3));
+    test_communicator_balanced_migrate(communicator_creator_gpu, exec_conf_gpu,BoxDim(1.0,-0.5,0.7,0.3));
     }
 
 UP_TEST( communicator_ghosts_test_GPU)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
+    if (!exec_conf_gpu)
+        exec_conf_gpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     communicator_creator communicator_creator_gpu = bind(gpu_communicator_creator, _1, _2);
 
@@ -3733,27 +3749,27 @@ UP_TEST( communicator_ghosts_test_GPU)
         {
         BoxDim box(2.0);
         test_communicator_ghosts(communicator_creator_gpu,
-                                 exec_conf,
+                                 exec_conf_gpu,
                                  box,
-                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf,box.getL())),
+                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf_gpu,box.getL())),
                                  make_scalar3(0.0,0.0,0.0));
         }
     // triclinic box 1
         {
         BoxDim box(1.0,.1,.2,.3);
         test_communicator_ghosts(communicator_creator_gpu,
-                                 exec_conf,
+                                 exec_conf_gpu,
                                  box,
-                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf,box.getL())),
+                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf_gpu,box.getL())),
                                  make_scalar3(0.0,0.0,0.0));
         }
     // triclinic box 2
         {
         BoxDim box(1.0,-.6,.7,.5);
         test_communicator_ghosts(communicator_creator_gpu,
-                                 exec_conf,
+                                 exec_conf_gpu,
                                  box,
-                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf,box.getL())),
+                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf_gpu,box.getL())),
                                  make_scalar3(0.0,0.0,0.0));
         }
 
@@ -3768,106 +3784,114 @@ UP_TEST( communicator_ghosts_test_GPU)
         {
         BoxDim box(2.0);
         test_communicator_ghosts(communicator_creator_gpu,
-                                 exec_conf,
+                                 exec_conf_gpu,
                                  box,
-                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf,box.getL(), fx, fy, fz)),
+                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf_gpu,box.getL(), fx, fy, fz)),
                                  origin);
         }
     // triclinic box 1
         {
         BoxDim box(1.0,.1,.2,.3);
         test_communicator_ghosts(communicator_creator_gpu,
-                                 exec_conf,
+                                 exec_conf_gpu,
                                  box,
-                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf,box.getL(), fx, fy, fz)),
+                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf_gpu,box.getL(), fx, fy, fz)),
                                  origin);
         }
     // triclinic box 2
         {
         BoxDim box(1.0,-.6,.7,.5);
         test_communicator_ghosts(communicator_creator_gpu,
-                                 exec_conf,
+                                 exec_conf_gpu,
                                  box,
-                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf,box.getL(), fx, fy, fz)),
+                                 std::shared_ptr<DomainDecomposition>(new DomainDecomposition(exec_conf_gpu,box.getL(), fx, fy, fz)),
                                  origin);
         }
     }
 
 UP_TEST( communicator_bonded_ghosts_test_GPU)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
+    if (!exec_conf_gpu)
+        exec_conf_gpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     communicator_creator communicator_creator_gpu = bind(gpu_communicator_creator, _1, _2);
     // uniform version
         {
         BoxDim box(2.0);
-        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf, box.getL()));
-        test_communicator_bonded_ghosts(communicator_creator_gpu, exec_conf, box, decomposition);
+        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf_gpu, box.getL()));
+        test_communicator_bonded_ghosts(communicator_creator_gpu, exec_conf_gpu, box, decomposition);
         }
     // balanced version
         {
         BoxDim box(2.0);
         vector<Scalar> fx(1), fy(1), fz(1);
         fx[0] = 0.52; fy[0] = 0.48; fz[0] = 0.54;
-        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf, box.getL(), fx, fy, fz));
-        test_communicator_bonded_ghosts(communicator_creator_gpu, exec_conf, box, decomposition);
+        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf_gpu, box.getL(), fx, fy, fz));
+        test_communicator_bonded_ghosts(communicator_creator_gpu, exec_conf_gpu, box, decomposition);
         }
     }
 
 UP_TEST( communicator_bond_exchange_test_GPU)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
+    if (!exec_conf_gpu)
+        exec_conf_gpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     communicator_creator communicator_creator_gpu = bind(gpu_communicator_creator, _1, _2);
     // uniform version
         {
         BoxDim box(2.0);
-        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf, box.getL()));
-        test_communicator_bond_exchange(communicator_creator_gpu, exec_conf, box, decomposition);
+        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf_gpu, box.getL()));
+        test_communicator_bond_exchange(communicator_creator_gpu, exec_conf_gpu, box, decomposition);
         }
     // balanced version
         {
         BoxDim box(2.0);
         vector<Scalar> fx(1), fy(1), fz(1);
         fx[0] = 0.52; fy[0] = 0.48; fz[0] = 0.54;
-        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf, box.getL(), fx, fy, fz));
-        test_communicator_bond_exchange(communicator_creator_gpu, exec_conf, box, decomposition);
+        std::shared_ptr<DomainDecomposition> decomposition(new DomainDecomposition(exec_conf_gpu, box.getL(), fx, fy, fz));
+        test_communicator_bond_exchange(communicator_creator_gpu, exec_conf_gpu, box, decomposition);
         }
     }
 
 UP_TEST( communicator_ghost_fields_test_GPU)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
+    if (!exec_conf_gpu)
+        exec_conf_gpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     communicator_creator communicator_creator_gpu = bind(gpu_communicator_creator, _1, _2);
-    test_communicator_ghost_fields(communicator_creator_gpu, exec_conf);
+    test_communicator_ghost_fields(communicator_creator_gpu, exec_conf_gpu);
     }
 
 UP_TEST( communicator_ghost_layer_width_test_GPU)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
+    if (!exec_conf_gpu)
+        exec_conf_gpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     communicator_creator communicator_creator_gpu = bind(gpu_communicator_creator, _1, _2);
-    test_communicator_ghost_layer_width(communicator_creator_gpu, exec_conf);
+    test_communicator_ghost_layer_width(communicator_creator_gpu, exec_conf_gpu);
     }
 
 UP_TEST( communicator_ghost_layer_per_type_test_GPU)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
+    if (!exec_conf_gpu)
+        exec_conf_gpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     communicator_creator communicator_creator_base = bind(base_class_communicator_creator, _1, _2);
-    test_communicator_ghosts_per_type(communicator_creator_base, exec_conf,BoxDim(2.0));
+    test_communicator_ghosts_per_type(communicator_creator_base, exec_conf_gpu,BoxDim(2.0));
     }
 
 UP_TEST ( communicator_compare_test)
     {
-    auto exec_conf = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
+    if (!exec_conf_cpu)
+        exec_conf_cpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::CPU));
+    if (!exec_conf_gpu)
+        exec_conf_gpu = std::shared_ptr<ExecutionConfiguration>(new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     communicator_creator communicator_creator_gpu = bind(gpu_communicator_creator, _1, _2);
     communicator_creator communicator_creator_cpu = bind(base_class_communicator_creator, _1, _2);
 
-    std::shared_ptr<ExecutionConfiguration> exec_conf_1(new ExecutionConfiguration(ExecutionConfiguration::CPU));
-    std::shared_ptr<ExecutionConfiguration> exec_conf_2 = exec_conf;
+    std::shared_ptr<ExecutionConfiguration> exec_conf_1 = exec_conf_cpu;
+    std::shared_ptr<ExecutionConfiguration> exec_conf_2 = exec_conf_gpu;
 
     // uniform case: compare cpu and gpu
         {

@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -35,7 +35,7 @@ extern "C" void sigint_handler(int sig)
     }
 
 /*! Call only once at the start of program execution. This method
-    installs a signal handler for SIGING that will set \c g_sigint_recvd
+    installs a signal handler for SIGINT that will set \c g_sigint_recvd
     to 1. It will also call the previously set signal handler.
 */
 void InstallSIGINTHandler()

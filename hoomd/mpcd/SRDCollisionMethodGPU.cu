@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
@@ -9,8 +9,8 @@
  */
 
 #include "SRDCollisionMethodGPU.cuh"
-#include "RandomNumbers.h"
-#include "hoomd/Saru.h"
+#include "hoomd/RandomNumbers.h"
+#include "hoomd/RNGIdentifiers.h"
 
 namespace mpcd
 {
@@ -56,12 +56,12 @@ __global__ void srd_draw_vectors(double3 *d_rotvec,
     const unsigned int global_idx = global_ci(global_cell.x, global_cell.y, global_cell.z);
 
     // Initialize the PRNG using the cell index, timestep, and seed for the hash
-    hoomd::detail::Saru saru(global_idx, timestep, seed);
+    hoomd::RandomGenerator rng(hoomd::RNGIdentifier::SRDCollisionMethod, seed, global_idx, timestep);
 
     // draw rotation vector off the surface of the sphere
     double3 rotvec;
-    mpcd::detail::SpherePointGenerator<double> sphgen;
-    sphgen(saru, rotvec);
+    hoomd::SpherePointGenerator<double> sphgen;
+    sphgen(rng, rotvec);
     d_rotvec[idx] = rotvec;
 
     if (use_thermostat)
@@ -75,14 +75,14 @@ __global__ void srd_draw_vectors(double3 *d_rotvec,
             const double alpha = n_dimensions*(np-1)/(double)2.;
 
             // draw a random kinetic energy for the cell at the set temperature
-            mpcd::detail::GammaGenerator<double> gamma_gen(alpha,T_set);
-            const double rand_ke = gamma_gen(saru);
+            hoomd::GammaDistribution<double> gamma_gen(alpha,T_set);
+            const double rand_ke = gamma_gen(rng);
 
             // generate the scale factor from the current temperature
             // (don't use the kinetic energy of this cell, since this
             // is total not relative to COM)
             const double cur_ke = alpha * cell_energy.y;
-            factor = fast::sqrt(rand_ke/cur_ke);
+            factor = (cur_ke > 0.) ? fast::sqrt(rand_ke/cur_ke) : 1.;
             }
         d_factors[idx] = factor;
         }
@@ -188,15 +188,15 @@ cudaError_t srd_draw_vectors(double3 *d_rotvec,
 
     if (d_factors != NULL)
         {
-        static unsigned int max_block_themostat = UINT_MAX;
-        if (max_block_themostat == UINT_MAX)
+        static unsigned int max_block_thermostat = UINT_MAX;
+        if (max_block_thermostat == UINT_MAX)
             {
             cudaFuncAttributes attr;
             cudaFuncGetAttributes(&attr, (const void*)mpcd::gpu::kernel::srd_draw_vectors<true>);
-            max_block_themostat = attr.maxThreadsPerBlock;
+            max_block_thermostat = attr.maxThreadsPerBlock;
             }
 
-        unsigned int run_block_size = min(block_size, max_block_themostat);
+        unsigned int run_block_size = min(block_size, max_block_thermostat);
 
         const unsigned int Ncell = ci.getNumElements();
         dim3 grid(Ncell / run_block_size + 1);
@@ -215,15 +215,15 @@ cudaError_t srd_draw_vectors(double3 *d_rotvec,
         }
     else
         {
-        static unsigned int max_block_nothemostat = UINT_MAX;
-        if (max_block_nothemostat == UINT_MAX)
+        static unsigned int max_block_nothermostat = UINT_MAX;
+        if (max_block_nothermostat == UINT_MAX)
             {
             cudaFuncAttributes attr;
             cudaFuncGetAttributes(&attr, (const void*)mpcd::gpu::kernel::srd_draw_vectors<false>);
-            max_block_nothemostat = attr.maxThreadsPerBlock;
+            max_block_nothermostat = attr.maxThreadsPerBlock;
             }
 
-        unsigned int run_block_size = min(block_size, max_block_nothemostat);
+        unsigned int run_block_size = min(block_size, max_block_nothermostat);
 
         const unsigned int Ncell = ci.getNumElements();
         dim3 grid(Ncell / run_block_size + 1);

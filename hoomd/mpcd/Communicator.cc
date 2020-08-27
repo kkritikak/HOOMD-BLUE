@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
@@ -35,12 +35,12 @@ mpcd::Communicator::Communicator(std::shared_ptr<mpcd::SystemData> system_data)
             m_mpi_comm(m_exec_conf->getMPICommunicator()),
             m_decomposition(m_pdata->getDomainDecomposition()),
             m_is_communicating(false),
-            m_force_migrate(false),
             m_check_decomposition(true),
             m_nneigh(0),
             m_n_unique_neigh(0),
             m_sendbuf(m_exec_conf),
-            m_recvbuf(m_exec_conf)
+            m_recvbuf(m_exec_conf),
+            m_force_migrate(false)
     {
     // initialize array of neighbor processor ids
     assert(m_mpi_comm);
@@ -62,6 +62,23 @@ mpcd::Communicator::Communicator(std::shared_ptr<mpcd::SystemData> system_data)
     // attach decomposition check to the box change signal
     m_mpcd_sys->getCellList()->getSizeChangeSignal().connect<mpcd::Communicator, &mpcd::Communicator::slotBoxChanged>(this);
 
+    // create new data type for the pdata_element
+    const int nitems = 4;
+    int blocklengths[nitems] = {4,4,1,1};
+    MPI_Datatype types[nitems] = {MPI_HOOMD_SCALAR, MPI_HOOMD_SCALAR, MPI_UNSIGNED, MPI_UNSIGNED};
+    MPI_Aint offsets[nitems];
+    offsets[0] = offsetof(mpcd::detail::pdata_element, pos);
+    offsets[1] = offsetof(mpcd::detail::pdata_element, vel);
+    offsets[2] = offsetof(mpcd::detail::pdata_element, tag);
+    offsets[3] = offsetof(mpcd::detail::pdata_element, comm_flag);
+    // this needs to be made via the resize method to get its upper bound correctly
+    MPI_Datatype tmp;
+    MPI_Type_create_struct(nitems, blocklengths, offsets, types, &tmp);
+    MPI_Type_commit(&tmp);
+    MPI_Type_create_resized(tmp, 0, sizeof(mpcd::detail::pdata_element), &m_pdata_element);
+    MPI_Type_commit(&m_pdata_element);
+    MPI_Type_free(&tmp);
+
     initializeNeighborArrays();
     }
 
@@ -69,6 +86,7 @@ mpcd::Communicator::~Communicator()
     {
     m_exec_conf->msg->notice(5) << "Destroying MPCD Communicator" << std::endl;
     m_mpcd_sys->getCellList()->getSizeChangeSignal().disconnect<mpcd::Communicator, &mpcd::Communicator::slotBoxChanged>(this);
+    MPI_Type_free(&m_pdata_element);
     }
 
 void mpcd::Communicator::initializeNeighborArrays()
@@ -189,7 +207,17 @@ void mpcd::Communicator::communicate(unsigned int timestep)
         m_check_decomposition = false;
         }
 
-    migrateParticles(timestep);
+    // check for and attempt particle migration
+    bool migrate = m_force_migrate;
+    if (!migrate)
+        {
+        m_migrate_requests.emit_accumulate([&](bool r){ migrate = migrate || r; }, timestep);
+        }
+    if (migrate)
+        {
+        migrateParticles(timestep);
+        m_force_migrate = false;
+        }
 
     if (m_prof) m_prof->pop();
 
@@ -231,6 +259,12 @@ class MigratePartitionOp
 void mpcd::Communicator::migrateParticles(unsigned int timestep)
     {
     if (m_prof) m_prof->push("migrate");
+
+    if (m_mpcd_pdata->getNVirtual() > 0)
+        {
+        m_exec_conf->msg->warning() << "MPCD communication with virtual particles set is not supported, removing them." << std::endl;
+        m_mpcd_pdata->removeVirtualParticles();
+        }
 
     // determine local particles that are to be sent to neighboring processors
     const BoxDim& box = m_mpcd_sys->getCellList()->getCoverageBox();
@@ -312,19 +346,19 @@ void mpcd::Communicator::migrateParticles(unsigned int timestep)
             int nreq = 0;
             if (n_send_right != 0)
                 {
-                MPI_Isend(h_sendbuf.data + n_keep, n_send_right*sizeof(mpcd::detail::pdata_element), MPI_BYTE, right_neigh, 1, m_mpi_comm, &m_reqs[nreq++]);
+                MPI_Isend(h_sendbuf.data + n_keep, n_send_right, m_pdata_element, right_neigh, 1, m_mpi_comm, &m_reqs[nreq++]);
                 }
             if (n_send_left != 0)
                 {
-                MPI_Isend(h_sendbuf.data + n_keep + n_send_right, n_send_left*sizeof(mpcd::detail::pdata_element), MPI_BYTE, left_neigh, 1, m_mpi_comm, &m_reqs[nreq++]);
+                MPI_Isend(h_sendbuf.data + n_keep + n_send_right, n_send_left, m_pdata_element, left_neigh, 1, m_mpi_comm, &m_reqs[nreq++]);
                 }
             if (n_recv_right != 0)
                 {
-                MPI_Irecv(h_recvbuf.data + n_recv, n_recv_right*sizeof(mpcd::detail::pdata_element), MPI_BYTE, right_neigh, 1, m_mpi_comm, &m_reqs[nreq++]);
+                MPI_Irecv(h_recvbuf.data + n_recv, n_recv_right, m_pdata_element, right_neigh, 1, m_mpi_comm, &m_reqs[nreq++]);
                 }
             if (n_recv_left != 0)
                 {
-                MPI_Irecv(h_recvbuf.data + n_recv + n_recv_right, n_recv_left*sizeof(mpcd::detail::pdata_element), MPI_BYTE, left_neigh, 1, m_mpi_comm, &m_reqs[nreq++]);
+                MPI_Irecv(h_recvbuf.data + n_recv + n_recv_right, n_recv_left, m_pdata_element, left_neigh, 1, m_mpi_comm, &m_reqs[nreq++]);
                 }
             MPI_Waitall(nreq, m_reqs.data(), MPI_STATUSES_IGNORE);
             if (m_prof) m_prof->pop(0, (n_send_left+n_send_right+n_recv_left+n_recv_right)*sizeof(mpcd::detail::pdata_element));

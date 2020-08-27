@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -16,10 +16,7 @@
     \brief Defines GPU kernel code for calculating the harmonic improper forces. Used by HarmonicImproperForceComputeGPU.
 */
 
-//! Texture for reading improper parameters
-scalar2_tex_t improper_params_tex;
-
-//! Kernel for caculating harmonic improper forces on the GPU
+//! Kernel for calculating harmonic improper forces on the GPU
 /*! \param d_force Device memory to write computed forces
     \param d_virial Device memory to write computed virials
     \param virial_pitch pitch of 2D virial
@@ -129,7 +126,7 @@ void gpu_compute_harmonic_improper_forces_kernel(Scalar4* d_force,
         ddc = box.minImage(ddc);
 
         // get the improper parameters (MEM TRANSFER: 12 bytes)
-        Scalar2 params = texFetchScalar2(d_params, improper_params_tex, cur_improper_type);
+        Scalar2 params = __ldg(d_params + cur_improper_type);
         Scalar K = params.x;
         Scalar chi = params.y;
 
@@ -261,7 +258,7 @@ void gpu_compute_harmonic_improper_forces_kernel(Scalar4* d_force,
     \param d_params K, sign,multiplicity params packed as padded Scalar4 variables
     \param n_improper_types Number of improper types in d_params
     \param block_size Block size to use when performing calculations
-    \param copute_capability Compute capability of the device (200, 300, 350, ...)
+    \param compute_capability Compute capability of the device (200, 300, 350, ...)
 
     \returns Any error code resulting from the kernel launch
     \note Always returns cudaSuccess in release builds to avoid the cudaThreadSynchronize()
@@ -281,8 +278,7 @@ cudaError_t gpu_compute_harmonic_improper_forces(Scalar4* d_force,
                                                  const unsigned int *n_dihedrals_list,
                                                  Scalar2 *d_params,
                                                  unsigned int n_improper_types,
-                                                 int block_size,
-                                                 const unsigned int compute_capability)
+                                                 int block_size)
     {
     assert(d_params);
 
@@ -302,14 +298,6 @@ cudaError_t gpu_compute_harmonic_improper_forces(Scalar4* d_force,
     // setup the grid to run the kernel
     dim3 grid( N / run_block_size + 1, 1, 1);
     dim3 threads(run_block_size, 1, 1);
-
-    // bind the texture on pre sm35 devices
-    if (compute_capability < 350)
-        {
-        cudaError_t error = cudaBindTexture(0, improper_params_tex, d_params, sizeof(Scalar2) * n_improper_types);
-        if (error != cudaSuccess)
-            return error;
-        }
 
     // run the kernel
     gpu_compute_harmonic_improper_forces_kernel<<< grid, threads>>>(d_force, d_virial, virial_pitch, N, d_pos, d_params, box, tlist, dihedral_ABCD, pitch, n_dihedrals_list);

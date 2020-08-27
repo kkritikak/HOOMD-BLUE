@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -57,7 +57,7 @@ ConstForceCompute::~ConstForceCompute()
 /*! \param fx x-component of the force
     \param fy y-component of the force
     \param fz z-component of the force
-    \param tx x-compenent of the torque vector
+    \param tx x-component of the torque vector
     \param ty y-component of the torque vector
     \param tz z-component of the torque vector
 */

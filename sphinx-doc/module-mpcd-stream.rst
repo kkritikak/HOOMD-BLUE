@@ -9,6 +9,8 @@ mpcd.stream
     :nosignatures:
 
     bulk
+    slit
+    slit_pore
 
 .. rubric:: Details
 

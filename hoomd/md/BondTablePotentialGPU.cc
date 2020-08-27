@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -34,7 +34,7 @@ BondTablePotentialGPU::BondTablePotentialGPU(std::shared_ptr<SystemDefinition> s
         }
 
      // allocate flags storage on the GPU
-    GPUArray<unsigned int> flags(1, this->exec_conf);
+    GPUArray<unsigned int> flags(1, this->m_exec_conf);
     m_flags.swap(flags);
 
     m_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "table_bond", this->m_exec_conf));
@@ -93,8 +93,7 @@ void BondTablePotentialGPU::computeForces(unsigned int timestep)
                              m_table_width,
                              m_table_value,
                              d_flags.data,
-                             m_tuner->getParam(),
-                             m_exec_conf->getComputeCapability());
+                             m_tuner->getParam());
         }
 
 
@@ -107,7 +106,7 @@ void BondTablePotentialGPU::computeForces(unsigned int timestep)
 
         if (h_flags.data[0])
             {
-            m_exec_conf->msg->error() << endl << "***Error! << Table bond out of bounds" << endl << endl;
+            m_exec_conf->msg->errorAllRanks() << endl << "Table bond out of bounds" << endl << endl;
             throw std::runtime_error("Error in bond calculation");
             }
         }

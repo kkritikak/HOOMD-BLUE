@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -47,7 +47,7 @@ class Communicator;
     methods called first, in the order in which they were added. A period
     can be specified when adding the Analyzer so that it only runs every so
     often. Then, all Updaters have their Updater::update() methods called,
-    in order and with a specified period as with the anlalyzers. Finally, the
+    in order and with a specified period as with the analyzers. Finally, the
     Integrator::update() method is called to advance the simulation forward
     one step and the process is repeated again.
 
@@ -202,7 +202,7 @@ class PYBIND11_EXPORT System
                 {
                 }
 
-            //! Tets if this analyzer should be executed
+            //! Test if this analyzer should be executed
             /*! \param tstep Current simulation step
                 \returns true if the Analyzer should be executed this \a tstep
                 \note This function maintains state and should only be called once per time step
@@ -214,17 +214,17 @@ class PYBIND11_EXPORT System
                     if (m_is_variable_period)
                         {
                         pybind11::object pynext = m_update_func(m_n);
-                        int next = (int)pybind11::cast<float>(pynext) + m_created_tstep;
+                        int next = pybind11::cast<int>(pynext) + m_created_tstep;
 
                         if (next < 0)
                             {
-                            m_analyzer->getExecConf()->msg->warning() << "Variable period returned a negative value. Increasing to 1 to prevent inconsistancies" << std::endl;
+                            m_analyzer->getExecConf()->msg->warning() << "Variable period returned a negative value. Increasing to 1 to prevent inconsistencies" << std::endl;
                             next = 1;
                             }
 
                         if ((unsigned int)next <= tstep)
                             {
-                            m_analyzer->getExecConf()->msg->warning() << "Variable period returned a value equal to the current timestep. Increasing by 1 to prevent inconsistancies" << std::endl;
+                            m_analyzer->getExecConf()->msg->warning() << "Variable period returned a value equal to the current timestep. Increasing by 1 to prevent inconsistencies" << std::endl;
                             next = tstep+1;
                             }
 
@@ -247,7 +247,7 @@ class PYBIND11_EXPORT System
 
                 peekExecute will return true for the same step that shouldExecute will. However, peekExecute does not
                 update any internal state. It offers a way to peek and determine if a given step will be the very next
-                step that the anlyzer is to be called.
+                step that the analyzer is to be called.
             */
             bool peekExecute(unsigned int tstep)
                 {
@@ -309,7 +309,7 @@ class PYBIND11_EXPORT System
                 {
                 }
 
-            //! Tets if this updater should be executed
+            //! Test if this updater should be executed
             /*! \param tstep Current simulation step
                 \returns true if the Updater should be executed this \a tstep
                 \note This function maintains state and should only be called once per time step
@@ -321,17 +321,17 @@ class PYBIND11_EXPORT System
                     if (m_is_variable_period)
                         {
                         pybind11::object pynext = m_update_func(m_n);
-                        int next = (int)pybind11::cast<float>(pynext) + m_created_tstep;
+                        int next = pybind11::cast<int>(pynext) + m_created_tstep;
 
                         if (next < 0)
                             {
-                            m_updater->getExecConf()->msg->warning() << "Variable period returned a negative value. Increasing to 1 to prevent inconsistancies" << std::endl;
+                            m_updater->getExecConf()->msg->warning() << "Variable period returned a negative value. Increasing to 1 to prevent inconsistencies" << std::endl;
                             next = 1;
                             }
 
                         if ((unsigned int)next <= tstep)
                             {
-                            m_updater->getExecConf()->msg->warning() << "Variable period returned a value equal to the current timestep. Increasing by 1 to prevent inconsistancies" << std::endl;
+                            m_updater->getExecConf()->msg->warning() << "Variable period returned a value equal to the current timestep. Increasing by 1 to prevent inconsistencies" << std::endl;
                             next = tstep+1;
                             }
 
@@ -354,7 +354,7 @@ class PYBIND11_EXPORT System
 
                 peekExecute will return true for the same step that shouldExecute will. However, peekExecute does not
                 update any internal state. It offers a way to peek and determine if a given step will be the very next
-                step that the anlyzer is to be called.
+                step that the analyzer is to be called.
             */
             bool peekExecute(unsigned int tstep)
                 {
@@ -408,7 +408,7 @@ class PYBIND11_EXPORT System
 #ifdef ENABLE_MPI
         std::shared_ptr<Communicator> m_comm;         //!< Communicator to use
 #endif
-        unsigned int m_start_tstep;     //!< Intial time step of the current run
+        unsigned int m_start_tstep;     //!< Initial time step of the current run
         unsigned int m_end_tstep;       //!< Final time step of the current run
         unsigned int m_cur_tstep;       //!< Current time step
         Scalar m_cur_tps;               //!< Current average TPS

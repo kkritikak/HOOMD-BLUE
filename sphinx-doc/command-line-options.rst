@@ -34,69 +34,74 @@ Options
 
     hoomd will automatically detect the fastest GPU and run on it, or fall back on the CPU if no GPU is found.
 
-* **-h, --help**
+* **-h, -\\-help**
 
     print a description of all the command line options
 
-* **--mode** ={cpu | gpu}
+* **-\\-mode**\ ={cpu | gpu}
 
     force hoomd to run either on the cpu or gpu
 
-* **--gpu** =#
+* **-\\-gpu**\ =#
 
-    specify the GPU id that hoomd will use. Implies --mode=gpu.
+    specify the GPU id or comma-separated list of GPUs (with NVLINK) that hoomd will use. Implies ``--mode=gpu``.
 
-* **--ignore-display-gpu**
+* **-\\-ignore-display-gpu**
 
     prevent hoomd from using any GPU that is attached to a display
 
-* **--minimize-cpu-usage**
+* **-\\-minimize-cpu-usage**
 
     minimize the CPU usage of hoomd when it runs on a GPU at reduced performance
 
-* **--gpu_error_checking**
+* **-\\-gpu_error_checking**
 
     enable error checks after every GPU kernel call
 
-* **--notice-level** =#
+* **-\\-notice-level**\ =#
 
     specifies the level of notice messages to print
 
-* **--msg-file=filename**
+* **-\\-msg-file**\ =filename
 
     specifies a file to write messages (the file is overwritten)
 
-* **--user**
+* **-\\-single-mpi**
+
+    allow single-threaded HOOMD builds in MPI jobs
+
+* **-\\-user**
 
     user options
 
 * *MPI only options*
-    * **--nx**
+    * **-\\-nx**\ =#
 
         Number of domains along the x-direction
 
-    * **--ny**
+    * **-\\-ny**\ =#
 
         Number of domains along the y-direction
 
-    * **--nz**
+    * **-\\-nz**\ =#
 
         Number of domains along the z-direction
 
-    * **--linear**
+    * **-\\-linear**
 
         Force a slab (1D) decomposition along the z-direction
 
-    * **--nrank**
+    * **-\\-nrank**\ =#
 
         Number of ranks per partition
 
-    * **--shared-msg-file** =prefix
+    * **-\\-shared-msg-file**\ =prefix
 
         specifies the prefix of files to write per-partition output to (filename: *prefix.\<partition_id\>*)
 
 * *Option available only when compiled with TBB support*
-    * **--nthreads**
+    * **-\\-nthreads**\ =#
+
         Number of TBB threads to use, by default use all CPUs in the system
 
 Detailed description
@@ -134,8 +139,8 @@ If you run a script without any options::
 hoomd first checks if there are any GPUs in the system. If it finds one or more,
 it makes the same automatic choice described previously. If none are found, it runs on the CPU.
 
-Multi-GPU (and multi-CPU) execution
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Multi-GPU (and multi-CPU) execution with MPI
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 HOOMD-blue uses MPI domain decomposition for parallel execution. Execute python with ``mpirun``, ``mpiexec``, or whatever the
 appropriate launcher is on your system. For more information, see :ref:`mpi-domain-decomposition`::
@@ -143,6 +148,29 @@ appropriate launcher is on your system. For more information, see :ref:`mpi-doma
     mpirun -n 8 python script.py
 
 All command line options apply to MPI execution in the same way as single process runs.
+
+When ``n > 1`` and no explicit GPU is specified, HOOMD uses the the local MPI rank to assign GPUs to ranks on each node.
+This is the default behavior and works on most cluster schedulers.
+
+Multi-GPU execution with NVLINK
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can run HOOMD on multiple GPUs in the same compute node that are connected with NVLINK. To find out
+if your node supports it, run::
+
+    nvidia-smi -m topo
+
+If the GPUs *are* connected by NVLINK, launch HOOMD with::
+
+    python script.py --gpu=0,1,2
+
+to execute on GPUs 0,1 and 2. For multi-GPU execution it is required that all GPUs have the same compute
+capability >= 6.0.  Not all kernels are currently NVLINK enabled; performance may depend on the subset of
+features used.
+
+Multi-GPU execution with NVLINK may be combined with MPI parallel execution (see above). It is especially
+beneficial when further decomposition of the domain using MPI is not feasible or slower, but speed-ups are still
+possible.
 
 Automatic free GPU selection
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -155,6 +183,11 @@ the compute-exclusive mode on all GPUs in the system. With this mode enabled, ru
 The compute-exclusive mode allows *only* a **single CUDA application** to run on each GPU. If you have
 4 compute-exclusive GPUs available in the system, executing a fifth instance of hoomd with ``python script.py``
 will result in the error: ``***Error! no CUDA-capable device is available``.
+
+Most compute clusters do not support automatic free GPU selection. Insteady the schedulers pin jobs to specific GPUs
+and bind the host processes to attached cores. In this case, HOOMD uses the rank-based GPU selection
+described above. HOOMD only applies exclusive mode automatic GPU selection when built without MPI support (ENABLE_MPI=off)
+or executing on a single rank.
 
 Minimize the CPU usage of HOOMD-blue
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -253,4 +286,4 @@ the number of threads can be set. On the command line, this is done using::
 
 Alternatively, the same option can be passed to :py:class:`hoomd.context.initialize()`, and the number of threads can be updated any time
 using :py:func:`hoomd.option.set_num_threads()` . If no number of threads is specified, TBB by default uses all CPUs in the system.
-For compatbility with OpenMP, HOOMD also honors a value set in the environment variable **OMP_NUM_THREADS**.
+For compatibility with OpenMP, HOOMD also honors a value set in the environment variable **OMP_NUM_THREADS**.

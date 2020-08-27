@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
@@ -38,14 +38,11 @@ cudaError_t sort_set_sentinel(unsigned int *d_cell_list,
                               const unsigned int sentinel,
                               const unsigned int block_size);
 
-//! Driver for CUB to perform cell-list stream compaction
-cudaError_t sort_cell_compact(unsigned int *d_order,
-                              unsigned int *d_num_select,
-                              void *d_tmp_storage,
-                              size_t& tmp_storage_bytes,
-                              const unsigned int *d_cell_list,
-                              const unsigned int num_items,
-                              const unsigned int N_mpcd);
+//! Driver for thrust to perform cell-list stream compaction
+unsigned int sort_cell_compact(unsigned int *d_order,
+                               const unsigned int *d_cell_list,
+                               const unsigned int num_items,
+                               const unsigned int N_mpcd);
 
 //! Kernel driver to reverse map the particle ordering
 cudaError_t sort_gen_reverse(unsigned int *d_rorder,

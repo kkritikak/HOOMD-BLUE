@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -181,24 +181,6 @@ bool is_TBB_available()
     }
 
 
-//! Start the CUDA profiler
-void cuda_profile_start()
-    {
-    #ifdef ENABLE_CUDA
-    cudaDeviceSynchronize();
-    cudaProfilerStart();
-    #endif
-    }
-
-//! Stop the CUDA profiler
-void cuda_profile_stop()
-    {
-    #ifdef ENABLE_CUDA
-    cudaDeviceSynchronize();
-    cudaProfilerStop();
-    #endif
-    }
-
 // values used in measuring hoomd launch timing
 unsigned int hoomd_launch_time, hoomd_start_time, hoomd_mpi_init_time;
 bool hoomd_launch_timing=false;
@@ -268,8 +250,10 @@ void finalize_mpi()
 void abort_mpi(std::shared_ptr<ExecutionConfiguration> exec_conf)
     {
     #ifdef ENABLE_MPI
-    if(exec_conf->getNRanksGlobal() > 1)
+    if(exec_conf->getMPIConfig()->getNRanksGlobal() > 1)
         {
+        // delay for a moment to give time for error messages to print
+        Sleep(1000);
         MPI_Abort(exec_conf->getMPICommunicator(), MPI_ERR_OTHER);
         }
     #endif
@@ -328,9 +312,6 @@ PYBIND11_MODULE(_hoomd, m)
     m.def("is_MPI_available", &is_MPI_available);
     m.def("is_TBB_available", &is_TBB_available);
 
-    m.def("cuda_profile_start", &cuda_profile_start);
-    m.def("cuda_profile_stop", &cuda_profile_stop);
-
     pybind11::bind_vector< std::vector<Scalar> >(m,"std_vector_scalar");
     pybind11::bind_vector< std::vector<string> >(m,"std_vector_string");
     pybind11::bind_vector< std::vector<unsigned int> >(m,"std_vector_uint");
@@ -349,6 +330,7 @@ PYBIND11_MODULE(_hoomd, m)
     export_BoxDim(m);
     export_ParticleData(m);
     export_SnapshotParticleData(m);
+    export_MPIConfiguration(m);
     export_ExecutionConfiguration(m);
     export_SystemDefinition(m);
     export_SnapshotSystemData(m);

@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -341,7 +341,7 @@ void FIREEnergyMinimizerGPU::update(unsigned int timestep)
         if (m_prof)
             m_prof->push(m_exec_conf, "FIRE zero velocities");
 
-        m_exec_conf->msg->notice(6) << "FIRE zero velociies" << std::endl;
+        m_exec_conf->msg->notice(6) << "FIRE zero velocities" << std::endl;
 
         for (auto method = m_methods.begin(); method != m_methods.end(); ++method)
             {

@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -18,7 +18,7 @@
     \param d_vel array of particle velocities
     \param d_accel array of particle accelerations
     \param d_image array of particle images
-    \param d_group_members Device array listing the indicies of the mebers of the group to integrate
+    \param d_group_members Device array listing the indices of the members of the group to integrate
     \param group_size Number of members in the group
     \param box Box dimensions for periodic boundary condition handling
     \param deltaT timestep
@@ -42,7 +42,8 @@ void gpu_nve_step_one_kernel(Scalar4 *d_pos,
                              const Scalar3 *d_accel,
                              int3 *d_image,
                              unsigned int *d_group_members,
-                             unsigned int group_size,
+                             const unsigned int nwork,
+                             const unsigned int offset,
                              BoxDim box,
                              Scalar deltaT,
                              bool limit,
@@ -50,17 +51,18 @@ void gpu_nve_step_one_kernel(Scalar4 *d_pos,
                              bool zero_force)
     {
     // determine which particle this thread works on (MEM TRANSFER: 4 bytes)
-    int group_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int work_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (group_idx < group_size)
+    if (work_idx < nwork)
         {
+        const unsigned int group_idx = work_idx + offset;
         unsigned int idx = d_group_members[group_idx];
 
         // do velocity verlet update
         // r(t+deltaT) = r(t) + v(t)*deltaT + (1/2)a(t)*deltaT^2
         // v(t+deltaT/2) = v(t) + (1/2)a*deltaT
 
-        // read the particle's posision (MEM TRANSFER: 16 bytes)
+        // read the particle's position (MEM TRANSFER: 16 bytes)
         Scalar4 postype = d_pos[idx];
         Scalar3 pos = make_scalar3(postype.x, postype.y, postype.z);
 
@@ -106,7 +108,7 @@ void gpu_nve_step_one_kernel(Scalar4 *d_pos,
     \param d_vel array of particle velocities
     \param d_accel array of particle accelerations
     \param d_image array of particle images
-    \param d_group_members Device array listing the indicies of the mebers of the group to integrate
+    \param d_group_members Device array listing the indices of the members of the group to integrate
     \param group_size Number of members in the group
     \param box Box dimensions for periodic boundary condition handling
     \param deltaT timestep
@@ -122,7 +124,7 @@ cudaError_t gpu_nve_step_one(Scalar4 *d_pos,
                              const Scalar3 *d_accel,
                              int3 *d_image,
                              unsigned int *d_group_members,
-                             unsigned int group_size,
+                             const GPUPartition& gpu_partition,
                              const BoxDim& box,
                              Scalar deltaT,
                              bool limit,
@@ -140,12 +142,20 @@ cudaError_t gpu_nve_step_one(Scalar4 *d_pos,
 
     unsigned int run_block_size = min(block_size, max_block_size);
 
-    // setup the grid to run the kernel
-    dim3 grid( (group_size/run_block_size) + 1, 1, 1);
-    dim3 threads(run_block_size, 1, 1);
+    // iterate over active GPUs in reverse, to end up on first GPU when returning from this function
+    for (int idev = gpu_partition.getNumActiveGPUs() - 1; idev >= 0; --idev)
+        {
+        auto range = gpu_partition.getRangeAndSetGPU(idev);
 
-    // run the kernel
-    gpu_nve_step_one_kernel<<< grid, threads >>>(d_pos, d_vel, d_accel, d_image, d_group_members, group_size, box, deltaT, limit, limit_val, zero_force);
+        unsigned int nwork = range.second - range.first;
+
+        // setup the grid to run the kernel
+        dim3 grid( (nwork/run_block_size) + 1, 1, 1);
+        dim3 threads(run_block_size, 1, 1);
+
+        // run the kernel
+        gpu_nve_step_one_kernel<<< grid, threads >>>(d_pos, d_vel, d_accel, d_image, d_group_members, nwork, range.first, box, deltaT, limit, limit_val, zero_force);
+        }
 
     return cudaSuccess;
     }
@@ -155,7 +165,7 @@ cudaError_t gpu_nve_step_one(Scalar4 *d_pos,
     \param d_angmom array of particle conjugate quaternions
     \param d_inertia array of moments of inertia
     \param d_net_torque array of net torques
-    \param d_group_members Device array listing the indicies of the mebers of the group to integrate
+    \param d_group_members Device array listing the indices of the members of the group to integrate
     \param group_size Number of members in the group
     \param deltaT timestep
 */
@@ -163,16 +173,18 @@ __global__ void gpu_nve_angular_step_one_kernel(Scalar4 *d_orientation,
                              Scalar4 *d_angmom,
                              const Scalar3 *d_inertia,
                              const Scalar4 *d_net_torque,
-                             unsigned int *d_group_members,
-                             unsigned int group_size,
+                             const unsigned int *d_group_members,
+                             const unsigned int nwork,
+                             const unsigned int offset,
                              Scalar deltaT,
                              Scalar scale)
     {
     // determine which particle this thread works on (MEM TRANSFER: 4 bytes)
-    int group_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int work_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (group_idx < group_size)
+    if (work_idx < nwork)
         {
+        const unsigned int group_idx = work_idx + offset;
         unsigned int idx = d_group_members[group_idx];
 
         // read the particle's orientation, conjugate quaternion, moment of inertia and net torque
@@ -276,7 +288,7 @@ __global__ void gpu_nve_angular_step_one_kernel(Scalar4 *d_orientation,
     \param d_angmom array of particle conjugate quaternions
     \param d_inertia array of moments of inertia
     \param d_net_torque array of net torques
-    \param d_group_members Device array listing the indicies of the mebers of the group to integrate
+    \param d_group_members Device array listing the indices of the members of the group to integrate
     \param group_size Number of members in the group
     \param deltaT timestep
 */
@@ -285,17 +297,35 @@ cudaError_t gpu_nve_angular_step_one(Scalar4 *d_orientation,
                              const Scalar3 *d_inertia,
                              const Scalar4 *d_net_torque,
                              unsigned int *d_group_members,
-                             unsigned int group_size,
+                             const GPUPartition& gpu_partition,
                              Scalar deltaT,
-                             Scalar scale)
+                             Scalar scale,
+                             const unsigned int block_size)
     {
-    // setup the grid to run the kernel
-    int block_size = 256;
-    dim3 grid( (group_size/block_size) + 1, 1, 1);
-    dim3 threads(block_size, 1, 1);
+    static unsigned int max_block_size = UINT_MAX;
+    if (max_block_size == UINT_MAX)
+        {
+        cudaFuncAttributes attr;
+        cudaFuncGetAttributes(&attr, (const void *)gpu_nve_angular_step_one_kernel);
+        max_block_size = attr.maxThreadsPerBlock;
+        }
 
-    // run the kernel
-    gpu_nve_angular_step_one_kernel<<< grid, threads >>>(d_orientation, d_angmom, d_inertia, d_net_torque, d_group_members, group_size, deltaT, scale);
+    unsigned int run_block_size = min(block_size, max_block_size);
+
+    // iterate over active GPUs in reverse, to end up on first GPU when returning from this function
+    for (int idev = gpu_partition.getNumActiveGPUs() - 1; idev >= 0; --idev)
+        {
+        auto range = gpu_partition.getRangeAndSetGPU(idev);
+
+        unsigned int nwork = range.second - range.first;
+
+        // setup the grid to run the kernel
+        dim3 grid( (nwork/run_block_size) + 1, 1, 1);
+        dim3 threads(run_block_size, 1, 1);
+
+        // run the kernel
+        gpu_nve_angular_step_one_kernel<<< grid, threads >>>(d_orientation, d_angmom, d_inertia, d_net_torque, d_group_members, nwork, range.first, deltaT, scale);
+        }
 
     return cudaSuccess;
     }
@@ -304,7 +334,7 @@ cudaError_t gpu_nve_angular_step_one(Scalar4 *d_orientation,
 //! Takes the second half-step forward in the velocity-verlet NVE integration on a group of particles
 /*! \param d_vel array of particle velocities
     \param d_accel array of particle accelerations
-    \param d_group_members Device array listing the indicies of the mebers of the group to integrate
+    \param d_group_members Device array listing the indices of the members of the group to integrate
     \param group_size Number of members in the group
     \param d_net_force Net force on each particle
     \param deltaT Amount of real time to step forward in one time step
@@ -320,7 +350,8 @@ void gpu_nve_step_two_kernel(
                             Scalar4 *d_vel,
                             Scalar3 *d_accel,
                             unsigned int *d_group_members,
-                            unsigned int group_size,
+                            const unsigned int nwork,
+                            const unsigned int offset,
                             Scalar4 *d_net_force,
                             Scalar deltaT,
                             bool limit,
@@ -328,10 +359,11 @@ void gpu_nve_step_two_kernel(
                             bool zero_force)
     {
     // determine which particle this thread works on (MEM TRANSFER: 4 bytes)
-    int group_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int work_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (group_idx < group_size)
+    if (work_idx < nwork)
         {
+        const unsigned int group_idx = work_idx + offset;
         unsigned int idx = d_group_members[group_idx];
 
         // read in the net forc and calculate the acceleration MEM TRANSFER: 16 bytes
@@ -378,7 +410,7 @@ void gpu_nve_step_two_kernel(
 
 /*! \param d_vel array of particle velocities
     \param d_accel array of particle accelerations
-    \param d_group_members Device array listing the indicies of the mebers of the group to integrate
+    \param d_group_members Device array listing the indices of the members of the group to integrate
     \param group_size Number of members in the group
     \param d_net_force Net force on each particle
     \param deltaT Amount of real time to step forward in one time step
@@ -392,7 +424,7 @@ void gpu_nve_step_two_kernel(
 cudaError_t gpu_nve_step_two(Scalar4 *d_vel,
                              Scalar3 *d_accel,
                              unsigned int *d_group_members,
-                             unsigned int group_size,
+                             const GPUPartition& gpu_partition,
                              Scalar4 *d_net_force,
                              Scalar deltaT,
                              bool limit,
@@ -410,21 +442,29 @@ cudaError_t gpu_nve_step_two(Scalar4 *d_vel,
 
     unsigned int run_block_size = min(block_size, max_block_size);
 
-    // setup the grid to run the kernel
-    dim3 grid( (group_size/run_block_size) + 1, 1, 1);
-    dim3 threads(run_block_size, 1, 1);
+    // iterate over active GPUs in reverse, to end up on first GPU when returning from this function
+    for (int idev = gpu_partition.getNumActiveGPUs() - 1; idev >= 0; --idev)
+        {
+        auto range = gpu_partition.getRangeAndSetGPU(idev);
 
-    // run the kernel
-    gpu_nve_step_two_kernel<<< grid, threads >>>(d_vel,
-                                                 d_accel,
-                                                 d_group_members,
-                                                 group_size,
-                                                 d_net_force,
-                                                 deltaT,
-                                                 limit,
-                                                 limit_val,
-                                                 zero_force);
+        unsigned int nwork = range.second - range.first;
 
+        // setup the grid to run the kernel
+        dim3 grid( (nwork/run_block_size) + 1, 1, 1);
+        dim3 threads(run_block_size, 1, 1);
+
+        // run the kernel
+        gpu_nve_step_two_kernel<<< grid, threads >>>(d_vel,
+                                                     d_accel,
+                                                     d_group_members,
+                                                     nwork,
+                                                     range.first,
+                                                     d_net_force,
+                                                     deltaT,
+                                                     limit,
+                                                     limit_val,
+                                                     zero_force);
+        }
     return cudaSuccess;
     }
 
@@ -433,7 +473,7 @@ cudaError_t gpu_nve_step_two(Scalar4 *d_vel,
     \param d_angmom array of particle conjugate quaternions
     \param d_inertia array of moments of inertia
     \param d_net_torque array of net torques
-    \param d_group_members Device array listing the indicies of the mebers of the group to integrate
+    \param d_group_members Device array listing the indices of the members of the group to integrate
     \param group_size Number of members in the group
     \param deltaT timestep
 */
@@ -442,15 +482,17 @@ __global__ void gpu_nve_angular_step_two_kernel(const Scalar4 *d_orientation,
                              const Scalar3 *d_inertia,
                              const Scalar4 *d_net_torque,
                              unsigned int *d_group_members,
-                             unsigned int group_size,
+                             const unsigned int nwork,
+                             const unsigned int offset,
                              Scalar deltaT,
                              Scalar scale)
     {
     // determine which particle this thread works on (MEM TRANSFER: 4 bytes)
-    int group_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int work_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (group_idx < group_size)
+    if (work_idx < nwork)
         {
+        const unsigned int group_idx = work_idx + offset;
         unsigned int idx = d_group_members[group_idx];
 
         // read the particle's orientation, conjugate quaternion, moment of inertia and net torque
@@ -485,7 +527,7 @@ __global__ void gpu_nve_angular_step_two_kernel(const Scalar4 *d_orientation,
     \param d_angmom array of particle conjugate quaternions
     \param d_inertia array of moments of inertia
     \param d_net_torque array of net torques
-    \param d_group_members Device array listing the indicies of the mebers of the group to integrate
+    \param d_group_members Device array listing the indices of the members of the group to integrate
     \param group_size Number of members in the group
     \param deltaT timestep
 */
@@ -494,17 +536,35 @@ cudaError_t gpu_nve_angular_step_two(const Scalar4 *d_orientation,
                              const Scalar3 *d_inertia,
                              const Scalar4 *d_net_torque,
                              unsigned int *d_group_members,
-                             unsigned int group_size,
+                             const GPUPartition& gpu_partition,
                              Scalar deltaT,
-                             Scalar scale)
+                             Scalar scale,
+                             const unsigned int block_size)
     {
-    // setup the grid to run the kernel
-    int block_size = 256;
-    dim3 grid( (group_size/block_size) + 1, 1, 1);
-    dim3 threads(block_size, 1, 1);
+    static unsigned int max_block_size = UINT_MAX;
+    if (max_block_size == UINT_MAX)
+        {
+        cudaFuncAttributes attr;
+        cudaFuncGetAttributes(&attr, (const void *)gpu_nve_angular_step_two_kernel);
+        max_block_size = attr.maxThreadsPerBlock;
+        }
 
-    // run the kernel
-    gpu_nve_angular_step_two_kernel<<< grid, threads >>>(d_orientation, d_angmom, d_inertia, d_net_torque, d_group_members, group_size, deltaT, scale);
+    unsigned int run_block_size = min(block_size, max_block_size);
+
+    // iterate over active GPUs in reverse, to end up on first GPU when returning from this function
+    for (int idev = gpu_partition.getNumActiveGPUs() - 1; idev >= 0; --idev)
+        {
+        auto range = gpu_partition.getRangeAndSetGPU(idev);
+
+        unsigned int nwork = range.second - range.first;
+
+        // setup the grid to run the kernel
+        dim3 grid( (nwork/run_block_size) + 1, 1, 1);
+        dim3 threads(run_block_size, 1, 1);
+
+        // run the kernel
+        gpu_nve_angular_step_two_kernel<<< grid, threads >>>(d_orientation, d_angmom, d_inertia, d_net_torque, d_group_members, nwork, range.first, deltaT, scale);
+        }
 
     return cudaSuccess;
     }

@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #include "hoomd/HOOMDMath.h"
@@ -19,8 +19,10 @@
 // DEVICE is __device__ when included in nvcc and blank when included into the host compiler
 #ifdef NVCC
 #define DEVICE __device__
+#define HOSTDEVICE __host__ __device__
 #else
 #define DEVICE
+#define HOSTDEVICE
 #include <iostream>
 #if defined (__SSE__)
 #include <immintrin.h>
@@ -134,7 +136,7 @@ class SupportFuncConvexPolyhedron
                 __m256 ny_v = _mm256_broadcast_ss(&n.y);
                 __m256 nz_v = _mm256_broadcast_ss(&n.z);
                 __m256 max_dot_v = _mm256_broadcast_ss(&max_dot);
-                float d_s[verts.N] __attribute__((aligned(32)));
+                float d_s[verts.x.size()] __attribute__((aligned(32)));
 
                 for (unsigned int i = 0; i < verts.N; i+=8)
                     {
@@ -180,7 +182,7 @@ class SupportFuncConvexPolyhedron
                 __m128 ny_v = _mm_load_ps1(&n.y);
                 __m128 nz_v = _mm_load_ps1(&n.z);
                 __m128 max_dot_v = _mm_load_ps1(&max_dot);
-                float d_s[verts.N] __attribute__((aligned(16)));
+                float d_s[verts.x.size()] __attribute__((aligned(16)));
 
                 for (unsigned int i = 0; i < verts.N; i+=4)
                     {
@@ -299,7 +301,7 @@ class SupportFuncConvexPolyhedron
 }; // end namespace detail
 
 //! Convex Polyhedron shape template
-/*! ShapeConvexPolyhedron implements IntegragorHPMC's shape protocol.
+/*! ShapeConvexPolyhedron implements IntegratorHPMC's shape protocol.
 
     The parameter defining a polyhedron is a structure containing a list of N vertices, centered on 0,0. In fact, it is
     **required** that the origin is inside the shape, and it is best if the origin is the center of mass.
@@ -336,6 +338,20 @@ struct ShapeConvexPolyhedron
         // not implemented
         return OverlapReal(0.0);
         }
+
+    #ifndef NVCC
+    std::string getShapeSpec() const
+        {
+        std::ostringstream shapedef;
+        shapedef << "{\"type\": \"ConvexPolyhedron\", \"rounding_radius\": " << verts.sweep_radius << ", \"vertices\": [";
+        for (unsigned int i = 0; i < verts.N-1; i++)
+            {
+            shapedef << "[" << verts.x[i] << ", " << verts.y[i] << ", " << verts.z[i] << "], ";
+            }
+        shapedef << "[" << verts.x[verts.N-1] << ", " << verts.y[verts.N-1] << ", " << verts.z[verts.N-1] << "]]}";
+        return shapedef.str();
+        }
+    #endif
 
     //! Return the bounding box of the shape in world coordinates
     DEVICE detail::AABB getAABB(const vec3<Scalar>& pos) const
@@ -427,4 +443,6 @@ DEVICE inline bool test_overlap(const vec3<Scalar>& r_ab,
 
 }; // end namespace hpmc
 
+#undef DEVICE
+#undef HOSTDEVICE
 #endif //__SHAPE_CONVEX_POLYHEDRON_H__

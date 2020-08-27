@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #include "hoomd/HOOMDMath.h"
@@ -18,8 +18,10 @@
 // DEVICE is __device__ when included in nvcc and blank when included into the host compiler
 #ifdef NVCC
 #define DEVICE __device__
+#define HOSTDEVICE __host__ __device__
 #else
 #define DEVICE
+#define HOSTDEVICE
 #endif
 
 #include "SphinxOverlap.h"  //< This is the main overlap function.
@@ -128,6 +130,12 @@ struct ShapeSphinx
         return Scalar(0.0);
         }
 
+    #ifndef NVCC
+    std::string getShapeSpec() const
+        {
+        throw std::runtime_error("Shape definition not supported for this shape class.");
+        }
+    #endif
 
     //! Return the bounding box of the shape in world coordinates
     DEVICE detail::AABB getAABB(const vec3<Scalar>& pos) const
@@ -619,4 +627,6 @@ DEVICE inline OverlapReal initVolume(bool disjoint, OverlapReal r[MAX_SPHERE_CEN
 
 }; // end namespace hpmc
 
+#undef DEVICE
+#undef HOSTDEVICE
 #endif // __SHAPE_SPHINX_H__

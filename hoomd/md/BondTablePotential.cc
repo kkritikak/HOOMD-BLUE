@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -70,8 +70,8 @@ BondTablePotential::~BondTablePotential()
     \param F Table for the potential F (must be - dV / dr)
     \param rmin Minimum r in the potential
     \param rmax Maximum r in the potential
-    \post Values from \a V and \a F are copied into the interal storage for type pair (type)
-    \note See BondTablePotential for a detailed definiton of rmin and rmax
+    \post Values from \a V and \a F are copied into the internal storage for type pair (type)
+    \note See BondTablePotential for a detailed definition of rmin and rmax
 */
 void BondTablePotential::setTable(unsigned int type,
                               const std::vector<Scalar> &V,
@@ -185,7 +185,7 @@ void BondTablePotential::computeForces(unsigned int timestep)
         assert(bond.tag[0] < m_pdata->getN());
         assert(bond.tag[1] < m_pdata->getN());
 
-        // transform a and b into indicies into the particle data arrays
+        // transform a and b into indices into the particle data arrays
         // (MEM TRANSFER: 4 integers)
         unsigned int idx_a = h_rtag.data[bond.tag[0]];
         unsigned int idx_b = h_rtag.data[bond.tag[1]];
@@ -282,7 +282,7 @@ void BondTablePotential::computeForces(unsigned int timestep)
             }
         else
             {
-            m_exec_conf->msg->error() << "Table bond out of bounds" << endl;
+            m_exec_conf->msg->errorAllRanks() << "Table bond out of bounds" << endl;
             throw std::runtime_error("Error in bond calculation");
             }
 

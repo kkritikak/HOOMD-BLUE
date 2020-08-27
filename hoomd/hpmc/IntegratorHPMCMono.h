@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // inclusion guard
@@ -20,8 +20,9 @@
 #include "hoomd/AABBTree.h"
 #include "GSDHPMCSchema.h"
 #include "hoomd/Index1D.h"
-
+#include "hoomd/RNGIdentifiers.h"
 #include "hoomd/managed_allocator.h"
+#include "hoomd/GSDShapeSpecWriter.h"
 
 #ifdef ENABLE_MPI
 #include "hoomd/Communicator.h"
@@ -31,6 +32,7 @@
 #ifndef NVCC
 #include <hoomd/extern/pybind/include/pybind11/pybind11.h>
 #endif
+
 
 namespace hpmc
 {
@@ -76,11 +78,10 @@ class UpdateOrder
         */
         void shuffle(unsigned int timestep, unsigned int select = 0)
             {
-            hoomd::detail::Saru rng(timestep, m_seed+select, 0xfa870af6);
-            float r = rng.f();
+            hoomd::RandomGenerator rng(hoomd::RNGIdentifier::HPMCMonoShuffle, m_seed, timestep, select);
 
             // reverse the order with 1/2 probability
-            if (r > 0.5f)
+            if (hoomd::UniformIntDistribution(1)(rng))
                 {
                 unsigned int N = m_update_order.size();
                 for (unsigned int i = 0; i < N; i++)
@@ -193,6 +194,21 @@ class IntegratorHPMCMono : public IntegratorHPMC
         //! Return a python list that is an unwrapped overlap map
         virtual pybind11::list PyMapOverlaps();
 
+        //! Test overlap for a given pair of particle coordinates
+        /*! \param type_i Type of first particle
+            \param type_j Type of second particle
+            \param rij Separation vector rj-ri
+            \param qi Orientation quaternion of first particle
+            \param qj Orientation quaternion of second particle
+            \param use_images if true, take into account periodic boundary conditions
+            \param exclude_self if true, exclude the self-image
+
+            \returns true if particles overlap
+         */
+        virtual bool py_test_overlap(unsigned int type_i, unsigned int type_j,
+            pybind11::list rij, pybind11::list qi, pybind11::list qj,
+            bool use_images, bool exclude_self);
+
         //! Return the requested ghost layer width
         virtual Scalar getGhostLayerWidth(unsigned int)
             {
@@ -210,12 +226,10 @@ class IntegratorHPMCMono : public IntegratorHPMC
             flags[comm_flag::tag] = 1;
 
             std::ostringstream o;
-            o << "IntegratorHPMCMono: Requesting communication flags for pos tag ";
-            if (m_hasOrientation)
-                {
-                flags[comm_flag::orientation] = 1;
-                o << "orientation ";
-                }
+            o << "IntegratorHPMCMono: Requesting communication flags for pos tag orientation";
+
+            // many things depend internally on the orientation field (for ghosts) being initialized, therefore always request it
+            flags[comm_flag::orientation] = 1;
 
             if (m_patch)
                 {
@@ -301,13 +315,40 @@ class IntegratorHPMCMono : public IntegratorHPMC
         void invalidateAABBTree(){ m_aabb_tree_invalid = true; }
 
         //! Method that is called whenever the GSD file is written if connected to a GSD file.
-        int slotWriteGSD(gsd_handle&, std::string name) const;
+        int slotWriteGSDState(gsd_handle&, std::string name) const;
+
+        //! Method that is called whenever the GSD file is written if connected to a GSD file.
+        int slotWriteGSDShapeSpec(gsd_handle&) const;
 
         //! Method that is called to connect to the gsd write state signal
-        void connectGSDSignal(std::shared_ptr<GSDDumpWriter> writer, std::string name);
+        void connectGSDStateSignal(std::shared_ptr<GSDDumpWriter> writer, std::string name);
+
+        //! Method that is called to connect to the gsd write shape signal
+        void connectGSDShapeSpec(std::shared_ptr<GSDDumpWriter> writer);
 
         //! Method that is called to connect to the gsd write state signal
         bool restoreStateGSD(std::shared_ptr<GSDReader> reader, std::string name);
+
+        std::vector<std::string> getTypeShapeMapping(const std::vector<param_type, managed_allocator<param_type> > &params) const
+            {
+            quat<Scalar> q(make_scalar4(1,0,0,0));
+            std::vector<std::string> type_shape_mapping(params.size());
+            for (unsigned int i = 0; i < type_shape_mapping.size(); i++)
+                {
+                Shape shape(q, params[i]);
+                type_shape_mapping[i] = shape.getShapeSpec();
+                }
+            return type_shape_mapping;
+            }
+
+        pybind11::list getTypeShapesPy()
+            {
+            std::vector<std::string> type_shape_mapping = this->getTypeShapeMapping(this->m_params);
+            pybind11::list type_shapes;
+            for (unsigned int i = 0; i < type_shape_mapping.size(); i++)
+                type_shapes.append(type_shape_mapping[i]);
+            return type_shapes;
+            }
 
     protected:
         std::vector<param_type, managed_allocator<param_type> > m_params;   //!< Parameters for each particle type on GPU
@@ -374,6 +415,11 @@ IntegratorHPMCMono<Shape>::IntegratorHPMCMono(std::shared_ptr<SystemDefinition> 
     m_overlap_idx = Index2D(m_pdata->getNTypes());
     GPUArray<unsigned int> overlaps(m_overlap_idx.getNumElements(), m_exec_conf);
     m_overlaps.swap(overlaps);
+    ArrayHandle<unsigned int> h_overlaps(m_overlaps, access_location::host, access_mode::readwrite);
+    for(unsigned int i = 0; i < m_overlap_idx.getNumElements(); i++)
+        {
+        h_overlaps.data[i] = 1; // Assume we want to check overlaps.
+        }
 
     // Connect to the BoxChange signal
     m_pdata->getBoxChangeSignal().template connect<IntegratorHPMCMono<Shape>, &IntegratorHPMCMono<Shape>::slotBoxChanged>(this);
@@ -475,14 +521,35 @@ void IntegratorHPMCMono<Shape>::slotNumTypesChange()
 
     // skip the reallocation if the number of types does not change
     // this keeps old potential coefficients when restoring a snapshot
-    // it will result in invalid coeficients if the snapshot has a different type id -> name mapping
+    // it will result in invalid coefficients if the snapshot has a different type id -> name mapping
     if (m_pdata->getNTypes() == m_overlap_idx.getW())
         return;
 
     // re-allocate overlap interaction matrix
+    Index2D old_overlap_idx = m_overlap_idx;
     m_overlap_idx = Index2D(m_pdata->getNTypes());
 
     GPUArray<unsigned int> overlaps(m_overlap_idx.getNumElements(), m_exec_conf);
+
+        {
+        ArrayHandle<unsigned int> h_old_overlaps(m_overlaps, access_location::host, access_mode::read);
+        ArrayHandle<unsigned int> h_overlaps(overlaps, access_location::host, access_mode::overwrite);
+
+        for(unsigned int i = 0; i < m_overlap_idx.getNumElements(); i++)
+            {
+            h_overlaps.data[i] = 1; // Assume we want to check overlaps.
+            }
+
+        // copy over old overlap check flags (this assumes the number of types is greater or equal to the old number of types)
+        for (unsigned int i = 0; i < old_overlap_idx.getW(); ++i)
+            {
+            for (unsigned int j = 0; j < old_overlap_idx.getH(); ++j)
+                {
+                h_overlaps.data[m_overlap_idx(i,j)] = h_old_overlaps.data[old_overlap_idx(i,j)];
+                }
+            }
+        }
+
     m_overlaps.swap(overlaps);
 
     updateCellWidth();
@@ -560,10 +627,10 @@ void IntegratorHPMCMono<Shape>::update(unsigned int timestep)
             #endif
 
             // make a trial move for i
-            hoomd::detail::Saru rng_i(i, m_seed + m_exec_conf->getRank()*m_nselect + i_nselect, timestep);
+            hoomd::RandomGenerator rng_i(hoomd::RNGIdentifier::HPMCMonoTrialMove, m_seed, i, m_exec_conf->getRank()*m_nselect + i_nselect, timestep);
             int typ_i = __scalar_as_int(postype_i.w);
             Shape shape_i(quat<Scalar>(orientation_i), m_params[typ_i]);
-            unsigned int move_type_select = rng_i.u32() & 0xffff;
+            unsigned int move_type_select = hoomd::UniformIntDistribution(0xffff)(rng_i);
             bool move_type_translate = !shape_i.hasOrientation() || (move_type_select < m_move_ratio);
 
             Shape shape_old(quat<Scalar>(orientation_i), m_params[typ_i]);
@@ -574,7 +641,8 @@ void IntegratorHPMCMono<Shape>::update(unsigned int timestep)
                 // skip if no overlap check is required
                 if (h_d.data[typ_i] == 0.0)
                     {
-                    counters.translate_accept_count++;
+                    if (!shape_i.ignoreStatistics())
+                        counters.translate_accept_count++;
                     continue;
                     }
 
@@ -593,7 +661,8 @@ void IntegratorHPMCMono<Shape>::update(unsigned int timestep)
                 {
                 if (h_a.data[typ_i] == 0.0)
                     {
-                    counters.rotate_accept_count++;
+                    if (!shape_i.ignoreStatistics())
+                        counters.rotate_accept_count++;
                     continue;
                     }
 
@@ -795,7 +864,7 @@ void IntegratorHPMCMono<Shape>::update(unsigned int timestep)
 
             // If no overlaps and Metropolis criterion is met, accept
             // trial move and update positions  and/or orientations.
-            if (!overlap && rng_i.d() < slow::exp(patch_field_energy_diff))
+            if (!overlap && hoomd::detail::generate_canonical<double>(rng_i) < slow::exp(patch_field_energy_diff))
                 {
                 // increment accept counter and assign new position
                 if (!shape_i.ignoreStatistics())
@@ -851,13 +920,14 @@ void IntegratorHPMCMono<Shape>::update(unsigned int timestep)
         ArrayHandle<int3> h_image(m_pdata->getImages(), access_location::host, access_mode::readwrite);
 
         // precalculate the grid shift
-        hoomd::detail::Saru rng(timestep, this->m_seed, 0xf4a3210e);
+        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::HPMCMonoShift, this->m_seed, timestep);
         Scalar3 shift = make_scalar3(0,0,0);
-        shift.x = rng.s(-m_nominal_width/Scalar(2.0),m_nominal_width/Scalar(2.0));
-        shift.y = rng.s(-m_nominal_width/Scalar(2.0),m_nominal_width/Scalar(2.0));
+        hoomd::UniformDistribution<Scalar> uniform(-m_nominal_width/Scalar(2.0),m_nominal_width/Scalar(2.0));
+        shift.x = uniform(rng);
+        shift.y = uniform(rng);
         if (this->m_sysdef->getNDimensions() == 3)
             {
-            shift.z = rng.s(-m_nominal_width/Scalar(2.0),m_nominal_width/Scalar(2.0));
+            shift.z = uniform(rng);
             }
         for (unsigned int i = 0; i < m_pdata->getN(); i++)
             {
@@ -1196,7 +1266,7 @@ void IntegratorHPMCMono<Shape>::setParam(unsigned int typ,  const param_type& pa
     // validate input
     if (typ >= this->m_pdata->getNTypes())
         {
-        this->m_exec_conf->msg->error() << "integrate.mode_hpmc_?." << /*evaluator::getName() <<*/ ": Trying to set pair params for a non existant type! "
+        this->m_exec_conf->msg->error() << "integrate.mode_hpmc_?." << /*evaluator::getName() <<*/ ": Trying to set pair params for a non existent type! "
                   << typ << std::endl;
         throw std::runtime_error("Error setting parameters in IntegratorHPMCMono");
         }
@@ -1217,14 +1287,14 @@ void IntegratorHPMCMono<Shape>::setOverlapChecks(unsigned int typi, unsigned int
     // validate input
     if (typi >= this->m_pdata->getNTypes())
         {
-        this->m_exec_conf->msg->error() << "integrate.mode_hpmc_?." << /*evaluator::getName() <<*/ ": Trying to set interaction matrix for a non existant type! "
+        this->m_exec_conf->msg->error() << "integrate.mode_hpmc_?." << /*evaluator::getName() <<*/ ": Trying to set interaction matrix for a non existent type! "
                   << typi << std::endl;
         throw std::runtime_error("Error setting interaction matrix in IntegratorHPMCMono");
         }
 
     if (typj >= this->m_pdata->getNTypes())
         {
-        this->m_exec_conf->msg->error() << "integrate.mode_hpmc_?." << /*evaluator::getName() <<*/ ": Trying to set interaction matrix for a non existant type! "
+        this->m_exec_conf->msg->error() << "integrate.mode_hpmc_?." << /*evaluator::getName() <<*/ ": Trying to set interaction matrix for a non existent type! "
                   << typj << std::endl;
         throw std::runtime_error("Error setting interaction matrix in IntegratorHPMCMono");
         }
@@ -1434,7 +1504,7 @@ void IntegratorHPMCMono<Shape>::growAABBList(unsigned int N)
         int retval = posix_memalign((void**)&m_aabbs, 32, N*sizeof(detail::AABB));
         if (retval != 0)
             {
-            m_exec_conf->msg->error() << "Error allocating aligned memory" << std::endl;
+            m_exec_conf->msg->errorAllRanks() << "Error allocating aligned memory" << std::endl;
             throw std::runtime_error("Error allocating AABB memory");
             }
         }
@@ -1447,7 +1517,7 @@ void IntegratorHPMCMono<Shape>::growAABBList(unsigned int N)
     buildAABBTree() relies on the member variable m_aabb_tree_invalid to work correctly. Any time particles
     are moved (and not updated with m_aabb_tree->update()) or the particle list changes order, m_aabb_tree_invalid
     needs to be set to true. Then buildAABBTree() will know to rebuild the tree from scratch on the next call. Typically
-    this is on the next timestep. But in same cases (i.e. NPT), the tree may need to be rebuilt several times in a
+    this is on the next timestep. But in some cases (i.e. NPT), the tree may need to be rebuilt several times in a
     single step because of box volume moves.
 
     Subclasses that override update() or other methods must be user to set m_aabb_tree_invalid appropriately, or
@@ -1649,18 +1719,27 @@ pybind11::list IntegratorHPMCMono<Shape>::PyMapOverlaps()
     }
 
 template <class Shape>
-void IntegratorHPMCMono<Shape>::connectGSDSignal(
+void IntegratorHPMCMono<Shape>::connectGSDStateSignal(
                                                     std::shared_ptr<GSDDumpWriter> writer,
                                                     std::string name)
     {
     typedef hoomd::detail::SharedSignalSlot<int(gsd_handle&)> SlotType;
-    auto func = std::bind(&IntegratorHPMCMono<Shape>::slotWriteGSD, this, std::placeholders::_1, name);
+    auto func = std::bind(&IntegratorHPMCMono<Shape>::slotWriteGSDState, this, std::placeholders::_1, name);
     std::shared_ptr<hoomd::detail::SignalSlot> pslot( new SlotType(writer->getWriteSignal(), func));
     addSlot(pslot);
     }
 
 template <class Shape>
-int IntegratorHPMCMono<Shape>::slotWriteGSD( gsd_handle& handle, std::string name ) const
+void IntegratorHPMCMono<Shape>::connectGSDShapeSpec(std::shared_ptr<GSDDumpWriter> writer)
+    {
+    typedef hoomd::detail::SharedSignalSlot<int(gsd_handle&)> SlotType;
+    auto func = std::bind(&IntegratorHPMCMono<Shape>::slotWriteGSDShapeSpec, this, std::placeholders::_1);
+    std::shared_ptr<hoomd::detail::SignalSlot> pslot( new SlotType(writer->getWriteSignal(), func));
+    addSlot(pslot);
+    }
+
+template <class Shape>
+int IntegratorHPMCMono<Shape>::slotWriteGSDState( gsd_handle& handle, std::string name ) const
     {
     m_exec_conf->msg->notice(10) << "IntegratorHPMCMono writing to GSD File to name: "<< name << std::endl;
     int retval = 0;
@@ -1683,6 +1762,15 @@ int IntegratorHPMCMono<Shape>::slotWriteGSD( gsd_handle& handle, std::string nam
         }
     retval |= schema_shape.write(handle, name, m_pdata->getNTypes(), m_params);
 
+    return retval;
+    }
+
+template <class Shape>
+int IntegratorHPMCMono<Shape>::slotWriteGSDShapeSpec(gsd_handle& handle) const
+    {
+    GSDShapeSpecWriter shapespec(m_exec_conf);
+    m_exec_conf->msg->notice(10) << "IntegratorHPMCMono writing to GSD File to name: " << shapespec.getName() << std::endl;
+    int retval = shapespec.write(handle, this->getTypeShapeMapping(m_params));
     return retval;
     }
 
@@ -1712,6 +1800,64 @@ bool IntegratorHPMCMono<Shape>::restoreStateGSD( std::shared_ptr<GSDReader> read
     return success;
     }
 
+template<class Shape>
+bool IntegratorHPMCMono<Shape>::py_test_overlap(unsigned int type_i, unsigned int type_j,
+    pybind11::list rij, pybind11::list qi, pybind11::list qj,
+    bool use_images, bool exclude_self)
+    {
+    if (len(rij) != 3)
+        throw std::runtime_error("rij needs to be a 3d vector.\n");
+    if (len(qi) != 4 || len(qj) != 4)
+        throw std::runtime_error("qi and qj need to be quaternions.\n");
+
+    assert(type_i <= m_pdata->getNTypes());
+    assert(type_j <= m_pdata->getNTypes());
+
+    vec3<Scalar> dr(pybind11::cast<Scalar>(rij[0]), pybind11::cast<Scalar>(rij[1]), pybind11::cast<Scalar>(rij[2]));
+    quat<Scalar> quat_i(pybind11::cast<Scalar>(qi[0]),
+        vec3<Scalar>(pybind11::cast<Scalar>(qi[1]), pybind11::cast<Scalar>(qi[2]), pybind11::cast<Scalar>(qi[3])));
+    quat<Scalar> quat_j(pybind11::cast<Scalar>(qj[0]),
+        vec3<Scalar>(pybind11::cast<Scalar>(qj[1]), pybind11::cast<Scalar>(qj[2]), pybind11::cast<Scalar>(qj[3])));
+
+    Shape shape_i(quat_i, m_params[type_i]);
+    Shape shape_j(quat_j, m_params[type_j]);
+
+    unsigned int err = 0;
+    bool overlap = false;
+    if (use_images)
+        {
+        #ifdef ENABLE_MPI
+        if (m_pdata->getDomainDecomposition())
+            {
+            this->m_exec_conf->msg->error() << "test_overlap does not support MPI parallel jobs with use_images=True" << std::endl;
+            throw std::runtime_error("test_overlap does not support MPI parallel jobs");
+            }
+        #endif
+
+        updateImageList();
+
+        const unsigned int n_images = m_image_list.size();
+        for (unsigned int cur_image = 0; cur_image < n_images; cur_image++)
+            {
+            if (exclude_self && cur_image == 0)
+                continue;
+
+            if (check_circumsphere_overlap(dr + m_image_list[cur_image], shape_i, shape_j) &&
+                test_overlap(dr + m_image_list[cur_image], shape_i, shape_j, err))
+                overlap = true;
+            }
+        }
+    else
+        {
+        overlap = check_circumsphere_overlap(dr, shape_i, shape_j) && test_overlap(dr, shape_i, shape_j, err);
+        }
+
+    if (err)
+        m_exec_conf->msg->warning() << "test_overlap() reports an error due to finite numerical precision." << std::endl;
+
+    return overlap;
+    }
+
 //! Export the IntegratorHPMCMono class to python
 /*! \param name Name of the class in the exported python module
     \tparam Shape An instantiation of IntegratorHPMCMono<Shape> will be exported
@@ -1725,8 +1871,11 @@ template < class Shape > void export_IntegratorHPMCMono(pybind11::module& m, con
           .def("setExternalField", &IntegratorHPMCMono<Shape>::setExternalField)
           .def("setPatchEnergy", &IntegratorHPMCMono<Shape>::setPatchEnergy)
           .def("mapOverlaps", &IntegratorHPMCMono<Shape>::PyMapOverlaps)
-          .def("connectGSDSignal", &IntegratorHPMCMono<Shape>::connectGSDSignal)
+          .def("connectGSDStateSignal", &IntegratorHPMCMono<Shape>::connectGSDStateSignal)
+          .def("connectGSDShapeSpec", &IntegratorHPMCMono<Shape>::connectGSDShapeSpec)
           .def("restoreStateGSD", &IntegratorHPMCMono<Shape>::restoreStateGSD)
+          .def("py_test_overlap", &IntegratorHPMCMono<Shape>::py_test_overlap)
+          .def("getTypeShapesPy", &IntegratorHPMCMono<Shape>::getTypeShapesPy)
           ;
     }
 

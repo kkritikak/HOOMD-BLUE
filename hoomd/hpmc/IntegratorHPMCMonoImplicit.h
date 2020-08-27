@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #ifndef __HPMC_MONO_IMPLICIT__H__
@@ -6,6 +6,7 @@
 
 #include "IntegratorHPMCMono.h"
 #include "hoomd/Autotuner.h"
+#include "hoomd/Saru.h"
 
 #include <random>
 #include <cfloat>
@@ -194,7 +195,7 @@ class IntegratorHPMCMonoImplicit : public IntegratorHPMCMono<Shape>
         inline bool checkDepletantCircumsphere(unsigned int i, vec3<Scalar> pos_i, Shape shape_i, unsigned int typ_i, Scalar d_max, Scalar d_min, Scalar4 *h_postype, Scalar4 *h_orientation, unsigned int *h_overlaps, hpmc_counters_t& counters, hpmc_implicit_counters_t& implicit_counters, hoomd::detail::Saru& rng_i, tbb::enumerable_thread_specific< hoomd::detail::Saru >& rng_parallel, tbb::enumerable_thread_specific<std::mt19937>& rng_parallel_mt);
         #endif
 
-        //! Initalize Poisson distribution parameters
+        //! Initialize Poisson distribution parameters
         virtual void updatePoissonParameters();
 
         //! Set the nominal width appropriate for depletion interaction
@@ -479,7 +480,8 @@ void IntegratorHPMCMonoImplicit< Shape >::update(unsigned int timestep)
                 // skip if no overlap check is required
                 if (h_d.data[typ_i] == 0.0)
                     {
-                    counters.translate_accept_count++;
+                    if (!shape_i.ignoreStatistics())
+                        counters.translate_accept_count++;
                     continue;
                     }
 
@@ -498,7 +500,8 @@ void IntegratorHPMCMonoImplicit< Shape >::update(unsigned int timestep)
                 {
                 if (h_a.data[typ_i] == 0.0)
                     {
-                    counters.rotate_accept_count++;
+                    if (!shape_i.ignoreStatistics())
+                        counters.rotate_accept_count++;
                     continue;
                     }
 
@@ -695,18 +698,18 @@ void IntegratorHPMCMonoImplicit< Shape >::update(unsigned int timestep)
                             }
                         }  // end loop over AABB nodes
                     } // end loop over images
-
-                // Add external energetic contribution
-                if (this->m_external)
-                    {
-                    patch_field_energy_diff -= this->m_external->energydiff(i, pos_old, shape_old, pos_i, shape_i);
-                    }
-
-                // Update acceptance based on patch, will only be reached if overlap check succeeded
-                accept = rng_i.d() < slow::exp(patch_field_energy_diff);
                 } // end if (m_patch)
 
-            // The trial move is valid, so check if it is invalidated by depletants
+            // Add external energetic contribution
+            if (this->m_external)
+                {
+                patch_field_energy_diff -= this->m_external->energydiff(i, pos_old, shape_old, pos_i, shape_i);
+                }
+
+            accept = accept && (rng_i.d() < slow::exp(patch_field_energy_diff));
+
+            // If no overlaps and Metropolis criterion is met, check if it is
+            // invalidated by depletants.
             if (accept && h_overlaps.data[this->m_overlap_idx(m_type, typ_i)])
                 {
                 if (m_method == 0)
@@ -834,7 +837,7 @@ void IntegratorHPMCMonoImplicit< Shape >::update(unsigned int timestep)
     In order to determine whether or not moves are accepted, particle positions are checked against a randomly generated set of depletant positions.
     In principle this function should enable multiple depletant modes, although at present only one (cirumsphere) has been implemented here.
 
-    NOTE: To avoid numerous acquires and releases of GPUArrays, ArrayHandles are passed directly into this const function. 
+    NOTE: To avoid numerous acquires and releases of GPUArrays, ArrayHandles are passed directly into this const function.
     */
 #ifndef ENABLE_TBB
 template<class Shape>
@@ -1230,7 +1233,7 @@ inline bool IntegratorHPMCMonoImplicit<Shape>::checkDepletantCircumsphere(unsign
     In order to determine whether or not moves are accepted, particle positions are checked against a randomly generated set of depletant positions.
     In principle this function should enable multiple depletant modes, although at present only one (cirumsphere) has been implemented here.
 
-    NOTE: To avoid numerous acquires and releases of GPUArrays, ArrayHandles are passed directly into this const function. 
+    NOTE: To avoid numerous acquires and releases of GPUArrays, ArrayHandles are passed directly into this const function.
     */
 #ifndef ENABLE_TBB
 template<class Shape>
@@ -1604,7 +1607,7 @@ inline void IntegratorHPMCMonoImplicit<Shape>::generateDepletantRestricted(RNG& 
     bool do_rotate = false;
     if (d > Scalar(0.0) && delta_other > Scalar(0.0))
         {
-        // draw a random direction in the bounded sphereical shell
+        // draw a random direction in the bounded spherical shell
         Scalar ctheta = (delta_other*delta_other+Scalar(4.0)*d*d-delta*delta)/(Scalar(4.0)*delta_other*d);
         if (ctheta >= Scalar(-1.0) && ctheta < Scalar(1.0))
             {
@@ -1821,7 +1824,7 @@ inline bool IntegratorHPMCMonoImplicit<Shape>::insertDepletant(vec3<Scalar>& pos
 
                             if (j == idx)
                                 {
-                                // we have already exclued overlap with the moved particle above
+                                // we have already excluded overlap with the moved particle above
                                 continue;
                                 }
 

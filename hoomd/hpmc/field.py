@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 """ Apply external fields to HPMC simulations.
@@ -13,9 +13,9 @@ import hoomd
 ## \internal
 # \brief Base class for external fields
 #
-# An external in hoomd_script reflects an ExternalField in c++. It is responsible
-# for all high-level management that happens behind the scenes for hoomd_script
-# writers. 1) The instance of the c++ extrnal itself is tracked optionally passed
+# An external in hoomd reflects an ExternalField in c++. It is responsible
+# for all high-level management that happens behind the scenes for hoomd
+# writers. 1) The instance of the c++ external itself is tracked optionally passed
 # to the hpmc integrator. While external fields are Compute types and are added
 # to the System they will not be enforced unless they are added to the integrator.
 # Only one external field can be held by the integrator so if multiple fields are
@@ -60,11 +60,14 @@ class lattice_field(_external):
     Once initialized, the compute provides the following log quantities that can be logged via analyze.log:
 
     * **lattice_energy** -- total lattice energy
-    * **lattice_energy_pp_avg** -- average lattice energy per particle
-    * **lattice_energy_pp_sigma** -- standard deviation of the lattice energy per particle
+    * **lattice_energy_pp_avg** -- average lattice energy per particle multiplied by the spring constant
+    * **lattice_energy_pp_sigma** -- standard deviation of the lattice energy per particle multiplied by the spring constant
     * **lattice_translational_spring_constant** -- translational spring constant
     * **lattice_rotational_spring_constant** -- rotational spring constant
     * **lattice_num_samples** -- number of samples used to compute the average and standard deviation
+
+    .. warning::
+        The lattice energies and standard deviations logged by this class are multiplied by the spring constant.
 
     Example::
 
@@ -93,14 +96,16 @@ class lattice_field(_external):
                 cls = _hpmc.ExternalFieldLatticeEllipsoid;
             elif isinstance(mc, integrate.convex_spheropolygon):
                 cls =_hpmc.ExternalFieldLatticeSpheropolygon;
-            elif isinstance(mc, integrate.faceted_sphere):
-                cls =_hpmc.ExternalFieldLatticeFacetedSphere;
+            elif isinstance(mc, integrate.faceted_ellipsoid):
+                cls =_hpmc.ExternalFieldLatticeFacetedEllipsoid;
             elif isinstance(mc, integrate.polyhedron):
                 cls =_hpmc.ExternalFieldLatticePolyhedron;
             elif isinstance(mc, integrate.sphinx):
                 cls =_hpmc.ExternalFieldLatticeSphinx;
             elif isinstance(mc, integrate.sphere_union):
                 cls = _hpmc.ExternalFieldLatticeSphereUnion;
+            elif isinstance(mc, integrate.faceted_ellipsoid_union):
+                cls = _hpmc.ExternalFieldlatticeFacetedEllipsoidUnion;
             elif isinstance(mc, integrate.convex_polyhedron_union):
                 cls = _hpmc.ExternalFieldLatticeConvexPolyhedronUnion;
             else:
@@ -237,9 +242,9 @@ class external_field_composite(_external):
     Examples::
 
         mc = hpmc.integrate.shape(...);
-        walls = hpmc.compute.walls(...)
-        lattice = hpmc.compute.lattice(...)
-        composite_field = hpmc.compute.external_field_composite(mc, fields=[walls, lattice])
+        walls = hpmc.field.walls(...)
+        lattice = hpmc.field.lattice(...)
+        composite_field = hpmc.field.external_field_composite(mc, fields=[walls, lattice])
 
     """
     def __init__(self, mc, fields = None):
@@ -260,14 +265,16 @@ class external_field_composite(_external):
                 cls = _hpmc.ExternalFieldCompositeEllipsoid;
             elif isinstance(mc, integrate.convex_spheropolygon):
                 cls =_hpmc.ExternalFieldCompositeSpheropolygon;
-            elif isinstance(mc, integrate.faceted_sphere):
-                cls =_hpmc.ExternalFieldCompositeFacetedSphere;
+            elif isinstance(mc, integrate.faceted_ellipsoid):
+                cls =_hpmc.ExternalFieldCompositeFacetedEllipsoid;
             elif isinstance(mc, integrate.polyhedron):
                 cls =_hpmc.ExternalFieldCompositePolyhedron;
             elif isinstance(mc, integrate.sphinx):
                 cls =_hpmc.ExternalFieldCompositeSphinx;
             elif isinstance(mc, integrate.sphere_union):
                 cls = _hpmc.ExternalFieldCompositeSphereUnion;
+            elif isinstance(mc, integrate.faceted_ellipsoid_union):
+                cls = _hpmc.ExternalFieldCompositeFacetedEllipsoidUnion;
             elif isinstance(mc, integrate.convex_polyhedron_union):
                 cls = _hpmc.ExternalFieldCompositeConvexPolyhedronUnion;
             else:
@@ -825,16 +832,25 @@ class frenkel_ladd_energy(_compute):
     R""" Compute the Frenkel-Ladd Energy of a crystal.
 
     Args:
+        mc (:py:mod:`hoomd.hpmc.integrate`): MC integrator.
         ln_gamma (float): log of the translational spring constant
         q_factor (float): scale factor between the translational spring constant and rotational spring constant
         r0 (list): reference lattice positions
         q0 (list): reference lattice orientations
         drift_period (int): period call the remove drift updater
+        symmetry (list): list of equivalent quaternions for the shape.
 
     :py:class:`frenkel_ladd_energy` interacts with :py:class:`.lattice_field`
     and :py:class:`hoomd.hpmc.update.remove_drift`.
 
     Once initialized, the compute provides the log quantities from the :py:class:`lattice_field`.
+
+    .. warning::
+        The lattice energies and standard deviations logged by
+        :py:class:`lattice_field` are multiplied by the spring constant. As a result,
+        when computing the free energies from :py:class:`frenkel_ladd_energy` class,
+        instead of integrating the free energy over the spring constants, you should
+        integrate over the natural log of the spring constants.
 
     Example::
 
@@ -933,7 +949,7 @@ class callback(_external):
     Args:
 
         mc (:py:mod:`hoomd.hpmc.integrate`): MC integrator.
-        callback (callable): A python function to evaluate the energy of a configuration
+        callback (`callable`): A python function to evaluate the energy of a configuration
         composite (bool): True if this evaluator is part of a composite external field
 
     Example::
@@ -970,14 +986,18 @@ class callback(_external):
                 cls = _hpmc.ExternalCallbackEllipsoid;
             elif isinstance(mc, integrate.convex_spheropolygon):
                 cls =_hpmc.ExternalCallbackSpheropolygon;
-            elif isinstance(mc, integrate.faceted_sphere):
-                cls =_hpmc.ExternalCallbackFacetedSphere;
+            elif isinstance(mc, integrate.faceted_ellipsoid):
+                cls =_hpmc.ExternalCallbackFacetedEllipsoid;
             elif isinstance(mc, integrate.polyhedron):
                 cls =_hpmc.ExternalCallbackPolyhedron;
             elif isinstance(mc, integrate.sphinx):
                 cls =_hpmc.ExternalCallbackSphinx;
             elif isinstance(mc, integrate.sphere_union):
                 cls = _hpmc.ExternalCallbackSphereUnion;
+            elif isinstance(mc, integrate.faceted_ellipsoid_union):
+                cls = _hpmc.ExternalCallbackFacetedEllipsoidUnion;
+            elif isinstance(mc, integrate.convex_spheropolyhedron_union):
+                cls = _hpmc.ExternalCallbackConvexPolyhedronUnion;
             else:
                 hoomd.context.msg.error("hpmc.field.callback: Unsupported integrator.\n");
                 raise RuntimeError("Error initializing python callback");

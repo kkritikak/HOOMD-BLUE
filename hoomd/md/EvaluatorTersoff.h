@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -32,7 +32,7 @@ struct tersoff_params
     Scalar dimer_r; //!< Dimer separation of the type-pair
     Scalar tersoff_n; //!< \a n in Tersoff potential
     Scalar gamman; //!< \a gamma raised to the \a n power in the Tersoff potential
-    Scalar lambda_cube; //!< \a lambda^3 in the expontential term of \a chi
+    Scalar lambda_cube; //!< \a lambda^3 in the exponential term of \a chi
     Scalar3 ang_consts; //!< Constants \a c^2, \a d^2, and \a m in the bond-angle function of the Tersoff potential
     Scalar alpha; //!< \a alpha in the exponential cutoff-smoothing function
 };
@@ -364,6 +364,11 @@ class EvaluatorTersoff
         static std::string getName()
             {
             return std::string("tersoff");
+            }
+
+        std::string getShapeSpec() const
+            {
+            throw std::runtime_error("Shape definition not supported for this pair potential.");
             }
         #endif
 

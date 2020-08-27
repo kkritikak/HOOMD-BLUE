@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
@@ -116,12 +116,30 @@ class PYBIND11_EXPORT Communicator
          * Particles sent to a neighbor are deleted from the local particle data.
          * Particles received from a neighbor in one of the six communication steps
          * are added to the local particle data, and are also considered for forwarding to a neighbor
-         * in the subseqent communication steps.
+         * in the subsequent communication steps.
          *
          * \post Every particle on every processor can be found inside the local domain boundaries.
          */
         virtual void migrateParticles(unsigned int timestep);
 
+        //! Migration signal type
+        typedef Nano::Signal<bool (unsigned int)> MigrateSignal;
+
+        //! Get the migrate request signal
+        /*!
+         * \returns A signal that subscribers can attach a callback to request particle migration
+         *          at the current timestep.
+         */
+        MigrateSignal& getMigrateRequestSignal()
+            {
+            return m_migrate_requests;
+            }
+
+        //! Force a particle migration to occur on the next call to communicate()
+        void forceMigrate()
+            {
+            m_force_migrate = true;
+            }
         //@}
 
     protected:
@@ -157,12 +175,11 @@ class PYBIND11_EXPORT Communicator
         std::shared_ptr<::ParticleData> m_pdata;                    //!< HOOMD particle data
         std::shared_ptr<const ExecutionConfiguration> m_exec_conf;  //!< Execution configuration
         std::shared_ptr<mpcd::ParticleData> m_mpcd_pdata;           //!< MPCD particle data
-        const MPI_Comm m_mpi_comm;                                  //!< MPI communciator
+        const MPI_Comm m_mpi_comm;                                  //!< MPI communicator
         std::shared_ptr<DomainDecomposition> m_decomposition;       //!< Domain decomposition information
         std::shared_ptr<Profiler> m_prof;                           //!< Profiler
 
         bool m_is_communicating;               //!< Whether we are currently communicating
-        bool m_force_migrate;                  //!< True if particle migration is forced
         bool m_check_decomposition; //!< Flag to check the simulation box decomposition
 
         const static unsigned int neigh_max;           //!< Maximum number of neighbor ranks
@@ -176,6 +193,7 @@ class PYBIND11_EXPORT Communicator
         //! Helper function to initialize adjacency arrays
         void initializeNeighborArrays();
 
+        MPI_Datatype m_pdata_element;                       //!< MPI struct for pdata_element
         GPUVector<mpcd::detail::pdata_element> m_sendbuf;   //!< Buffer for particles that are sent
         GPUVector<mpcd::detail::pdata_element> m_recvbuf;   //!< Buffer for particles that are received
         std::vector<MPI_Request> m_reqs;    //!< MPI requests
@@ -186,6 +204,9 @@ class PYBIND11_EXPORT Communicator
             {
             m_check_decomposition = true;
             }
+
+        MigrateSignal m_migrate_requests;   //!< Signal to request migration
+        bool m_force_migrate;               //!< If true, force particle migration
     };
 
 

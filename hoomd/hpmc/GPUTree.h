@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #include "OBBTree.h"
@@ -373,7 +373,7 @@ DEVICE inline void findAscent(unsigned int a_count, unsigned int b_count, unsign
         } // end while
     }
 
-//! Traverse a binary hierachy
+//! Traverse a binary hierarchy
 /*! Returns true if an intersecting pair of leaf OBB's has been found
  * \param a First tree
  * \param b Second tree

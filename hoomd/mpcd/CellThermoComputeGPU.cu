@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
@@ -15,7 +15,6 @@
 #include "CellCommunicator.cuh"
 #include "ReductionOperators.h"
 
-#include "hoomd/extern/cub/cub/cub.cuh"
 #include "hoomd/WarpTools.cuh"
 
 namespace mpcd
@@ -776,7 +775,7 @@ cudaError_t stage_net_cell_thermo(mpcd::detail::cell_thermo_element *d_tmp_therm
  * two calls to perform the reduction. The first call sizes the temporary storage,
  * which is returned in \a d_tmp and \a tmp_bytes. The caller must then allocate
  * the required bytes, and call the function a second time. This performs the
- * reducetion and returns the result in \a d_reduced.
+ * reduction and returns the result in \a d_reduced.
  */
 cudaError_t reduce_net_cell_thermo(mpcd::detail::cell_thermo_element *d_reduced,
                                    void *d_tmp,

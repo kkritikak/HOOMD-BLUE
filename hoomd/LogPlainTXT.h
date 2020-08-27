@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 /*! \file LogPlainTXT.h
@@ -27,7 +27,7 @@
     being called and getLogValue called for each value to produce a line in the file. If a logged quantity
     is not registered, a 0 is printed to the file and a warning to stdout.
 
-    The removeAll method can be used to clear all registered computes and updaters. hoomd_script will
+    The removeAll method can be used to clear all registered computes and updaters. hoomd will
     removeAll() and re-register all active computes and updaters before every run()
 
     As an option, Logger can be initialized with no file. Such a logger will skip doing anything during

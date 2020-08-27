@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #ifndef __HPMC_MONO_IMPLICIT_GPU_H__
@@ -108,7 +108,7 @@ class IntegratorHPMCMonoImplicitGPU : public IntegratorHPMCMonoImplicit<Shape>
         GPUArray<curandDiscreteDistribution_t> m_poisson_dist; //!< Handles for the poisson distribution histogram
         std::vector<bool> m_poisson_dist_created;               //!< Flag to indicate if Poisson distribution has been initialized
 
-        GPUArray<unsigned int> m_active_cell_ptl_idx;  //!< List of update particle indicies per active cell
+        GPUArray<unsigned int> m_active_cell_ptl_idx;  //!< List of update particle indices per active cell
         GPUArray<unsigned int> m_active_cell_accept;   //!< List of accept/reject flags per active cell
         GPUArray<unsigned int> m_active_cell_move_type_translate;   //!< Type of move proposed in active cell
 
@@ -326,7 +326,7 @@ void IntegratorHPMCMonoImplicitGPU< Shape >::update(unsigned int timestep)
     {
     if (this->m_patch && !this->m_patch_log)
         {
-        this->m_exec_conf->msg->error() << "Depletant simulations with patches are unsupported." << std::endl;
+        this->m_exec_conf->msg->error() << "GPU simulations with patches are unsupported." << std::endl;
         throw std::runtime_error("Error during implicit depletant integration\n");
         }
 
@@ -726,7 +726,7 @@ void IntegratorHPMCMonoImplicitGPU< Shape >::update(unsigned int timestep)
 
                         m_tuner_reinsert->begin();
 
-                        // apply acceptance/rejection criterium
+                        // apply acceptance/rejection criterion
                         detail::gpu_hpmc_implicit_accept_reject<Shape>(
                             detail::hpmc_implicit_args_t(d_postype.data,
                                 d_orientation.data,

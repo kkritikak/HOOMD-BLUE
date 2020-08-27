@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -6,7 +6,8 @@
 
 #include "TwoStepLangevinGPU.cuh"
 
-#include "hoomd/Saru.h"
+#include "hoomd/RandomNumbers.h"
+#include "hoomd/RNGIdentifiers.h"
 using namespace hoomd;
 
 #include <assert.h>
@@ -15,22 +16,13 @@ using namespace hoomd;
     \brief Defines GPU kernel code for Langevin integration on the GPU. Used by TwoStepLangevinGPU.
 */
 
-//! Shared memory array for gpu_langevin_step_two_kernel()
-extern __shared__ Scalar s_gammas[];
-
-//! Shared memory array for gpu_langevin_angular_step_two_kernel()
-extern __shared__ Scalar s_gammas_r[];
-
-//! Shared memory used in reducing sums for bd energy tally
-extern __shared__ Scalar bdtally_sdata[];
-
 //! Takes the second half-step forward in the Langevin integration on a group of particles with
 /*! \param d_pos array of particle positions and types
     \param d_vel array of particle positions and masses
     \param d_accel array of particle accelerations
     \param d_diameter array of particle diameters
     \param d_tag array of particle tags
-    \param d_group_members Device array listing the indicies of the mebers of the group to integrate
+    \param d_group_members Device array listing the indices of the members of the group to integrate
     \param group_size Number of members in the group
     \param d_net_force Net force on each particle
     \param d_gamma List of per-type gammas
@@ -49,13 +41,9 @@ extern __shared__ Scalar bdtally_sdata[];
 
     This kernel will tally the energy transfer from the bd thermal reservoir and the particle system
 
-    Random number generation is done per thread with Saru's 3-seed constructor. The seeds are, the time step,
-    the particle tag, and the user-defined seed.
-
     This kernel must be launched with enough dynamic shared memory per block to read in d_gamma
 */
-extern "C" __global__
-void gpu_langevin_step_two_kernel(const Scalar4 *d_pos,
+__global__ void gpu_langevin_step_two_kernel(const Scalar4 *d_pos,
                                  Scalar4 *d_vel,
                                  Scalar3 *d_accel,
                                  const Scalar *d_diameter,
@@ -76,6 +64,9 @@ void gpu_langevin_step_two_kernel(const Scalar4 *d_pos,
                                  bool tally,
                                  Scalar *d_partial_sum_bdenergy)
     {
+    extern __shared__ char s_data[];
+    Scalar *s_gammas = (Scalar *)s_data;
+
     if (!use_lambda)
         {
         // read in the gammas (1 dimensional array)
@@ -125,11 +116,12 @@ void gpu_langevin_step_two_kernel(const Scalar4 *d_pos,
             coeff = Scalar(0.0);
 
         //Initialize the Random Number Generator and generate the 3 random numbers
-        detail::Saru s(ptag, timestep, seed); // 3 dimensional seeding
+        RandomGenerator rng(RNGIdentifier::TwoStepLangevin, seed, ptag, timestep);
+        UniformDistribution<Scalar> uniform(-1, 1);
 
-        Scalar randomx=s.s<Scalar>(-1.0, 1.0);
-        Scalar randomy=s.s<Scalar>(-1.0, 1.0);
-        Scalar randomz=s.s<Scalar>(-1.0, 1.0);
+        Scalar randomx = uniform(rng);
+        Scalar randomy = uniform(rng);
+        Scalar randomz = uniform(rng);
 
         bd_force.x = randomx*coeff - gamma*vel.x;
         bd_force.y = randomy*coeff - gamma*vel.y;
@@ -152,7 +144,7 @@ void gpu_langevin_step_two_kernel(const Scalar4 *d_pos,
         vel.y += (Scalar(1.0)/Scalar(2.0)) * accel.y * deltaT;
         vel.z += (Scalar(1.0)/Scalar(2.0)) * accel.z * deltaT;
 
-        // tally the energy transfer from the bd thermal reservor to the particles (FLOPS: 6)
+        // tally the energy transfer from the bd thermal reservoir to the particles (FLOPS: 6)
         bd_energy_transfer =  bd_force.x *vel.x +  bd_force.y * vel.y +  bd_force.z * vel.z;
 
         // write out data (MEM TRANSFER: 32 bytes)
@@ -162,9 +154,10 @@ void gpu_langevin_step_two_kernel(const Scalar4 *d_pos,
 
         }
 
+    Scalar *bdtally_sdata = (Scalar *)&s_data[0];
     if (tally)
         {
-        // don't ovewrite values in the s_gammas array with bd_energy transfer
+        // don't overwrite values in the s_gammas array with bd_energy transfer
         __syncthreads();
         bdtally_sdata[threadIdx.x] = bd_energy_transfer;
         __syncthreads();
@@ -191,15 +184,16 @@ void gpu_langevin_step_two_kernel(const Scalar4 *d_pos,
 
 //! Kernel function for reducing a partial sum to a full sum (one value)
 /*! \param d_sum Placeholder for the sum
-    \param d_partial_sum Array containing the parial sum
+    \param d_partial_sum Array containing the partial sum
     \param num_blocks Number of blocks to execute
 */
-extern "C" __global__
-    void gpu_bdtally_reduce_partial_sum_kernel(Scalar *d_sum,
+__global__ void gpu_bdtally_reduce_partial_sum_kernel(Scalar *d_sum,
                                             Scalar* d_partial_sum,
                                             unsigned int num_blocks)
     {
     Scalar sum = Scalar(0.0);
+    extern __shared__ char s_data[];
+    Scalar *bdtally_sdata = (Scalar *)&s_data[0];
 
     // sum up the values in the partial sum via a sliding window
     for (int start = 0; start < num_blocks; start += blockDim.x)
@@ -237,7 +231,7 @@ extern "C" __global__
     \param d_angmom array of particle conjugate quaternions
     \param d_inertia array of moments of inertia
     \param d_net_torque array of net torques
-    \param d_group_members Device array listing the indicies of the mebers of the group to integrate
+    \param d_group_members Device array listing the indices of the members of the group to integrate
     \param d_gamma_r List of per-type gamma_rs (rotational drag coeff.)
     \param d_tag array of particle tags
     \param group_size Number of members in the group
@@ -256,7 +250,7 @@ __global__ void gpu_langevin_angular_step_two_kernel(
                              const Scalar3 *d_inertia,
                              Scalar4 *d_net_torque,
                              const unsigned int *d_group_members,
-                             const Scalar *d_gamma_r,
+                             const Scalar3 *d_gamma_r,
                              const unsigned int *d_tag,
                              unsigned int n_types,
                              unsigned int group_size,
@@ -269,6 +263,9 @@ __global__ void gpu_langevin_angular_step_two_kernel(
                              Scalar scale
                             )
     {
+    extern __shared__ char s_data[];
+    Scalar3 *s_gammas_r = (Scalar3 *)s_data;
+
     // read in the gamma_r, stored in s_gammas_r[0: n_type] (Pythonic convention)
     for (int cur_offset = 0; cur_offset < n_types; cur_offset += blockDim.x)
         {
@@ -287,9 +284,9 @@ __global__ void gpu_langevin_angular_step_two_kernel(
 
         // torque update with rotational drag and noise
         unsigned int type_r = __scalar_as_int(d_pos[idx].w);
-        Scalar gamma_r = s_gammas_r[type_r];
+        Scalar3 gamma_r = s_gammas_r[type_r];
 
-        if (gamma_r > 0)
+        if (gamma_r.x > 0 || gamma_r.y > 0 || gamma_r.z > 0)
             {
             quat<Scalar> q(d_orientation[idx]);
             quat<Scalar> p(d_angmom[idx]);
@@ -304,21 +301,23 @@ __global__ void gpu_langevin_angular_step_two_kernel(
 
             // original Gaussian random torque
             // for future reference: if gamma_r is different for xyz, then we need to generate 3 sigma_r
-            Scalar sigma_r = fast::sqrt(Scalar(2.0)*gamma_r*T/deltaT);
-            if (noiseless_r) sigma_r = Scalar(0.0);
+            Scalar3 sigma_r = make_scalar3(fast::sqrt(Scalar(2.0)*gamma_r.x*T/deltaT),
+                                           fast::sqrt(Scalar(2.0)*gamma_r.y*T/deltaT),
+                                           fast::sqrt(Scalar(2.0)*gamma_r.z*T/deltaT));
+            if (noiseless_r) sigma_r = make_scalar3(0,0,0);
 
-            detail::Saru saru(ptag, timestep, seed); // 3 dimensional seeding
-            Scalar rand_x = gaussian_rng(saru, sigma_r);
-            Scalar rand_y = gaussian_rng(saru, sigma_r);
-            Scalar rand_z = gaussian_rng(saru, sigma_r);
+            RandomGenerator rng(RNGIdentifier::TwoStepLangevinAngular, seed, ptag, timestep);
+            Scalar rand_x = NormalDistribution<Scalar>(sigma_r.x)(rng);
+            Scalar rand_y = NormalDistribution<Scalar>(sigma_r.y)(rng);
+            Scalar rand_z = NormalDistribution<Scalar>(sigma_r.z)(rng);
 
             // check for zero moment of inertia
             bool x_zero, y_zero, z_zero;
             x_zero = (I.x < Scalar(EPSILON)); y_zero = (I.y < Scalar(EPSILON)); z_zero = (I.z < Scalar(EPSILON));
 
-            bf_torque.x = rand_x - gamma_r * (s.x / I.x);
-            bf_torque.y = rand_y - gamma_r * (s.y / I.y);
-            bf_torque.z = rand_z - gamma_r * (s.z / I.z);
+            bf_torque.x = rand_x - gamma_r.x * (s.x / I.x);
+            bf_torque.y = rand_y - gamma_r.y * (s.y / I.y);
+            bf_torque.z = rand_z - gamma_r.z * (s.z / I.z);
 
             // ignore torque component along an axis for which the moment of inertia zero
             if (x_zero) bf_torque.x = 0;
@@ -370,7 +369,7 @@ __global__ void gpu_langevin_angular_step_two_kernel(
     \param d_angmom array of particle conjugate quaternions
     \param d_inertia array of moments of inertia
     \param d_net_torque array of net torques
-    \param d_group_members Device array listing the indicies of the mebers of the group to integrate
+    \param d_group_members Device array listing the indices of the members of the group to integrate
     \param d_gamma_r List of per-type gamma_rs (rotational drag coeff.)
     \param d_tag array of particle tags
     \param group_size Number of members in the group
@@ -387,7 +386,7 @@ cudaError_t gpu_langevin_angular_step_two(const Scalar4 *d_pos,
                              const Scalar3 *d_inertia,
                              Scalar4 *d_net_torque,
                              const unsigned int *d_group_members,
-                             const Scalar *d_gamma_r,
+                             const Scalar3 *d_gamma_r,
                              const unsigned int *d_tag,
                              unsigned int group_size,
                              const langevin_step_two_args& langevin_args,
@@ -401,7 +400,7 @@ cudaError_t gpu_langevin_angular_step_two(const Scalar4 *d_pos,
     dim3 threads(block_size, 1, 1);
 
     // run the kernel
-    gpu_langevin_angular_step_two_kernel<<< grid, threads, max( (unsigned int)(sizeof(Scalar)*langevin_args.n_types),
+    gpu_langevin_angular_step_two_kernel<<< grid, threads, max( (unsigned int)(sizeof(Scalar3)*langevin_args.n_types),
                                                                 (unsigned int)(langevin_args.block_size*sizeof(Scalar))
                                                               ) >>>
                                        (d_pos,
@@ -432,7 +431,7 @@ cudaError_t gpu_langevin_angular_step_two(const Scalar4 *d_pos,
     \param d_accel array of particle accelerations
     \param d_diameter array of particle diameters
     \param d_tag array of particle tags
-    \param d_group_members Device array listing the indicies of the mebers of the group to integrate
+    \param d_group_members Device array listing the indices of the members of the group to integrate
     \param group_size Number of members in the group
     \param d_net_force Net force on each particle
     \param langevin_args Collected arguments for gpu_langevin_step_two_kernel() and gpu_langevin_angular_step_two()

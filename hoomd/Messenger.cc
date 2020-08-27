@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -10,46 +10,21 @@
 
 #include "ExecutionConfiguration.h"
 #include "Messenger.h"
+#include "ClockSource.h"
 
 #ifdef ENABLE_MPI
 #include "HOOMDMPI.h"
 #endif
 
+#include <stdlib.h>
+#include <vector>
+
+#include <hoomd/extern/pybind/include/pybind11/iostream.h>
 #include <sstream>
 #include <assert.h>
 using namespace std;
 
 namespace py = pybind11;
-
-//! A streambuf sink that writes to sys.stdout in python
-class pysys_stdout_streambuf : public std::streambuf
-    {
-    public:
-        virtual int overflow( int ch )
-            {
-            char c = ch;
-            PyGILState_STATE gilstate = PyGILState_Ensure();
-            PySys_WriteStdout("%.1s", &c);
-            PyGILState_Release(gilstate);
-
-            return 0;
-            }
-    };
-
-//! A streambuf sink that writes to sys.stderr in python
-class pysys_stderr_streambuf : public std::streambuf
-    {
-    public:
-        virtual int overflow( int ch )
-            {
-            char c = ch;
-            PyGILState_STATE gilstate = PyGILState_Ensure();
-            PySys_WriteStderr("%.1s", &c);
-            PyGILState_Release(gilstate);
-
-            return 0;
-            }
-    };
 
 #ifdef ENABLE_MPI
 //! Class that supports writing to a shared log file using MPI-IO
@@ -76,7 +51,7 @@ class mpi_io : public std::streambuf
         virtual int overflow( int ch );
 
     private:
-        MPI_Comm m_mpi_comm;        //!< The MPI communciator
+        MPI_Comm m_mpi_comm;        //!< The MPI communicator
         MPI_File m_file;            //!< The file handle
         bool m_file_open;           //!< Whether the file is open
     };
@@ -87,7 +62,8 @@ class mpi_io : public std::streambuf
     \post The notice level is set to 2
     \post prefixes are "error!!!!" , "warning!!" and "notice"
 */
-Messenger::Messenger()
+Messenger::Messenger(std::shared_ptr<MPIConfiguration> mpi_config)
+    : m_mpi_config(mpi_config)
     {
     m_err_stream = &cerr;
     m_warning_stream = &cerr;
@@ -99,21 +75,20 @@ Messenger::Messenger()
     m_warning_prefix = "*Warning*";
     m_notice_prefix  = "notice";
 
+    if (! m_mpi_config)
+        {
+        // create one on the fly
+        m_mpi_config = std::shared_ptr<MPIConfiguration>(new MPIConfiguration());
+        }
+
+    // silence output on non-zero ranks
+    assert(m_mpi_config);
+    if (m_mpi_config->getRank() != 0)
+        m_notice_level = 0;
+
 #ifdef ENABLE_MPI
-    // initial value
-    m_mpi_comm = MPI_COMM_WORLD;
-    m_error_flag = NULL;
-    m_has_lock = false;
-    initializeSharedMem();
     m_shared_filename = "";
 #endif
-
-    // preliminarily initialize rank and partiton
-    #ifdef ENABLE_MPI
-    setRank(ExecutionConfiguration::getRankGlobal(),0);
-    #else
-    setRank(0,0);
-    #endif
     }
 
 Messenger::Messenger(const Messenger& msg)
@@ -131,25 +106,15 @@ Messenger::Messenger(const Messenger& msg)
     m_notice_prefix = msg.m_notice_prefix;
     m_notice_level = msg.m_notice_level;
 
-    m_rank = msg.m_rank;
-    m_partition = msg.m_partition;
-    m_nranks = msg.m_nranks;
+    m_mpi_config = msg.m_mpi_config;
 
     #ifdef ENABLE_MPI
     m_shared_filename = msg.m_shared_filename;
-    m_mpi_comm = msg.m_mpi_comm;
-    m_error_flag = NULL;
-    m_has_lock = false;
-    initializeSharedMem();
     #endif
     }
 
 Messenger& Messenger::operator=(Messenger& msg)
     {
-    #ifdef ENABLE_MPI
-    releaseSharedMem();
-    #endif
-
     m_err_stream = msg.m_err_stream;
     m_warning_stream = msg.m_warning_stream;
     m_notice_stream = msg.m_notice_stream;
@@ -163,16 +128,10 @@ Messenger& Messenger::operator=(Messenger& msg)
     m_notice_prefix = msg.m_notice_prefix;
     m_notice_level = msg.m_notice_level;
 
-    m_rank = msg.m_rank;
-    m_partition = msg.m_partition;
-    m_nranks = msg.m_nranks;
+    m_mpi_config = msg.m_mpi_config;
 
     #ifdef ENABLE_MPI
     m_shared_filename = msg.m_shared_filename;
-    m_mpi_comm = msg.m_mpi_comm;
-    m_error_flag = NULL;
-    m_has_lock = false;
-    initializeSharedMem();
     #endif
 
     return *this;
@@ -184,62 +143,74 @@ Messenger::~Messenger()
     m_err_stream = NULL;
     m_warning_stream = NULL;
     m_notice_stream = NULL;
-
-    #ifdef ENABLE_MPI
-    releaseSharedMem();
-    #endif
     }
 
 /*! \returns The error stream for use in printing error messages
     \post If the error prefix is not the empty string, the message is preceded with
     "${error_prefix}: ".
+
+    error() is intended to be used as a collective method where all MPI ranks report the same error. Only rank 0
+    will print the error.
 */
-std::ostream& Messenger::error() const
+std::ostream& Messenger::error()
     {
     assert(m_err_stream);
     #ifdef ENABLE_MPI
-    assert(m_error_flag);
-    if (m_nranks > 1)
+    if (m_mpi_config->getNRanks() > 1)
         {
-        int one = 1;
-        int flag;
-        // atomically increment flag
-        MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0,0, m_mpi_win);
-        MPI_Accumulate(&one, 1, MPI_INT, 0, 0, 1, MPI_INT, MPI_SUM, m_mpi_win);
-        MPI_Get(&flag, 1, MPI_INT, 0, 0, 1, MPI_INT, m_mpi_win);
-        MPI_Win_unlock(0, m_mpi_win);
-
-        // we have access to stdout if we are the first process to access the counter
-        m_has_lock = m_has_lock || (flag == 1);
-
-        // if we do not have exclusive access to stdout, return NULL stream
-        if (! m_has_lock) return *m_nullstream;
+        return *m_nullstream;
         }
     #endif
+    reopenPythonIfNeeded();
     if (m_err_prefix != string(""))
         *m_err_stream << m_err_prefix << ": ";
-    if (m_nranks > 1)
-        *m_err_stream << " (Rank " << m_rank << "): ";
+    if (m_mpi_config->getNRanks() > 1)
+        *m_err_stream << " (Rank " << m_mpi_config->getRank() << "): ";
+    return *m_err_stream;
+    }
+
+/*! \returns The error stream for use in printing error messages
+    \post If the error prefix is not the empty string, the message is preceded with
+    "${error_prefix}: (Rank N):".
+
+    errorAllRanks() is intended to be used when only one or a small number of ranks report an error. All ranks that call
+    will errorAllRanks() will write output. Callers should flush the stream.
+*/
+std::ostream& Messenger::errorAllRanks()
+    {
+    assert(m_err_stream);
+
+    reopenPythonIfNeeded();
+
+    // Delay so that multiple ranks calling this have a good chance of writing non-overlapping messages
+    Sleep(m_mpi_config->getRank()*10);
+
+    if (m_err_prefix != string(""))
+        *m_err_stream << m_err_prefix << ": ";
+    if (m_mpi_config->getNRanks() > 1)
+        *m_err_stream << " (Rank " << m_mpi_config->getRank() << "): ";
+
     return *m_err_stream;
     }
 
 /*! \param msg Message to print
     \sa error()
 */
-void Messenger::errorStr(const std::string& msg) const
+void Messenger::errorStr(const std::string& msg)
     {
-    error() << msg;
+    error() << msg << std::flush;
     }
 
 /*! \returns The warning stream for use in printing warning messages
     \post If the warning prefix is not the empty string, the message is preceded with
     "${warning_prefix}: ".
 */
-std::ostream& Messenger::warning() const
+std::ostream& Messenger::warning()
     {
-    if (m_rank != 0) return *m_nullstream;
+    if (m_mpi_config->getRank() != 0) return *m_nullstream;
 
     assert(m_warning_stream);
+    reopenPythonIfNeeded();
     if (m_warning_prefix != string(""))
         *m_warning_stream << m_warning_prefix << ": ";
     return *m_warning_stream;
@@ -248,9 +219,9 @@ std::ostream& Messenger::warning() const
 /*! \param msg Message to print
     \sa warning()
 */
-void Messenger::warningStr(const std::string& msg) const
+void Messenger::warningStr(const std::string& msg)
     {
-    warning() << msg;
+    warning() << msg << std::flush;;
     }
 
 /*! \returns The notice stream for use in printing notice messages
@@ -259,11 +230,12 @@ void Messenger::warningStr(const std::string& msg) const
 
     If level is greater than the notice level, a null stream is returned so that the output is not printed.
 */
-std::ostream& Messenger::notice(unsigned int level) const
+std::ostream& Messenger::notice(unsigned int level)
     {
     assert(m_notice_stream);
     if (level <= m_notice_level)
         {
+        reopenPythonIfNeeded();
         if (m_notice_prefix != string("") && level > 1)
             *m_notice_stream << m_notice_prefix << "(" << level << "): ";
         return *m_notice_stream;
@@ -279,18 +251,18 @@ std::ostream& Messenger::notice(unsigned int level) const
  \param level The notice level
  \param msg Content of the notice
  */
-void Messenger::collectiveNoticeStr(unsigned int level, const std::string& msg) const
+void Messenger::collectiveNoticeStr(unsigned int level, const std::string& msg)
     {
     std::vector<std::string> rank_notices;
 
     #ifdef ENABLE_MPI
-    gather_v(msg, rank_notices, 0, m_mpi_comm);
+    gather_v(msg, rank_notices, 0, m_mpi_config->getCommunicator());
     #else
     rank_notices.push_back(msg);
     #endif
 
     #ifdef ENABLE_MPI
-    if (m_rank == 0)
+    if (m_mpi_config->getRank() == 0)
         {
         if (rank_notices.size() > 1)
             {
@@ -305,9 +277,9 @@ void Messenger::collectiveNoticeStr(unsigned int level, const std::string& msg) 
                     int rank = notice_it - rank_notices.begin();
                     // output message for accumulated ranks
                     if (last_output_rank+1 == rank-1)
-                        notice(level) << "Rank " << last_output_rank + 1 << ": " << last_msg;
+                        notice(level) << "Rank " << last_output_rank + 1 << ": " << last_msg << std::flush;
                     else
-                        notice(level) << "Ranks " << last_output_rank + 1 << "-" << rank-1 << ": " << last_msg;
+                        notice(level) << "Ranks " << last_output_rank + 1 << "-" << rank-1 << ": " << last_msg << std::flush;
 
                     if (notice_it != rank_notices.end())
                         {
@@ -321,7 +293,7 @@ void Messenger::collectiveNoticeStr(unsigned int level, const std::string& msg) 
     #endif
             {
             // output without prefix
-            notice(level) << rank_notices[0];
+            notice(level) << rank_notices[0] << std::flush;
             }
     #ifdef ENABLE_MPI
         }
@@ -332,13 +304,13 @@ void Messenger::collectiveNoticeStr(unsigned int level, const std::string& msg) 
     \param msg Message to print
     \sa notice()
 */
-void Messenger::noticeStr(unsigned int level, const std::string& msg) const
+void Messenger::noticeStr(unsigned int level, const std::string& msg)
     {
-    notice(level) << msg;
+    notice(level) << msg << std::flush;
     }
 
 /*! \param fname File name
-    The file is ovewritten if it exists. If there is an error opening the file, all level's streams are left
+    The file is overwritten if it exists. If there is an error opening the file, all level's streams are left
     as is and an error() is issued.
 */
 void Messenger::openFile(const std::string& fname)
@@ -358,8 +330,15 @@ void Messenger::openFile(const std::string& fname)
 */
 void Messenger::openPython()
     {
-    m_streambuf_out = std::shared_ptr<std::streambuf>(new pysys_stdout_streambuf());
-    m_streambuf_err = std::shared_ptr<std::streambuf>(new pysys_stderr_streambuf());
+    // only import sys on first load
+    if (!m_python_open)
+        m_sys = pybind11::module::import("sys");
+
+    m_pystdout = m_sys.attr("stdout");
+    m_pystderr = m_sys.attr("stderr");
+
+    m_streambuf_out = std::shared_ptr<std::streambuf>(new pybind11::detail::pythonbuf(m_pystdout));
+    m_streambuf_err = std::shared_ptr<std::streambuf>(new pybind11::detail::pythonbuf(m_pystderr));
 
     // now update the error, warning, and notice streams
     m_file_out = std::shared_ptr<std::ostream>(new std::ostream(m_streambuf_out.get()));
@@ -368,6 +347,28 @@ void Messenger::openPython()
     m_err_stream = m_file_err.get();
     m_warning_stream = m_file_err.get();
     m_notice_stream = m_file_out.get();
+    m_python_open = true;
+    }
+
+/*! Some notebook operations swap out sys.stdout and sys.stderr. Check if these have been swapped and reopen
+    the output streams as necessary.
+*/
+void Messenger::reopenPythonIfNeeded()
+    {
+    // only attempt to reopen python streams if we previously opened them
+    // and python is initialized
+    if (m_python_open && Py_IsInitialized())
+        {
+        // flush and reopen the streams if sys.stdout or sys.stderr change
+        pybind11::object new_pystdout = m_sys.attr("stdout");
+        pybind11::object new_pystderr = m_sys.attr("stderr");
+        if (!new_pystdout.is(m_pystdout) || !new_pystderr.is(m_pystderr))
+            {
+            m_file_out->flush();
+            m_file_err->flush();
+            openPython();
+            }
+        }
     }
 
 #ifdef ENABLE_MPI
@@ -379,8 +380,8 @@ void Messenger::openPython()
 void Messenger::openSharedFile()
     {
     std::ostringstream oss;
-    oss << m_shared_filename << "." << m_partition;
-    m_streambuf_out = std::shared_ptr< std::streambuf >(new mpi_io((const MPI_Comm&) m_mpi_comm, oss.str()));
+    oss << m_shared_filename << "." << m_mpi_config->getPartition();
+    m_streambuf_out = std::shared_ptr< std::streambuf >(new mpi_io((const MPI_Comm&) m_mpi_config->getCommunicator(), oss.str()));
 
     // now update the error, warning, and notice streams
     m_file_out = std::shared_ptr<std::ostream>(new std::ostream(m_streambuf_out.get()));
@@ -441,30 +442,12 @@ void mpi_io::close()
     m_file_open = false;
     }
 
-void Messenger::initializeSharedMem()
-    {
-    // allocate memory for counter
-    MPI_Alloc_mem(sizeof(int), MPI_INFO_NULL, &m_error_flag);
-
-    // reset to zero
-    *m_error_flag = 0;
-
-    // create window for exclusive access to the error stream
-    MPI_Win_create(m_error_flag, sizeof(int), sizeof(int), MPI_INFO_NULL, m_mpi_comm, &m_mpi_win);
-    }
-
-void Messenger::releaseSharedMem()
-    {
-    MPI_Win_free(&m_mpi_win);
-    MPI_Free_mem(m_error_flag);
-    }
-
 #endif
 
 void export_Messenger(py::module& m)
     {
     py::class_<Messenger, std::shared_ptr<Messenger> >(m,"Messenger")
-        .def(py::init< >())
+        .def(py::init< std::shared_ptr<MPIConfiguration> >())
         .def("error", &Messenger::errorStr)
         .def("warning", &Messenger::warningStr)
         .def("notice", &Messenger::noticeStr)

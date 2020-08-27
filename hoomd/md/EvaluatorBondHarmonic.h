@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -38,7 +38,7 @@ class EvaluatorBondHarmonic
         typedef Scalar2 param_type;
 
         //! Constructs the pair potential evaluator
-        /*! \param _rsq Squared distance beteen the particles
+        /*! \param _rsq Squared distance between the particles
             \param _params Per type pair parameters of this potential
         */
         DEVICE EvaluatorBondHarmonic(Scalar _rsq, const param_type& _params)

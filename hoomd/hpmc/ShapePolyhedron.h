@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: jglaser
@@ -25,16 +25,18 @@
 // DEVICE is __device__ when included in nvcc and blank when included into the host compiler
 #ifdef NVCC
 #define DEVICE __device__
+#define HOSTDEVICE __host__ __device__
 #else
 #define DEVICE
+#define HOSTDEVICE
 #include <iostream>
 #endif
 
 /*!  This overlap check has been optimized to the best of my ability. However, further optimizations may still be possible,
-  in particular regarding the tree traversal and the type of bounding volume hiarchy. Generally, I have found
+  in particular regarding the tree traversal and the type of bounding volume hierarchy. Generally, I have found
   OBB's to perform superior to AABB's and spheres, because they are tightly fitting. The tandem overlap check is also
   faster than checking all leaves against the tree on the CPU. On the GPU, leave against tree traversal may be faster due
-  to the possibility of parallellizing over the leave nodes, but that also leads to longer autotuning times. Even though
+  to the possibility of parallelizing over the leave nodes, but that also leads to longer autotuning times. Even though
   tree traversal is non-recursive, occasionally I see stack errors (= overflows) on Pascal GPUs when the shape is highly complicated.
   Then the stack frame could be increased using cudaDeviceSetLimit().
 
@@ -68,7 +70,8 @@ struct poly3d_data : param_base
         verts = ManagedArray<vec3<OverlapReal> >(nverts, _managed);
         face_offs = ManagedArray<unsigned int>(n_faces+1,_managed);
         face_verts = ManagedArray<unsigned int>(_n_face_verts, _managed);
-        face_overlap = ManagedArray<unsigned int>(_n_faces, _managed, 1);
+        face_overlap = ManagedArray<unsigned int>(_n_faces, _managed);
+        std::fill(face_overlap.get(), face_overlap.get()+_n_faces, 1);
         }
     #endif
 
@@ -116,7 +119,7 @@ struct poly3d_data : param_base
 }; // end namespace detail
 
 //!  Polyhedron shape template
-/*! ShapePolyhedron implements IntegragorHPMC's shape protocol.
+/*! ShapePolyhedron implements IntegratorHPMC's shape protocol.
 
     The parameter defining a polyhedron is a structure containing a list of n_faces faces, each representing
     a polygon, for which the vertices are stored in sorted order, giving a total number of n_verts vertices.
@@ -160,6 +163,39 @@ struct ShapePolyhedron
         return data.sweep_radius != OverlapReal(0.0);
         }
 
+    #ifndef NVCC
+    std::string getShapeSpec() const
+        {
+        unsigned int n_verts = data.n_verts;
+        unsigned int n_faces = data.n_faces;
+        std::ostringstream shapedef;
+        shapedef << "{\"type\": \"Mesh\", \"vertices\": [";
+        for (unsigned int i = 0; i < n_verts-1; i++)
+            {
+            shapedef << "[" << data.verts[i].x << ", " << data.verts[i].y << ", " << data.verts[i].z << "], ";
+            }
+        shapedef << "[" << data.verts[n_verts-1].x << ", " << data.verts[n_verts-1].y << ", " << data.verts[n_verts-1].z << "]], \"indices\": [";
+        unsigned int nverts_face, offset;
+        for (unsigned int i = 0; i < n_faces; i++)
+            {
+            // Number of vertices of ith face
+            nverts_face = data.face_offs[i + 1] - data.face_offs[i];
+            offset = data.face_offs[i];
+            shapedef << "[";
+            for (unsigned int j = 0; j < nverts_face-1; j++)
+                {
+                shapedef << data.face_verts[offset+j] << ", ";
+                }
+            shapedef << data.face_verts[offset+nverts_face-1];
+            if (i == n_faces-1)
+                shapedef << "]]}";
+            else
+                shapedef << "], ";
+            }
+        return shapedef.str();
+        }
+    #endif
+
     //! Return the bounding box of the shape in world coordinates
     DEVICE detail::AABB getAABB(const vec3<Scalar>& pos) const
         {
@@ -197,7 +233,7 @@ DEVICE inline vec3<OverlapReal> closestPointToTriangle(const vec3<OverlapReal>& 
 
     OverlapReal d1 = dot(ab, ap);
     OverlapReal d2 = dot(ac, ap);
-    if (d1 <= OverlapReal(0.0) && d2 <= OverlapReal(0.0)) return a; // barycentric coordiantes (1,0,0)
+    if (d1 <= OverlapReal(0.0) && d2 <= OverlapReal(0.0)) return a; // barycentric coordinates (1,0,0)
 
     // Check if P in vertex region outside B
     vec3<OverlapReal> bp = p - b;
@@ -990,4 +1026,6 @@ DEVICE inline bool test_overlap(const vec3<Scalar>& r_ab,
 
 }; // end namespace hpmc
 
+#undef DEVICE
+#undef HOSTDEVICE
 #endif //__SHAPE_POLYHEDRON_H__

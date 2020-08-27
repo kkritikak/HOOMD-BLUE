@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
@@ -192,7 +192,7 @@ __global__ void cell_check_migrate_embed(unsigned int *d_migrate_flag,
          (!periodic.y && (pos.y >= hi.y || pos.y < lo.y)) ||
          (!periodic.z && num_dim == 3 && (pos.z >= hi.z || pos.z < lo.z)))
          {
-         atomicMax(d_migrate_flag, 0xffffffff);
+         atomicMax(d_migrate_flag, 1);
          }
     }
 

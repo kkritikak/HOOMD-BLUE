@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -109,12 +109,15 @@ class PYBIND11_EXPORT TwoStepNVTMTK : public IntegrationMethodTwoStep
             setIntegratorVariables(v);
             }
 
+        //! Randomize the thermostat variable
+        virtual void randomizeVelocities(unsigned int timestep);
+
     protected:
         std::shared_ptr<ComputeThermo> m_thermo;    //!< compute for thermodynamic quantities
 
         Scalar m_tau;                   //!< tau value for Nose-Hoover
         std::shared_ptr<Variant> m_T; //!< Temperature set point
-        std::string m_log_name;         //!< Name of the reservior quantity that we log
+        std::string m_log_name;         //!< Name of the reservoir quantity that we log
 
         Scalar m_exp_thermo_fac;        //!< Thermostat rescaling factor
 

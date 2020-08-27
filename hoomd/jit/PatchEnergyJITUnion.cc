@@ -17,7 +17,7 @@ void PatchEnergyJITUnion::setParam(unsigned int type,
     {
     if (type >= m_sysdef->getParticleData()->getNTypes())
         {
-        throw std::runtime_error("Trying to set parameters for non-existant type.");
+        throw std::runtime_error("Trying to set parameters for non-existent type.");
         }
     if (len(positions) != len(types))
         {
@@ -40,7 +40,7 @@ void PatchEnergyJITUnion::setParam(unsigned int type,
 
     hpmc::detail::OBB *obbs = new hpmc::detail::OBB[N];
 
-    // extract member parameters, posistions, and orientations and compute the rcut along the way
+    // extract member parameters, positions, and orientations and compute the rcut along the way
     float extent_i = 0.0;
 
     // resize data structures
@@ -239,8 +239,9 @@ void export_PatchEnergyJITUnion(pybind11::module &m)
     pybind11::class_<PatchEnergyJITUnion, std::shared_ptr<PatchEnergyJITUnion> >(m, "PatchEnergyJITUnion", pybind11::base< PatchEnergyJIT >())
             .def(pybind11::init< std::shared_ptr<SystemDefinition>,
                                  std::shared_ptr<ExecutionConfiguration>,
-                                 const std::string&, Scalar,
-                                 const std::string&, Scalar>())
+                                 const std::string&, Scalar, const unsigned int,
+                                 const std::string&, Scalar, const unsigned int >())
             .def("setParam",&PatchEnergyJITUnion::setParam)
+            .def_property_readonly("alpha_union",&PatchEnergyJITUnion::getAlphaUnionNP)
             ;
     }

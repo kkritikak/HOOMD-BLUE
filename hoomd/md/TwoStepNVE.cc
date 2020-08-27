@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -130,7 +130,7 @@ void TwoStepNVE::integrateStepOne(unsigned int timestep)
         box.wrap(h_pos.data[j], h_image.data[j]);
         }
 
-    // Integration of angular degrees of freedom using sympletic and
+    // Integration of angular degrees of freedom using symplectic and
     // time-reversal symmetric integration scheme of Miller et al.
     if (m_aniso)
         {
@@ -250,7 +250,7 @@ void TwoStepNVE::integrateStepTwo(unsigned int timestep)
     {
     unsigned int group_size = m_group->getNumMembers();
 
-    const GPUArray< Scalar4 >& net_force = m_pdata->getNetForce();
+    const GlobalArray< Scalar4 >& net_force = m_pdata->getNetForce();
 
     // profile this step
     if (m_prof)

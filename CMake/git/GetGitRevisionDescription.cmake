@@ -3,16 +3,16 @@
 # These functions force a re-configure on each git commit so that you can
 # trust the values of the variables in your build system.
 #
-#  get_git_head_revision(<refspecvar> <hashvar> [<additonal arguments to git describe> ...])
+#  get_git_head_revision(<refspecvar> <hashvar> [<additional arguments to git describe> ...])
 #
 # Returns the refspec and sha hash of the current head revision
 #
-#  git_describe(<var> [<additonal arguments to git describe> ...])
+#  git_describe(<var> [<additional arguments to git describe> ...])
 #
 # Returns the results of git describe on the source tree, and adjusting
 # the output so that it tests false if an error occurs.
 #
-#  git_get_exact_tag(<var> [<additonal arguments to git describe> ...])
+#  git_get_exact_tag(<var> [<additional arguments to git describe> ...])
 #
 # Returns the results of git describe --exact-match on the source tree,
 # and adjusting the output so that it tests false if there was no exact
@@ -47,6 +47,15 @@ function(get_git_head_revision _refspecvar _hashvar)
         set(${_hashvar} "GITDIR-NOTFOUND" PARENT_SCOPE)
         return()
     endif()
+
+    # check if this is a submodule
+    if(NOT IS_DIRECTORY ${GIT_DIR})
+        file(READ ${GIT_DIR} submodule)
+        string(REGEX REPLACE "gitdir: (.*)\n$" "\\1" GIT_DIR_RELATIVE ${submodule})
+        get_filename_component(SUBMODULE_DIR ${GIT_DIR} PATH)
+        get_filename_component(GIT_DIR ${SUBMODULE_DIR}/${GIT_DIR_RELATIVE} ABSOLUTE)
+    endif()
+
     set(GIT_DATA "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/git-data")
     if(NOT EXISTS "${GIT_DATA}")
         file(MAKE_DIRECTORY "${GIT_DATA}")

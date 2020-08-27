@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -15,6 +15,7 @@
 #include "PotentialPairDPDThermoGPU.cuh"
 #include "EvaluatorPairDPDThermo.h"
 #include "EvaluatorPairDPDLJThermo.h"
+#include "EvaluatorPairFourier.h"
 
 //! Compute lj pair forces on the GPU with PairEvaluatorLJ
 cudaError_t gpu_compute_ljtemp_forces(const pair_args_t& pair_args,
@@ -76,7 +77,7 @@ cudaError_t gpu_compute_mie_forces(const pair_args_t & args,
 cudaError_t gpu_compute_reaction_field_forces(const pair_args_t & args,
                                                 const Scalar3 *d_params);
 
-//! Compute buckinghham pair forces on the GPU with PairEvaluatorBuckingham
+//! Compute buckingham pair forces on the GPU with PairEvaluatorBuckingham
 cudaError_t gpu_compute_buckingham_forces(const pair_args_t& pair_args,
                                       const Scalar4 *d_params);
 
@@ -87,4 +88,9 @@ cudaError_t gpu_compute_lj1208_forces(const pair_args_t& pair_args,
 //! Compute DLVO potential pair forces on the GPU with EvaluatorPairDLVO
 cudaError_t gpu_compute_dlvo_forces(const pair_args_t & args,
                                                 const Scalar3 *d_params);
+
+//! Compute Fourier potential pair forces on the GPU with PairEvaluatorFourier
+cudaError_t gpu_compute_fourier_forces(const pair_args_t & pair_args,
+                                            const typename EvaluatorPairFourier::param_type *d_params);
+
 #endif

@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
@@ -10,8 +10,8 @@
 
 #include "ATCollisionMethodGPU.cuh"
 #include "ParticleDataUtilities.h"
-#include "RandomNumbers.h"
-#include "hoomd/Saru.h"
+#include "hoomd/RandomNumbers.h"
+#include "hoomd/RNGIdentifiers.h"
 
 namespace mpcd
 {
@@ -19,11 +19,12 @@ namespace gpu
 {
 namespace kernel
 {
-__global__ void at_draw_velocity(Scalar4 *d_vel,
-                                 Scalar4 *d_vel_embed,
+__global__ void at_draw_velocity(Scalar4 *d_alt_vel,
+                                 Scalar4 *d_alt_vel_embed,
                                  const unsigned int *d_tag,
                                  const Scalar mpcd_mass,
                                  const unsigned int *d_embed_idx,
+                                 const Scalar4 *d_vel_embed,
                                  const unsigned int *d_tag_embed,
                                  const unsigned int timestep,
                                  const unsigned int seed,
@@ -47,24 +48,25 @@ __global__ void at_draw_velocity(Scalar4 *d_vel,
     else
         {
         pidx = d_embed_idx[idx-N_mpcd];
-        const Scalar4 vel_mass = d_vel_embed[pidx];
-        mass = vel_mass.w;
+        mass = d_vel_embed[pidx].w;
         tag = d_tag_embed[pidx];
         }
 
     // draw random velocities from normal distribution
-    hoomd::detail::Saru rng(tag, timestep, seed);
-    mpcd::detail::NormalGenerator<Scalar,true> gen;
-    const Scalar3 vel = fast::sqrt(T/mass) * make_scalar3(gen(rng), gen(rng), gen(rng));
+    hoomd::RandomGenerator rng(hoomd::RNGIdentifier::ATCollisionMethod, seed, tag, timestep);
+    hoomd::NormalDistribution<Scalar> gen(fast::sqrt(T/mass), 0.0);
+    Scalar3 vel;
+    gen(vel.x, vel.y, rng);
+    vel.z = gen(rng);
 
     // save out velocities
     if (idx < N_mpcd)
         {
-        d_vel[pidx] = make_scalar4(vel.x, vel.y, vel.z, __int_as_scalar(mpcd::detail::NO_CELL));
+        d_alt_vel[pidx] = make_scalar4(vel.x, vel.y, vel.z, __int_as_scalar(mpcd::detail::NO_CELL));
         }
     else
         {
-        d_vel_embed[pidx] = make_scalar4(vel.x, vel.y, vel.z, mass);
+        d_alt_vel_embed[pidx] = make_scalar4(vel.x, vel.y, vel.z, mass);
         }
     }
 
@@ -121,11 +123,12 @@ __global__ void at_apply_velocity(Scalar4 *d_vel,
 
 } // end namespace kernel
 
-cudaError_t at_draw_velocity(Scalar4 *d_vel,
-                             Scalar4 *d_vel_embed,
+cudaError_t at_draw_velocity(Scalar4 *d_alt_vel,
+                             Scalar4 *d_alt_vel_embed,
                              const unsigned int *d_tag,
                              const Scalar mpcd_mass,
                              const unsigned int *d_embed_idx,
+                             const Scalar4 *d_vel_embed,
                              const unsigned int *d_tag_embed,
                              const unsigned int timestep,
                              const unsigned int seed,
@@ -145,11 +148,12 @@ cudaError_t at_draw_velocity(Scalar4 *d_vel,
     unsigned int run_block_size = min(block_size, max_block_size);
 
     dim3 grid(N_tot / run_block_size + 1);
-    mpcd::gpu::kernel::at_draw_velocity<<<grid, run_block_size>>>(d_vel,
-                                                                  d_vel_embed,
+    mpcd::gpu::kernel::at_draw_velocity<<<grid, run_block_size>>>(d_alt_vel,
+                                                                  d_alt_vel_embed,
                                                                   d_tag,
                                                                   mpcd_mass,
                                                                   d_embed_idx,
+                                                                  d_vel_embed,
                                                                   d_tag_embed,
                                                                   timestep,
                                                                   seed,

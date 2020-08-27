@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -6,7 +6,7 @@
 #include "hoomd/ExecutionConfiguration.h"
 
 #include "hoomd/md/MolecularForceCompute.cc"
-#include "hoomd/Saru.h"
+#include "hoomd/RandomNumbers.h"
 
 #include <set>
 
@@ -62,9 +62,9 @@ void basic_molecule_test(std::shared_ptr<ExecutionConfiguration> exec_conf)
     // three molecules, consecutive in memory
     unsigned int nmol = 3;
     std::vector<unsigned int> molecule_tags(5);
-    molecule_tags[0] = 4;
-    molecule_tags[1] = 4;
-    molecule_tags[2] = 7;
+    molecule_tags[0] = 1;
+    molecule_tags[1] = 1;
+    molecule_tags[2] = 3;
     molecule_tags[3] = 2;
     molecule_tags[4] = 2;
 
@@ -76,19 +76,19 @@ void basic_molecule_test(std::shared_ptr<ExecutionConfiguration> exec_conf)
         ArrayHandle<unsigned int> h_molecule_list(mfc.getMoleculeList(), access_location::host, access_mode::read);
         Index2D molecule_indexer = mfc.getMoleculeIndexer();
 
-        UP_ASSERT_EQUAL(molecule_indexer.getW(),3);
-        UP_ASSERT_EQUAL(molecule_indexer.getH(),2); // max length
+        UP_ASSERT_EQUAL(molecule_indexer.getW(),2); // max length
+        UP_ASSERT_EQUAL(molecule_indexer.getH(),3);
 
-        // molecule list is sorted by molecule tag
+        // molecule list is sorted by lowest molecule member index
         UP_ASSERT_EQUAL(h_molecule_length.data[0],2);
-        UP_ASSERT_EQUAL(h_molecule_length.data[1],2);
-        UP_ASSERT_EQUAL(h_molecule_length.data[2],1);
+        UP_ASSERT_EQUAL(h_molecule_length.data[1],1);
+        UP_ASSERT_EQUAL(h_molecule_length.data[2],2);
 
-        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(0,0)],3);
-        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(0,1)],4);
-        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(1,0)],0);
-        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(1,1)],1);
-        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(2,0)],2);
+        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(0,0)],0);
+        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(1,0)],1);
+        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(0,1)],2);
+        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(0,2)],3);
+        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(1,2)],4);
         }
 
         {
@@ -115,19 +115,19 @@ void basic_molecule_test(std::shared_ptr<ExecutionConfiguration> exec_conf)
         ArrayHandle<unsigned int> h_molecule_list(mfc.getMoleculeList(), access_location::host, access_mode::read);
         Index2D molecule_indexer = mfc.getMoleculeIndexer();
 
-        UP_ASSERT_EQUAL(molecule_indexer.getW(),3);
-        UP_ASSERT_EQUAL(molecule_indexer.getH(),2); // max length
+        UP_ASSERT_EQUAL(molecule_indexer.getW(),2); // max length
+        UP_ASSERT_EQUAL(molecule_indexer.getH(),3);
 
-        // molecule list is sorted by molecule tag
+        // molecule list is sorted by lowest molecule member index
         UP_ASSERT_EQUAL(h_molecule_length.data[0],2);
-        UP_ASSERT_EQUAL(h_molecule_length.data[1],2);
-        UP_ASSERT_EQUAL(h_molecule_length.data[2],1);
+        UP_ASSERT_EQUAL(h_molecule_length.data[1],1);
+        UP_ASSERT_EQUAL(h_molecule_length.data[2],2);
 
         UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(0,0)],1);
-        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(0,1)],0);
-        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(1,0)],4);
-        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(1,1)],3);
-        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(2,0)],2);
+        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(1,0)],0);
+        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(0,1)],2);
+        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(0,2)],4);
+        UP_ASSERT_EQUAL(h_molecule_list.data[molecule_indexer(1,2)],3);
         }
     }
 
@@ -145,7 +145,7 @@ void comparison_test(std::shared_ptr<ExecutionConfiguration> exec_conf_cpu, std:
     unsigned int niter = 100;
 
     std::vector<unsigned int> molecule_tags(nptl, NO_MOLECULE);
-    hoomd::detail::Saru saru(123456);
+    hoomd::RandomGenerator rng(123456);
 
     MyMolecularForceCompute mfc_cpu(sysdef_cpu, molecule_tags, 0);
     MyMolecularForceCompute mfc_gpu(sysdef_gpu, molecule_tags, 0);
@@ -156,8 +156,8 @@ void comparison_test(std::shared_ptr<ExecutionConfiguration> exec_conf_cpu, std:
 
         for (unsigned int j = 0; j < nptl; ++j)
             {
-            // choose a molecule tag 0<=mol_tag< nptl
-            unsigned int t = saru.f()*(nptl+1);
+            // choose a molecule tag 0 <= mol_tag <= nptl
+            unsigned int t = hoomd::UniformIntDistribution(nptl)(rng);
             if (t == nptl) t = NO_MOLECULE;
 
             molecule_tags[j] = t;
@@ -197,7 +197,7 @@ void comparison_test(std::shared_ptr<ExecutionConfiguration> exec_conf_cpu, std:
 
                 for (unsigned int k = 0; k < h_molecule_length_cpu.data[j]; ++k)
                     {
-                    UP_ASSERT_EQUAL(h_molecule_list_cpu.data[molecule_indexer_cpu(j,k)], h_molecule_list_gpu.data[molecule_indexer_gpu(j,k)]);
+                    UP_ASSERT_EQUAL(h_molecule_list_cpu.data[molecule_indexer_cpu(k,j)], h_molecule_list_gpu.data[molecule_indexer_gpu(k,j)]);
                     }
                 }
             }

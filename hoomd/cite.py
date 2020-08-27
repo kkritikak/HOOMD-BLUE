@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: mphoward / All Developers are free to add commands for new features
@@ -388,7 +388,7 @@ _extra_default_entries = []
 # \brief Ensures that the global bibliography is properly initialized
 # \returns Global bibliography
 #
-# Citations generated in hoomd_script should always attach to a single global bibliography. This makes %bibliography
+# Citations generated in HOOMD should always attach to a single global bibliography. This makes %bibliography
 # generation invisible to the HOOMD users (that is, they should never actually instantiate a bibliography themselves).
 # This function provides a convenient way to get the global bibliography while ensuring that it exists: if hoomd.context.bib
 # already exists, it returns it. Otherwise, hoomd.context.bib is first created and then returned. Any %bibliography in HOOMD
@@ -400,38 +400,18 @@ def _ensure_global_bib():
     if hoomd.context.bib is None:
         hoomd.context.bib = bibliography()
         # the hoomd bibliography always includes the following citations
-        hoomd_base = article(cite_key = 'anderson2008',
-                        author = ['J A Anderson','C D Lorenz','A Travesset'],
-                        title = 'General purpose molecular dynamics simulations fully implemented on graphics processing units',
-                        journal = 'Journal of Computational Physics',
-                        volume = 227,
-                        number = 10,
-                        pages = '5342--5359',
-                        year = 2008,
-                        month = 'may',
-                        doi = '10.1016/j.jcp.2008.01.047',
+        hoomd_base = article(cite_key = 'Anderson2020',
+                        author = ['J A Anderson','J Glaser','S C Glotzer'],
+                        title = 'HOOMD-blue: A Python package for high-performance molecular dynamics and hard particle Monte Carlo simulations',
+                        journal = 'Computational Materials Science',
+                        volume = 173,
+                        pages = '109363',
+                        year = 2020,
+                        month = 'feb',
+                        doi = '10.1016/j.commatsci.2019.109363',
                         feature = 'HOOMD-blue')
 
-        hoomd_mpi = article(cite_key = 'glaser2015',
-                        author = ['J Glaser',
-                                  'T D Nguyen',
-                                  'J A Anderson',
-                                  'P Liu',
-                                  'F Spiga',
-                                  'J A Millan',
-                                  'D C Morse',
-                                  'S C Glotzer'],
-                        title = 'Strong scaling of general-purpose molecular dynamics simulations on GPUs',
-                        journal = 'Computer Physics Communications',
-                        volume = 192,
-                        pages = '97--107',
-                        year = 2015,
-                        month = 'july',
-                        doi = '10.1016/j.cpc.2015.02.028',
-                        feature = 'HOOMD-blue')
-
-
-        hoomd.context.bib.add([hoomd_base, hoomd_mpi])
+        hoomd.context.bib.add([hoomd_base])
         hoomd.context.bib.add(_extra_default_entries)
 
     return hoomd.context.bib

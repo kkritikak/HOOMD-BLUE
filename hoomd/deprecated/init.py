@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 R""" Deprecated initialization routines.
@@ -35,7 +35,7 @@ def read_xml(filename, restart = None, time_step = None, wrap_coordinates = Fals
     All particles, bonds, etc...  are read from the given XML file,
     setting the initial condition of the simulation.
     After this command completes, the system is initialized allowing
-    other commands in hoomd_script to be run.
+    other commands in hoomd to be run.
 
     For restartable jobs, specify the initial condition in *filename* and the restart file in *restart*.
     init.read_xml will read the restart file if it exists, otherwise it will read *filename*.
@@ -50,11 +50,10 @@ def read_xml(filename, restart = None, time_step = None, wrap_coordinates = Fals
     coordinates will result in an error.
 
     """
+    hoomd.context._verify_init();
     hoomd.util.print_status_line();
 
-    hoomd.context._verify_init();
-
-    # check if initialization has already occured
+    # check if initialization has already occurred
     if hoomd.init.is_initialized():
         hoomd.context.msg.error("Cannot initialize more than once\n");
         raise RuntimeError("Error reading XML file");
@@ -116,11 +115,10 @@ def create_random(N, phi_p=None, name="A", min_dist=0.7, box=None, seed=1, dimen
     and/or change particle properties later in the script. See :py:mod:`hoomd.data` for more information.
 
     """
+    hoomd.context._verify_init();
     hoomd.util.print_status_line();
 
-    hoomd.context._verify_init();
-
-    # check if initialization has already occured
+    # check if initialization has already occurred
     if hoomd.init.is_initialized():
         hoomd.context.msg.error("Cannot initialize more than once\n");
         raise RuntimeError("Error initializing");
@@ -252,7 +250,7 @@ def create_random_polymers(box, polymers, separation, seed=1):
 
         # create a triclinic box with tilt factors xy=0.1 xz=0.2 yz=0.3
         init.create_random_polymers(box=data.boxdim(L=18, xy=0.1, xz=0.2, yz=0.3),
-                                    polymeres=[polymer2],
+                                    polymers=[polymer2],
                                     separation=dict(A=0.35, B=0.35));
 
     With all other parameters the same, create_random_polymers will always create the
@@ -279,11 +277,10 @@ def create_random_polymers(box, polymers, separation, seed=1):
         bonds (bond.fene).
 
     """
+    hoomd.context._verify_init();
     hoomd.util.print_status_line();
 
-    hoomd.context._verify_init();
-
-    # check if initialization has already occured
+    # check if initialization has already occurred
     if hoomd.init.is_initialized():
         hoomd.context.msg.error("Cannot initialize more than once\n");
         raise RuntimeError("Error creating random polymers");

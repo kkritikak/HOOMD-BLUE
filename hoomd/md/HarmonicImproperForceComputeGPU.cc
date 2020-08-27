@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -91,8 +91,7 @@ void HarmonicImproperForceComputeGPU::computeForces(unsigned int timestep)
                                          d_n_dihedrals.data,
                                          d_params.data,
                                          m_improper_data->getNTypes(),
-                                         m_tuner->getParam(),
-                                         m_exec_conf->getComputeCapability());
+                                         m_tuner->getParam());
     if(m_exec_conf->isCUDAErrorCheckingEnabled())
         CHECK_CUDA_ERROR();
     m_tuner->end();

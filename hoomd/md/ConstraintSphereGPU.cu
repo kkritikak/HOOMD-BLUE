@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -14,7 +14,7 @@
     \brief Defines GPU kernel code for calculating sphere constraint forces. Used by ConstraintSphereGPU.
 */
 
-//! Kernel for caculating sphere constraint forces on the GPU
+//! Kernel for calculating sphere constraint forces on the GPU
 /*! \param d_force Device memory to write computed forces
     \param d_virial Device memory to write computed virials
     \param virial_pitch pitch of 2D virial array
@@ -84,7 +84,7 @@ void gpu_compute_constraint_sphere_forces_kernel(Scalar4* d_force,
     \param virial_pitch pitch of 2D virial array
     \param d_group_members List of members in the group
     \param group_size number of members in the group
-    \param N nunmber of particles
+    \param N number of particles
     \param d_pos particle positions on the device
     \param d_vel particle velocities on the device
     \param d_net_force Total unconstrained net force on the particles

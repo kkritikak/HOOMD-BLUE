@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -58,7 +58,7 @@ class EvaluatorExternalPeriodic
 
         //! type of parameters this external potential accepts
         typedef Scalar4 param_type;
-        typedef struct field{}field_type;
+        typedef Scalar field_type; // dummy type
 
         //! Constructs the constraint evaluator
         /*! \param X position of particle
@@ -165,7 +165,7 @@ class EvaluatorExternalPeriodic
     protected:
         Scalar3 m_pos;                //!< particle position
         BoxDim m_box;                 //!< box dimensions
-        unsigned int m_index;         //!< cartesian index of direction along which the lammellae should be orientied
+        unsigned int m_index;         //!< cartesian index of direction along which the lamellae should be oriented
         Scalar m_orderParameter;      //!< ordering parameter
         Scalar m_interfaceWidth;      //!< width of interface between lamellae (relative to box length)
         unsigned int m_periodicity;   //!< number of lamellae of each type

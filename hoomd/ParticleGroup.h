@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -16,7 +16,14 @@
 
 #include <string>
 #include <memory>
+#include <vector>
 #include <hoomd/extern/pybind/include/pybind11/pybind11.h>
+
+#include "GlobalArray.h"
+
+#ifdef ENABLE_CUDA
+#include "GPUPartition.cuh"
+#endif
 
 #ifndef __PARTICLE_GROUP_H__
 #define __PARTICLE_GROUP_H__
@@ -27,17 +34,17 @@
     In order to flexibly specify the particles that belong to a given ParticleGroup, it will simple take a
     ParticleSelector as a parameter in its constructor. The selector will provide a true/false membership test that will
     be applied to each particle tag, selecting those that belong in the group. As it is specified via a virtual class,
-    the group definition can be expanded to include any concievable selection criteria.
+    the group definition can be expanded to include any conceivable selection criteria.
 
     <b>Implementation details</b>
     So that an infinite range of selection criteria can be applied (i.e. particles with mass > 2.0, or all particles
     bonded to particle j, ...) the selector will get a reference to the SystemDefinition on construction, along with
-    any parameters to specify the selection criteria. Then, a simple isSelected() test is provided that will acquire the
-    needed data and will return true if that particle meets the criteria.
+    any parameters to specify the selection criteria. Then, a simple getSelectedTags() call will return
+    a list of particle tags meeting the criteria.
 
-    In parallel simulations, isSelected() should return false if the requested particle with tag 'tag' is not local.
+    In parallel simulations, getSelectedTags() should return only local tags.
 
-    The base class isSelected() method will simply reject all particles. Derived classes will implement specific
+    The base class getSelectedTags() method will simply return an empty list.
     selection semantics.
 */
 class PYBIND11_EXPORT ParticleSelector
@@ -48,7 +55,7 @@ class PYBIND11_EXPORT ParticleSelector
         virtual ~ParticleSelector() {}
 
         //! Test if a particle meets the selection criteria
-        virtual bool isSelected(unsigned int tag) const;
+        virtual std::vector<unsigned int> getSelectedTags() const;
 
     protected:
         std::shared_ptr<SystemDefinition> m_sysdef;   //!< The system definition assigned to this selector
@@ -65,7 +72,7 @@ class PYBIND11_EXPORT ParticleSelectorAll : public ParticleSelector
         virtual ~ParticleSelectorAll() {}
 
         //! Test if a particle meets the selection criteria
-        virtual bool isSelected(unsigned int tag) const;
+        virtual std::vector<unsigned int> getSelectedTags() const;
     };
 
 
@@ -78,7 +85,7 @@ class PYBIND11_EXPORT ParticleSelectorTag : public ParticleSelector
         virtual ~ParticleSelectorTag() {}
 
         //! Test if a particle meets the selection criteria
-        virtual bool isSelected(unsigned int tag) const;
+        virtual std::vector<unsigned int> getSelectedTags() const;
     protected:
         unsigned int m_tag_min;     //!< Minimum tag to select
         unsigned int m_tag_max;     //!< Maximum tag to select (inclusive)
@@ -93,7 +100,7 @@ class PYBIND11_EXPORT ParticleSelectorType : public ParticleSelector
         virtual ~ParticleSelectorType() {}
 
         //! Test if a particle meets the selection criteria
-        virtual bool isSelected(unsigned int tag) const;
+        virtual std::vector<unsigned int> getSelectedTags() const;
     protected:
         unsigned int m_typ_min;     //!< Minimum type to select
         unsigned int m_typ_max;     //!< Maximum type to select (inclusive)
@@ -108,7 +115,7 @@ class PYBIND11_EXPORT ParticleSelectorCuboid : public ParticleSelector
         virtual ~ParticleSelectorCuboid() {}
 
         //! Test if a particle meets the selection criteria
-        virtual bool isSelected(unsigned int tag) const;
+        virtual std::vector<unsigned int> getSelectedTags() const;
     protected:
         Scalar3 m_min;     //!< Minimum type to select (inclusive)
         Scalar3 m_max;     //!< Maximum type to select (exclusive)
@@ -123,9 +130,37 @@ class PYBIND11_EXPORT ParticleSelectorRigid : public ParticleSelector
         virtual ~ParticleSelectorRigid() {}
 
         //! Test if a particle meets the selection criteria
-        virtual bool isSelected(unsigned int tag) const;
+        virtual std::vector<unsigned int> getSelectedTags() const;
     protected:
-        bool m_rigid;   //!< true if we should select rigid boides, false if we should select non-rigid particles
+        bool m_rigid;   //!< true if we should select particles in rigid bodies, false if we should select non-rigid particles
+    };
+
+//! Select particles based on their body
+class PYBIND11_EXPORT ParticleSelectorBody : public ParticleSelector
+    {
+    public:
+        //! Constructs the selector
+        ParticleSelectorBody(std::shared_ptr<SystemDefinition> sysdef, bool body);
+        virtual ~ParticleSelectorBody() {}
+
+        //! Test if a particle meets the selection criteria
+        virtual std::vector<unsigned int> getSelectedTags() const;
+    protected:
+        bool m_body;   //!< true if we should select particles in a body, false if we should select non-body particles
+    };
+
+//! Select particles based on their floppy body
+class PYBIND11_EXPORT ParticleSelectorFloppy : public ParticleSelector
+    {
+    public:
+        //! Constructs the selector
+        ParticleSelectorFloppy(std::shared_ptr<SystemDefinition> sysdef, bool molecule);
+        virtual ~ParticleSelectorFloppy() {}
+
+        //! Test if a particle meets the selection criteria
+        virtual std::vector<unsigned int> getSelectedTags() const;
+    protected:
+        bool m_floppy;   //!< true if we should select particles in floppy bodies, false if we should select non-floppy particles
     };
 
 class PYBIND11_EXPORT ParticleSelectorRigidCenter : public ParticleSelector
@@ -136,7 +171,7 @@ class PYBIND11_EXPORT ParticleSelectorRigidCenter : public ParticleSelector
         virtual ~ParticleSelectorRigidCenter() {}
 
         //! Test if a particle meets the selection criteria
-        virtual bool isSelected(unsigned int tag) const;
+        virtual std::vector<unsigned int> getSelectedTags() const;
     };
 
 
@@ -159,17 +194,17 @@ class PYBIND11_EXPORT ParticleSelectorRigidCenter : public ParticleSelector
     groups where membership does not change over the course of a simulation. Dynamic groups, if they are needed,
     may require a drastically different design to allow for efficient access.
 
-    In many use-cases, ParticleGroup may be accessed many times within inner loops. Thus, it must not aquire any
+    In many use-cases, ParticleGroup may be accessed many times within inner loops. Thus, it must not acquire any
     ParticleData arrays within most of the get() calls as the caller must be allowed to leave their ParticleData
-    aquired. Thus, all get() methods must return values from internal cached variables only. Those methods that
+    acquired. Thus, all get() methods must return values from internal cached variables only. Those methods that
     absolutely require the particle data be released before they are called will be documented as such.
 
     <b>Data Structures and Implementation</b>
 
     The initial and fundamental data structure in the group is a vector listing all of the particle tags in the group,
     in a sorted tag order. This list can be accessed directly via getMemberTag() to meet the 2nd use case listed above.
-    In order to iterate through all particles in the group in a cache-efficient manner, an auxilliary list is stored
-    that lists all particle <i>indicies</i> that belong to the group. This list must be updated on every particle sort.
+    In order to iterate through all particles in the group in a cache-efficient manner, an auxiliary list is stored
+    that lists all particle <i>indices</i> that belong to the group. This list must be updated on every particle sort.
     Thirdly, a dynamic bitset is used to store one bit per particle for efficient O(1) tests if a given particle is in
     the group.
 
@@ -258,7 +293,7 @@ class PYBIND11_EXPORT ParticleGroup
             }
 
         //! Test if a particle index is a member of the group
-        /*! \param idx Index of the particle to query (from 0 to the number of partilces in ParticleData -1)
+        /*! \param idx Index of the particle to query (from 0 to the number of particles in ParticleData -1)
             \returns true if the particle with index \a idx is in the group
             \note This method CAN access the particle data tag array if the index is rebuilt.
                   Hence, the tag array may not be accessed in the same scope in which this method is called.
@@ -267,7 +302,7 @@ class PYBIND11_EXPORT ParticleGroup
             {
             checkRebuild();
 
-            ArrayHandle<unsigned char> h_handle(m_is_member, access_location::host, access_mode::read);
+            ArrayHandle<unsigned int> h_handle(m_is_member, access_location::host, access_mode::read);
             return h_handle.data[idx] == 1;
             }
 
@@ -278,12 +313,22 @@ class PYBIND11_EXPORT ParticleGroup
             \note This method CAN access the particle data tag array if the index is rebuilt.
                   Hence, the tag array may not be accessed in the same scope in which this method is called.
         */
-        const GPUArray<unsigned int>& getIndexArray() const
+        const GlobalArray<unsigned int>& getIndexArray() const
             {
             checkRebuild();
 
             return m_member_idx;
             }
+
+        #ifdef ENABLE_CUDA
+        //! Return the load balancing GPU partition
+        const GPUPartition& getGPUPartition() const
+            {
+            checkRebuild();
+
+            return m_gpu_partition;
+            }
+        #endif
 
         // @}
         //! \name Analysis methods
@@ -314,22 +359,25 @@ class PYBIND11_EXPORT ParticleGroup
         std::shared_ptr<SystemDefinition> m_sysdef;   //!< The system definition this group is associated with
         std::shared_ptr<ParticleData> m_pdata;        //!< The particle data this group is associated with
         std::shared_ptr<const ExecutionConfiguration> m_exec_conf; //!< The execution configuration
-        mutable GPUArray<unsigned char> m_is_member;    //!< One byte per particle, == 1 if index is a local member of the group
-        GPUArray<unsigned int> m_member_idx;            //!< List of all particle indices in the group
-        GPUArray<unsigned int> m_member_tags;           //!< Lists the tags of the paritcle members
+
+        // NOTE a design with so many mutable members is broken, we should refactor const correctness
+        // in ParticleGroup in the future by using resize methods on the arrays
+        mutable GlobalArray<unsigned int> m_is_member;    //!< One byte per particle, == 1 if index is a local member of the group
+        mutable GlobalArray<unsigned int> m_member_idx;    //!< List of all particle indices in the group
+        mutable GlobalArray<unsigned int> m_member_tags;   //!< Lists the tags of the particle members
         mutable unsigned int m_num_local_members;       //!< Number of members on the local processor
         mutable bool m_particles_sorted;                //!< True if particle have been sorted since last rebuild
         mutable bool m_reallocated;                     //!< True if particle data arrays have been reallocated
         mutable bool m_global_ptl_num_change;           //!< True if the global particle number changed
 
-        GPUArray<unsigned char> m_is_member_tag;        //!< One byte per particle, == 1 if tag is a member of the group
+        mutable GlobalArray<unsigned int> m_is_member_tag;  //!< One byte per particle, == 1 if tag is a member of the group
         std::shared_ptr<ParticleSelector> m_selector; //!< The associated particle selector
 
         bool m_update_tags;                             //!< True if tags should be updated when global number of particles changes
         mutable bool m_warning_printed;                         //!< True if warning about static groups has been printed
 
         #ifdef ENABLE_CUDA
-        mgpu::ContextPtr m_mgpu_context;                //!< moderngpu context
+        mutable GPUPartition m_gpu_partition;           //!< A handy struct to store load balancing info for this group's local members
         #endif
 
         //! Helper function to resize array of member tags
@@ -342,6 +390,7 @@ class PYBIND11_EXPORT ParticleGroup
         void checkRebuild() const
             {
             // carry out rebuild in correct order
+            bool update_gpu_advice = false;
             if (m_global_ptl_num_change)
                 {
                 updateMemberTags(false);
@@ -351,11 +400,16 @@ class PYBIND11_EXPORT ParticleGroup
                 {
                 reallocate();
                 m_reallocated = false;
+                update_gpu_advice = true;
                 }
              if (m_particles_sorted)
                 {
                 rebuildIndexList();
                 m_particles_sorted = false;
+                }
+            if (update_gpu_advice)
+                {
+                updateGPUAdvice();
                 }
             }
 
@@ -371,6 +425,9 @@ class PYBIND11_EXPORT ParticleGroup
             m_particles_sorted = true;
             }
 
+        //! Update the GPU memory advice
+        void updateGPUAdvice() const;
+
         //! Helper function to be called when particles are added/removed
         void slotGlobalParticleNumChange()
             {
@@ -381,7 +438,7 @@ class PYBIND11_EXPORT ParticleGroup
         void buildTagHash() const;
 
 #ifdef ENABLE_CUDA
-        //! Helper function to rebuild the index lists afer the particles have been sorted
+        //! Helper function to rebuild the index lists after the particles have been sorted
         void rebuildIndexListGPU() const;
 #endif
 

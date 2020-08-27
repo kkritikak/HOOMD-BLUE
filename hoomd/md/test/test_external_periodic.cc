@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -35,14 +35,14 @@ HOOMD_UP_MAIN();
 //! Typedef'd LJForceCompute factory
 typedef std::function<std::shared_ptr<PotentialExternalPeriodic> (std::shared_ptr<SystemDefinition> sysdef)> periodicforce_creator;
 
-//! Test the ability of the lj force compute to actually calucate forces
+//! Test the ability of the lj force compute to actually calculate forces
 void periodic_force_particle_test(periodicforce_creator periodic_creator, std::shared_ptr<ExecutionConfiguration> exec_conf)
     {
     // this 3-particle test subtly checks several conditions
     // the particles are arranged on the x axis,  1   2   3
     // types of the particles : 0, 1, 0
 
-    // periodic boundary conditions will be handeled in another test
+    // periodic boundary conditions will be handled in another test
     std::shared_ptr<SystemDefinition> sysdef_3(new SystemDefinition(3, BoxDim(5.0), 2, 0, 0, 0, 0, exec_conf));
     std::shared_ptr<ParticleData> pdata_3 = sysdef_3->getParticleData();
 
@@ -64,8 +64,8 @@ void periodic_force_particle_test(periodicforce_creator periodic_creator, std::s
     fc_3->compute(0);
 
     {
-    GPUArray<Scalar4>& force_array_1 =  fc_3->getForceArray();
-    GPUArray<Scalar>& virial_array_1 =  fc_3->getVirialArray();
+    GlobalArray<Scalar4>& force_array_1 =  fc_3->getForceArray();
+    GlobalArray<Scalar>& virial_array_1 =  fc_3->getVirialArray();
     unsigned int pitch = virial_array_1.getPitch();
     ArrayHandle<Scalar4> h_force_1(force_array_1,access_location::host,access_mode::read);
     ArrayHandle<Scalar> h_virial_1(virial_array_1,access_location::host,access_mode::read);
@@ -123,13 +123,13 @@ void periodic_force_comparison_test(periodicforce_creator periodic_creator1, per
 
     {
     // verify that the forces are identical (within roundoff errors)
-    GPUArray<Scalar4>& force_array_5 =  fc1->getForceArray();
-    GPUArray<Scalar>& virial_array_5 =  fc1->getVirialArray();
+    GlobalArray<Scalar4>& force_array_5 =  fc1->getForceArray();
+    GlobalArray<Scalar>& virial_array_5 =  fc1->getVirialArray();
     unsigned int pitch = virial_array_5.getPitch();
     ArrayHandle<Scalar4> h_force_5(force_array_5,access_location::host,access_mode::read);
     ArrayHandle<Scalar> h_virial_5(virial_array_5,access_location::host,access_mode::read);
-    GPUArray<Scalar4>& force_array_6 =  fc2->getForceArray();
-    GPUArray<Scalar>& virial_array_6 =  fc2->getVirialArray();
+    GlobalArray<Scalar4>& force_array_6 =  fc2->getForceArray();
+    GlobalArray<Scalar>& virial_array_6 =  fc2->getVirialArray();
     ArrayHandle<Scalar4> h_force_6(force_array_6,access_location::host,access_mode::read);
     ArrayHandle<Scalar> h_virial_6(virial_array_6,access_location::host,access_mode::read);
 

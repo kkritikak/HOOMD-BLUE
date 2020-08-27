@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -17,7 +17,7 @@
 
 #include <signal.h>
 
-//! Value set to non-zero if SIGINT has occured
+//! Value set to non-zero if SIGINT has occurred
 /*! Any method that reads this value as non-zero should immediately reset it to 0
     and return.
 */

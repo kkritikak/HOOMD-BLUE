@@ -14,8 +14,11 @@ class PatchEnergyJITUnion : public PatchEnergyJIT
          */
         PatchEnergyJITUnion(std::shared_ptr<SystemDefinition> sysdef, std::shared_ptr<ExecutionConfiguration> exec_conf,
             const std::string& llvm_ir_iso, Scalar r_cut_iso,
-            const std::string& llvm_ir_union, Scalar r_cut_union)
-            : PatchEnergyJIT(exec_conf, llvm_ir_iso, r_cut_iso), m_sysdef(sysdef), m_rcut_union(r_cut_union)
+            const unsigned int array_size_iso,
+            const std::string& llvm_ir_union, Scalar r_cut_union,
+            const unsigned int array_size_union)
+            : PatchEnergyJIT(exec_conf, llvm_ir_iso, r_cut_iso, array_size_iso), m_sysdef(sysdef),
+            m_rcut_union(r_cut_union), m_alpha_size_union(array_size_union)
             {
             // build the JIT.
             m_factory_union = std::shared_ptr<EvalFactory>(new EvalFactory(llvm_ir_union));
@@ -23,7 +26,9 @@ class PatchEnergyJITUnion : public PatchEnergyJIT
             // get the evaluator
             m_eval_union = m_factory_union->getEval();
 
-            if (!m_eval)
+            m_alpha_union = m_factory_union->getAlphaUnionArray();
+
+            if (!m_eval_union || !m_alpha_union)
                 {
                 exec_conf->msg->error() << m_factory_union->getError() << std::endl;
                 throw std::runtime_error("Error compiling Union JIT code.");
@@ -51,7 +56,7 @@ class PatchEnergyJITUnion : public PatchEnergyJIT
         //! Set the per-type constituent particles
         /*! \param type The particle type to set the constituent particles for
             \param rcut The maximum cutoff over all constituent particles for this type
-            \param types The type IDs for every constitutent particle
+            \param types The type IDs for every constituent particle
             \param positions The positions
             \param orientations The orientations
             \param leaf_capacity Number of particles in OBB tree leaf
@@ -119,6 +124,12 @@ class PatchEnergyJITUnion : public PatchEnergyJIT
             m_tree.resize(ntypes);
             }
 
+        static pybind11::object getAlphaUnionNP(pybind11::object self)
+            {
+            auto self_cpp = self.cast<PatchEnergyJITUnion *>();
+            return pybind11::array(self_cpp->m_alpha_size_union, (float*)&self_cpp->m_alpha_union[0], self);
+            }
+
     protected:
         std::shared_ptr<SystemDefinition> m_sysdef;               // HOOMD's system definition
         std::vector<hpmc::detail::GPUTree> m_tree;                // The tree acceleration structure per particle type
@@ -138,9 +149,11 @@ class PatchEnergyJITUnion : public PatchEnergyJIT
                                      unsigned int cur_node_a,
                                      unsigned int cur_node_b);
 
-        std::shared_ptr<EvalFactory> m_factory_union;            //!< The factory for the evaulator function, for constituent ptls
+        std::shared_ptr<EvalFactory> m_factory_union;            //!< The factory for the evaluator function, for constituent ptls
         EvalFactory::EvalFnPtr m_eval_union;                     //!< Pointer to evaluator function inside the JIT module
         Scalar m_rcut_union;                                     //!< Cutoff on constituent particles
+        float *  m_alpha_union;                                     //!< Cutoff on constituent particles
+        unsigned int m_alpha_size_union;
     };
 
 //! Exports the PatchEnergyJITUnion class to python

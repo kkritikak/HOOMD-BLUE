@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -27,9 +27,17 @@ NeighborListGPUBinned::NeighborListGPUBinned(std::shared_ptr<SystemDefinition> s
     if (!m_cl)
         m_cl = std::shared_ptr<CellList>(new CellList(sysdef));
 
+    // with multiple GPUs, use indirect access via particle data arrays
+    m_use_index = m_exec_conf->allConcurrentManagedAccess();
+
+    // with multiple GPUs, request a cell list per device
+    m_cl->setPerDevice(m_exec_conf->allConcurrentManagedAccess());
+
+    m_cl->setComputeXYZF(! m_use_index);
+    m_cl->setComputeIdx(m_use_index);
+
     m_cl->setRadius(1);
-    // types are always required now
-    m_cl->setComputeTDB(true);
+    m_cl->setComputeTDB(!m_use_index);
     m_cl->setFlagIndex();
 
     CHECK_CUDA_ERROR();
@@ -114,13 +122,20 @@ void NeighborListGPUBinned::buildNlist(unsigned int timestep)
     ArrayHandle<unsigned int> d_body(m_pdata->getBodies(), access_location::device, access_mode::read);
 
     const BoxDim& box = m_pdata->getBox();
-    Scalar3 nearest_plane_distance = box.getNearestPlaneDistance();
 
     // access the cell list data arrays
     ArrayHandle<unsigned int> d_cell_size(m_cl->getCellSizeArray(), access_location::device, access_mode::read);
     ArrayHandle<Scalar4> d_cell_xyzf(m_cl->getXYZFArray(), access_location::device, access_mode::read);
+    ArrayHandle<unsigned int> d_cell_idx(m_cl->getIndexArray(), access_location::device, access_mode::read);
     ArrayHandle<Scalar4> d_cell_tdb(m_cl->getTDBArray(), access_location::device, access_mode::read);
     ArrayHandle<unsigned int> d_cell_adj(m_cl->getCellAdjArray(), access_location::device, access_mode::read);
+
+    const ArrayHandle<unsigned int>& d_cell_size_per_device = m_cl->getPerDevice() ?
+        ArrayHandle<unsigned int>(m_cl->getCellSizeArrayPerDevice(),access_location::device, access_mode::read) :
+        ArrayHandle<unsigned int>(GlobalArray<unsigned int>(), access_location::device, access_mode::read);
+    const ArrayHandle<unsigned int>& d_cell_idx_per_device = m_cl->getPerDevice() ?
+        ArrayHandle<unsigned int>(m_cl->getIndexArrayPerDevice(), access_location::device, access_mode::read) :
+        ArrayHandle<unsigned int>(GlobalArray<unsigned int>(), access_location::device, access_mode::read);
 
     ArrayHandle<unsigned int> d_head_list(m_head_list, access_location::device, access_mode::read);
     ArrayHandle<unsigned int> d_Nmax(m_Nmax, access_location::device, access_mode::read);
@@ -144,13 +159,22 @@ void NeighborListGPUBinned::buildNlist(unsigned int timestep)
     ArrayHandle<Scalar> d_r_cut(m_r_cut, access_location::device, access_mode::read);
     ArrayHandle<Scalar> d_r_listsq(m_r_listsq, access_location::device, access_mode::read);
 
-    if ((box.getPeriodic().x && nearest_plane_distance.x <= rmax * 2.0) ||
-        (box.getPeriodic().y && nearest_plane_distance.y <= rmax * 2.0) ||
-        (this->m_sysdef->getNDimensions() == 3 && box.getPeriodic().z && nearest_plane_distance.z <= rmax * 2.0))
+    auto& gpu_map = m_exec_conf->getGPUIds();
+
+    // prefetch some cell list arrays
+    if (m_exec_conf->allConcurrentManagedAccess())
         {
-        m_exec_conf->msg->error() << "nlist: Simulation box is too small! Particles would be interacting with themselves." << std::endl;
-        throw std::runtime_error("Error updating neighborlist bins");
+        for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
+            {
+            // prefetch cell adjacency
+            cudaMemPrefetchAsync(d_cell_adj.data, m_cl->getCellAdjArray().getNumElements()*sizeof(unsigned int), gpu_map[idev]);
+            }
         }
+
+    if (m_exec_conf->isCUDAErrorCheckingEnabled())
+        CHECK_CUDA_ERROR();
+
+    m_exec_conf->beginMultiGPU();
 
     this->m_tuner->begin();
     unsigned int param = !m_param ? this->m_tuner->getParam() : m_param;
@@ -167,8 +191,9 @@ void NeighborListGPUBinned::buildNlist(unsigned int timestep)
                              d_body.data,
                              d_diameter.data,
                              m_pdata->getN(),
-                             d_cell_size.data,
+                             m_cl->getPerDevice() ? d_cell_size_per_device.data : d_cell_size.data,
                              d_cell_xyzf.data,
+                             m_cl->getPerDevice() ? d_cell_idx_per_device.data : d_cell_idx.data,
                              d_cell_tdb.data,
                              d_cell_adj.data,
                              m_cl->getCellIndexer(),
@@ -183,9 +208,14 @@ void NeighborListGPUBinned::buildNlist(unsigned int timestep)
                              m_filter_body,
                              m_diameter_shift,
                              m_cl->getGhostWidth(),
-                             m_exec_conf->getComputeCapability()/10);
+                             m_exec_conf->getComputeCapability()/10,
+                             m_pdata->getGPUPartition(),
+                             m_use_index);
+
     if(m_exec_conf->isCUDAErrorCheckingEnabled()) CHECK_CUDA_ERROR();
     this->m_tuner->end();
+
+    m_exec_conf->endMultiGPU();
 
     if (m_prof)
         m_prof->pop(m_exec_conf);

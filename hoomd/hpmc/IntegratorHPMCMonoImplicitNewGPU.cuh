@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #ifndef _HPMC_IMPLICIT_NEW_CUH_
@@ -133,7 +133,7 @@ struct hpmc_implicit_args_new_t
     Scalar4 *d_postype;               //!< postype array
     Scalar4 *d_orientation;           //!< orientation array
     const Scalar4 *d_postype_old;     //!< old postype array
-    const Scalar4 *d_orientation_old; //!< old orientatino array
+    const Scalar4 *d_orientation_old; //!< old orientation array
     const unsigned int *d_cell_idx;   //!< Index data for each cell
     const unsigned int *d_cell_size;  //!< Number of particles in each cell
     const unsigned int *d_excell_idx; //!< Index data for each expanded cell
@@ -163,7 +163,7 @@ struct hpmc_implicit_args_new_t
     curandState_t *d_state_cell;        //!< RNG state per cell
     curandState_t *d_state_cell_new;    //!< RNG state per cell
     const unsigned int depletant_type; //!< Particle type of depletant
-    hpmc_counters_t *d_counters;      //!< Aceptance/rejection counters
+    hpmc_counters_t *d_counters;      //!< Acceptance/rejection counters
     hpmc_implicit_counters_t *d_implicit_count; //!< Active cell acceptance/rejection counts
     const curandDiscreteDistribution_t *d_poisson; //!< Handle for precomputed poisson distribution (per type)
     unsigned int *d_overlap_cell;     //!< Overlap flag per active cell
@@ -187,15 +187,6 @@ cudaError_t gpu_hpmc_implicit_accept_reject_new(const hpmc_implicit_args_new_t &
 /*!
  * Definition of function templates and templated GPU kernels
  */
-
-//! Texture for reading postype
-scalar4_tex_t depletants_postype_tex;
-//! Texture for reading orientation
-scalar4_tex_t depletants_orientation_tex;
-//! Texture for reading postype
-scalar4_tex_t depletants_postype_old_tex;
-//! Texture for reading orientation
-scalar4_tex_t depletants_orientation_old_tex;
 
 template< class Shape >
 __global__ void gpu_hpmc_insert_depletants_queue_kernel(Scalar4 *d_postype,
@@ -347,7 +338,7 @@ __global__ void gpu_hpmc_insert_depletants_queue_kernel(Scalar4 *d_postype,
     if (i == UINT_MAX || !d_active_cell_accept[active_cell_idx]) return;
 
     // load updated particle position
-    Scalar4 postype_i = texFetchScalar4(d_postype, depletants_postype_tex, i);
+    Scalar4 postype_i = __ldg(d_postype + i);
     unsigned int type_i = __scalar_as_int(postype_i.w);
 
     curandState_t local_state;
@@ -403,7 +394,7 @@ __global__ void gpu_hpmc_insert_depletants_queue_kernel(Scalar4 *d_postype,
             Scalar r = Scalar(0.5)*d_max*fast::pow(r3,Scalar(1.0/3.0));
 
             // test depletant position around old configuration
-            Scalar4 postype_i_old = texFetchScalar4(d_postype_old, depletants_postype_old_tex, i);
+            Scalar4 postype_i_old = __ldg(d_postype_old + i);
             vec3<Scalar> pos_test = vec3<Scalar>(postype_i_old)+r*n;
 
             if (shape_test.hasOrientation())
@@ -418,7 +409,7 @@ __global__ void gpu_hpmc_insert_depletants_queue_kernel(Scalar4 *d_postype,
                 Shape shape_i(quat<Scalar>(orientation_i), s_params[type_i]);
                 if (shape_i.hasOrientation())
                     {
-                    orientation_i = texFetchScalar4(d_orientation, depletants_orientation_tex, i);
+                    orientation_i = __ldg(d_orientation + i);
                     shape_i.orientation = quat<Scalar>(orientation_i);
                     }
 
@@ -450,7 +441,7 @@ __global__ void gpu_hpmc_insert_depletants_queue_kernel(Scalar4 *d_postype,
                 Shape shape_i_old(quat<Scalar>(quat<Scalar>(orientation_i_old)), d_params[type_i]);
                 if (shape_i_old.hasOrientation())
                     {
-                    orientation_i_old = texFetchScalar4(d_orientation_old, depletants_orientation_old_tex, i);
+                    orientation_i_old = __ldg(d_orientation_old + i);
                     shape_i_old.orientation = quat<Scalar>(orientation_i_old);
                     }
 
@@ -508,11 +499,7 @@ __global__ void gpu_hpmc_insert_depletants_queue_kernel(Scalar4 *d_postype,
                 unsigned int j, next_j = 0;
                 if (k < excell_size)
                     {
-                    #if (__CUDA_ARCH__ > 300)
                     next_j = __ldg(&d_excell_idx[excli(k, my_cell)]);
-                    #else
-                    next_j = d_excell_idx[excli(k, my_cell)];
-                    #endif
                     }
 
                 // add to the queue as long as the queue is not full, and we have not yet reached the end of our own list
@@ -536,15 +523,11 @@ __global__ void gpu_hpmc_insert_depletants_queue_kernel(Scalar4 *d_postype,
 
                         if (k < excell_size)
                             {
-                            #if (__CUDA_ARCH__ > 300)
                             next_j = __ldg(&d_excell_idx[excli(k, my_cell)]);
-                            #else
-                            next_j = d_excell_idx[excli(k, my_cell)];
-                            #endif
                             }
 
                         // read in position, and orientation of neighboring particle
-                        postype_j = texFetchScalar4(d_postype, depletants_postype_tex, j);
+                        postype_j = __ldg(d_postype + j);
                         unsigned int type_j = __scalar_as_int(postype_j.w);
                         Shape shape_j(quat<Scalar>(orientation_j), s_params[type_j]);
 
@@ -603,12 +586,12 @@ __global__ void gpu_hpmc_insert_depletants_queue_kernel(Scalar4 *d_postype,
                 Shape shape_test(quat<Scalar>(s_orientation_group[check_group]), s_params[depletant_type]);
 
                 // build shape j from global memory
-                postype_j = texFetchScalar4(d_postype, depletants_postype_tex, check_j);
+                postype_j = __ldg(d_postype + check_j);
                 orientation_j = make_scalar4(1,0,0,0);
                 unsigned int type_j = __scalar_as_int(postype_j.w);
                 Shape shape_j(quat<Scalar>(orientation_j), s_params[type_j]);
                 if (shape_j.hasOrientation())
-                    shape_j.orientation = quat<Scalar>(texFetchScalar4(d_orientation, depletants_orientation_tex, check_j));
+                    shape_j.orientation = quat<Scalar>(__ldg(d_orientation + check_j));
 
                 // put particle j into the coordinate system of particle i
                 r_ij = vec3<Scalar>(postype_j) - vec3<Scalar>(pos_test);
@@ -813,34 +796,6 @@ cudaError_t gpu_hpmc_insert_depletants_queue(const hpmc_implicit_args_new_t& arg
     // 1 block per active cell
     dim3 grid( args.n_active_cells, 1, 1);
 
-    // bind the textures
-    depletants_postype_tex.normalized = false;
-    depletants_postype_tex.filterMode = cudaFilterModePoint;
-    cudaError_t error = cudaBindTexture(0, depletants_postype_tex, args.d_postype, sizeof(Scalar4)*args.max_n);
-    if (error != cudaSuccess)
-        return error;
-
-    depletants_postype_old_tex.normalized = false;
-    depletants_postype_old_tex.filterMode = cudaFilterModePoint;
-    error = cudaBindTexture(0, depletants_postype_old_tex, args.d_postype_old, sizeof(Scalar4)*args.max_n);
-    if (error != cudaSuccess)
-        return error;
-
-    if (args.has_orientation)
-        {
-        depletants_orientation_tex.normalized = false;
-        depletants_orientation_tex.filterMode = cudaFilterModePoint;
-        error = cudaBindTexture(0, depletants_orientation_tex, args.d_orientation, sizeof(Scalar4)*args.max_n);
-        if (error != cudaSuccess)
-            return error;
-
-        depletants_orientation_old_tex.normalized = false;
-        depletants_orientation_old_tex.filterMode = cudaFilterModePoint;
-        error = cudaBindTexture(0, depletants_orientation_old_tex, args.d_orientation_old, sizeof(Scalar4)*args.max_n);
-        if (error != cudaSuccess)
-            return error;
-        }
-
     // reset counters
     cudaMemsetAsync(args.d_overlap_cell,0, sizeof(unsigned int)*args.n_active_cells, args.stream);
 
@@ -972,7 +927,7 @@ __global__ void gpu_implicit_accept_reject_new_kernel(
         }
     }
 
-//! Kernel driver for gpu_hpmc_implict_accept_reject_new_kernel()
+//! Kernel driver for gpu_hpmc_implicit_accept_reject_new_kernel()
 /*! \param args Bundled arguments
     \param d_params Per-type shape parameters
     \returns Error codes generated by any CUDA calls, or cudaSuccess when there is no error

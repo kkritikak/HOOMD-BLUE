@@ -5,9 +5,16 @@ set(TEST_LIST
     collide_srd
     data_snapshot
     data_system
+    force_block
+    force_constant
+    force_sine
     init_make_random
     integrate_integrator
+    integrate_slit
+    integrate_slit_pore
     stream_bulk
+    stream_slit
+    stream_slit_pore
     update_sort
     )
 SET(EXCLUDE_FROM_MPI

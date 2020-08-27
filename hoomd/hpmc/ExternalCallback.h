@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #ifndef _EXTERNAL_CALLBACK_H_
@@ -9,7 +9,6 @@
 */
 
 #include "hoomd/Compute.h"
-#include "hoomd/Saru.h"
 #include "hoomd/VectorMath.h"
 #include "hoomd/SnapshotSystemData.h"
 
@@ -107,7 +106,7 @@ class __attribute__ ((visibility ("hidden"))) ExternalCallback : public External
             snap->particle_data.orientation[snap_idx] = shape_old.orientation;
             double energy_old = getEnergy(snap);
 
-            // update snapshot with new configruation
+            // update snapshot with new configuration
             snap->particle_data.pos[snap_idx] = position_new;
             snap->particle_data.orientation[snap_idx] = shape_new.orientation;
             double energy_new = getEnergy(snap);

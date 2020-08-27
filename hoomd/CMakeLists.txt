@@ -43,6 +43,8 @@ set(_hoomd_sources Analyzer.cc
                    LogMatrix.cc
                    LogHDF5.cc
                    Messenger.cc
+                   MemoryTraceback.cc
+                   MPIConfiguration.cc
                    ParticleData.cc
                    ParticleGroup.cc
                    Profiler.cc
@@ -96,11 +98,16 @@ set(_hoomd_headers
     GetarDumpIterators.h
     GetarDumpWriter.h
     GetarInitializer.h
+    GlobalArray.h
     GPUArray.h
     GPUFlags.h
+    GPUPartition.cuh
+    GPUPolymorph.h
+    GPUPolymorph.cuh
     GPUVector.h
     GSDDumpWriter.h
     GSDReader.h
+    GSDShapeSpecWriter.h
     HalfStepHook.h
     HOOMDMath.h
     HOOMDMPI.h
@@ -117,12 +124,18 @@ set(_hoomd_headers
     LogPlainTXT.h
     LogMatrix.h
     LogHDF5.h
+    managed_allocator.h
+    ManagedArray.h
+    MemoryTraceback.h
     Messenger.h
+    MPIConfiguration.h
     ParticleData.cuh
     ParticleData.h
     ParticleGroup.cuh
     ParticleGroup.h
     Profiler.h
+    RandomNumbers.h
+    RNGIdentifiers.h
     Saru.h
     SFCPackUpdaterGPU.cuh
     SFCPackUpdaterGPU.h
@@ -136,6 +149,7 @@ set(_hoomd_headers
     Updater.h
     Variant.h
     VectorMath.h
+    WarpTools.cuh
     )
 
 if (ENABLE_CUDA)
@@ -302,9 +316,13 @@ if (BUILD_MD)
         add_subdirectory(${HOOMD_SOURCE_DIR}/hoomd/extern/dfftlib)
     endif()
 
+    if (ENABLE_CUDA)
+        # add the neighbor library
+        add_subdirectory(${HOOMD_SOURCE_DIR}/hoomd/extern/neighbor)
+    endif (ENABLE_CUDA)
+
     add_subdirectory(md)
 endif()
-
 
 if (NOT SINGLE_PRECISION AND BUILD_HPMC)
     add_subdirectory(hpmc)

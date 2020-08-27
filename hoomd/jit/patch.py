@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 from hoomd import _hoomd
@@ -6,7 +6,6 @@ from hoomd.jit import _jit
 import hoomd
 
 import tempfile
-from distutils.spawn import find_executable
 import shutil
 import subprocess
 import os
@@ -21,14 +20,21 @@ class user(object):
         code (str): C++ code to compile
         llvm_ir_fname (str): File name of the llvm IR file to load.
         clang_exec (str): The Clang executable to use
+        array_size (int): Size of array with adjustable elements. (added in version 2.8)
+
+    Attributes:
+        alpha_iso (numpy.ndarray, float): Length array_size numpy array containing dynamically adjustable elements
+                                          defined by the user (added in version 2.8)
 
     Patch energies define energetic interactions between pairs of shapes in :py:mod:`hpmc <hoomd.hpmc>` integrators.
     Shapes within a cutoff distance of *r_cut* are potentially interacting and the energy of interaction is a function
     the type and orientation of the particles and the vector pointing from the *i* particle to the *j* particle center.
 
     The :py:class:`user` patch energy takes C++ code, JIT compiles it at run time and executes the code natively
-    in the MC loop at with full performance. It enables researchers to quickly and easily implement custom energetic
-    interactions without the need to modify and recompile HOOMD.
+    in the MC loop with full performance. It enables researchers to quickly and easily implement custom energetic
+    interactions without the need to modify and recompile HOOMD. Additionally, :py:class:`user` provides a mechanism,
+    through the `alpha_iso` attribute (numpy array), to adjust user defined potential parameters without the need
+    to recompile the patch energy code.
 
     .. rubric:: C++ code
 
@@ -67,7 +73,9 @@ class user(object):
       the centers of the two particles: compute it accordingly based on the maximum range of the anisotropic
       interaction that you implement.
 
-    Example:
+    Examples:
+
+    Static potential parameters
 
     .. code-block:: python
 
@@ -78,6 +86,24 @@ class user(object):
                                 return 0.0f;
                       """
         patch = hoomd.jit.patch.user(mc=mc, r_cut=1.1, code=square_well)
+        hoomd.run(1000)
+
+    Dynamic potential parameters
+
+    .. code-block:: python
+
+        square_well = """float rsq = dot(r_ij, r_ij);
+                         float r_cut = alpha_iso[0];
+                            if (rsq < r_cut*r_cut)
+                                return alpha_iso[1];
+                            else
+                                return 0.0f;
+                      """
+        patch = hoomd.jit.patch.user(mc=mc, r_cut=1.1, array_size=2, code=square_well)
+        patch.alpha_iso[:] = [1.1, 1.5] # [rcut, epsilon]
+        hoomd.run(1000)
+        patch.alpha_iso[1] = 2.0
+        hoomd.run(1000)
 
     .. rubric:: LLVM IR code
 
@@ -98,18 +124,17 @@ class user(object):
 
     ``vec3`` and ``quat`` are defined in HOOMDMath.h.
 
-    Compile the file with clang: ``clang -O3 --std=c++11 -DHOOMD_NOPYTHON -I /path/to/hoomd/include -S -emit-llvm code.cc`` to produce
+    Compile the file with clang: ``clang -O3 --std=c++11 -DHOOMD_LLVMJIT_BUILD -I /path/to/hoomd/include -S -emit-llvm code.cc`` to produce
     the LLVM IR in ``code.ll``.
 
     .. versionadded:: 2.3
     '''
-    def __init__(self, mc, r_cut, code=None, llvm_ir_file=None, clang_exec=None):
+    def __init__(self, mc, r_cut, array_size=1, code=None, llvm_ir_file=None, clang_exec=None):
         hoomd.util.print_status_line();
 
         # check if initialization has occurred
         if hoomd.context.exec_conf is None:
-            hoomd.context.msg.error("Cannot create patch energy before context initialization\n");
-            raise RuntimeError('Error creating patch energy');
+            raise RuntimeError('Error creating patch energy, call context.initialize() first');
 
         # raise an error if this run is on the GPU
         if hoomd.context.exec_conf.isCUDAEnabled():
@@ -120,31 +145,34 @@ class user(object):
         if clang_exec is not None:
             clang = clang_exec;
         else:
-            clang = find_executable('clang')
+            clang = 'clang'
 
         if code is not None:
-            llvm_ir = self.compile_user(code, clang)
+            llvm_ir = self.compile_user(array_size, 1, code, clang)
         else:
             # IR is a text file
             with open(llvm_ir_file,'r') as f:
                 llvm_ir = f.read()
 
         self.compute_name = "patch"
-        self.cpp_evaluator = _jit.PatchEnergyJIT(hoomd.context.exec_conf, llvm_ir, r_cut);
+        self.cpp_evaluator = _jit.PatchEnergyJIT(hoomd.context.exec_conf, llvm_ir, r_cut, array_size);
         mc.set_PatchEnergyEvaluator(self);
 
         self.mc = mc
         self.enabled = True
         self.log = False
+        self.cpp_evaluator.alpha_iso[:] = [0]*array_size
+        self.alpha_iso = self.cpp_evaluator.alpha_iso
 
-    def compile_user(self, code, clang_exec, fn=None):
+    def compile_user(self, array_size_iso, array_size_union, code, clang_exec, fn=None):
         R'''Helper function to compile the provided code into an executable
 
         Args:
             code (str): C++ code to compile
             clang_exec (str): The Clang executable to use
             fn (str): If provided, the code will be written to a file.
-
+            array_size_iso (int): Size of array with adjustable elements for the isotropic part. (added in version 2.8)
+            array_size_union (int): Size of array with adjustable elements for unions of shapes. (added in version 2.8)
 
         .. versionadded:: 2.3
         '''
@@ -152,8 +180,11 @@ class user(object):
 #include "hoomd/HOOMDMath.h"
 #include "hoomd/VectorMath.h"
 
+float alpha_iso[{}];
+float alpha_union[{}];
+
 extern "C"
-{
+{{
 float eval(const vec3<float>& r_ij,
     unsigned int type_i,
     const quat<float>& q_i,
@@ -163,8 +194,8 @@ float eval(const vec3<float>& r_ij,
     const quat<float>& q_j,
     float d_j,
     float charge_j)
-    {
-"""
+    {{
+""".format(array_size_iso, array_size_union);
         cpp_function += code
         cpp_function += """
     }
@@ -177,12 +208,12 @@ float eval(const vec3<float>& r_ij,
         if clang_exec is not None:
             clang = clang_exec;
         else:
-            clang = find_executable('clang');
+            clang = 'clang';
 
         if fn is not None:
-            cmd = [clang, '-O3', '--std=c++11', '-DHOOMD_NOPYTHON', '-I', include_path, '-I', include_path_source, '-S', '-emit-llvm','-x','c++', '-o',fn,'-']
+            cmd = [clang, '-O3', '--std=c++11', '-DHOOMD_LLVMJIT_BUILD', '-I', include_path, '-I', include_path_source, '-S', '-emit-llvm','-x','c++', '-o',fn,'-']
         else:
-            cmd = [clang, '-O3', '--std=c++11', '-DHOOMD_NOPYTHON', '-I', include_path, '-I', include_path_source, '-S', '-emit-llvm','-x','c++', '-o','-','-']
+            cmd = [clang, '-O3', '--std=c++11', '-DHOOMD_LLVMJIT_BUILD', '-I', include_path, '-I', include_path_source, '-S', '-emit-llvm','-x','c++', '-o','-','-']
         p = subprocess.Popen(cmd,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 
         # pass C++ function to stdin
@@ -234,6 +265,14 @@ class user_union(user):
         code_iso (str, **optional**): C++ code for isotropic part
         llvm_ir_fname (str): File name of the llvm IR file to load.
         llvm_ir_fname_iso (str, **optional**): File name of the llvm IR file to load for isotropic interaction
+        array_size (int): Size of array with adjustable elements. (added in version 2.8)
+        array_size_iso (int): Size of array with adjustable elements for the isotropic part. (added in version 2.8)
+
+    Attributes:
+        alpha_union (numpy.ndarray, float): Length array_size numpy array containing dynamically adjustable elements
+                                            defined by the user for unions of shapes (added in version 2.8)
+        alpha_iso (numpy.ndarray, float): Length array_size_iso numpy array containing dynamically adjustable elements
+                                          defined by the user for the isotropic part. (added in version 2.8)
 
     Example:
 
@@ -254,48 +293,54 @@ class user_union(user):
 
         # square well attraction on constituent spheres
         square_well = """float rsq = dot(r_ij, r_ij);
-                            if (rsq < 1.21f)
-                                return -1.0f;
-                            else
-                                return 0.0f;
-                      """
+                              float r_cut = alpha_union[0];
+                              if (rsq < r_cut*r_cut)
+                                  return alpha_union[1];
+                              else
+                                  return 0.0f;
+                           """
 
         # soft repulsion between centers of unions
         soft_repulsion = """float rsq = dot(r_ij, r_ij);
-                            if (rsq < 6.25f)
-                                return 1.0f;
-                            else
-                                return 0.0f;
-                      """
+                                  float r_cut = alpha_iso[0];
+                                  if (rsq < r_cut*r_cut)
+                                    return alpha_iso[1];
+                                  else
+                                    return 0.0f;
+                         """
 
-        patch = hoomd.jit.patch.user_union(r_cut=1.1, code=square_well, r_cut_iso=5, code_iso=soft_repulsion)
+        patch = hoomd.jit.patch.user_union(r_cut=2.5, code=square_well, array_size=2, \
+                                           r_cut_iso=5, code_iso=soft_repulsion, array_size_iso=2)
         patch.set_params('A',positions=[(0,0,-5.),(0,0,.5)], typeids=[0,0])
+        # [r_cut, epsilon]
+        patch.alpha_iso[:] = [2.5, 1.3];
+        patch.alpha_union[:] = [2.5, -1.7];
 
     .. versionadded:: 2.3
     '''
-    def __init__(self, mc, r_cut, code=None, llvm_ir_file=None, r_cut_iso=None, code_iso=None,
-        llvm_ir_file_iso=None, clang_exec=None):
+    def __init__(self, mc, r_cut, array_size=1, code=None, llvm_ir_file=None, r_cut_iso=None, code_iso=None,
+        llvm_ir_file_iso=None, array_size_iso=1, clang_exec=None):
+
         hoomd.util.print_status_line();
 
         # check if initialization has occurred
         if hoomd.context.exec_conf is None:
-            hoomd.context.msg.error("Cannot create patch energy before context initialization\n");
-            raise RuntimeError('Error creating patch energy');
+            raise RuntimeError('Error creating patch energy, call context.initialize() first');
 
         if clang_exec is not None:
             clang = clang_exec;
         else:
-            clang = find_executable('clang')
+            clang = 'clang'
 
         if code is not None:
-            llvm_ir = self.compile_user(code,clang)
+            llvm_ir = self.compile_user(array_size_iso, array_size, code, clang)
         else:
             # IR is a text file
             with open(llvm_ir_file,'r') as f:
                 llvm_ir = f.read()
 
         if code_iso is not None:
-            llvm_ir_iso = self.compile_user(code_iso,clang)
+            llvm_ir_iso = self.compile_user(array_size_iso, array_size, code_iso, clang)
         else:
             if llvm_ir_file_iso is not None:
                 # IR is a text file
@@ -303,26 +348,30 @@ class user_union(user):
                     llvm_ir_iso = f.read()
             else:
                 # provide a dummy function
-                llvm_ir_iso = self.compile_user('return 0;',clang)
+                llvm_ir_iso = self.compile_user(array_size_iso, array_size, 'return 0;', clang)
 
         if r_cut_iso is None:
             r_cut_iso = -1.0
 
         self.compute_name = "patch_union"
         self.cpp_evaluator = _jit.PatchEnergyJITUnion(hoomd.context.current.system_definition, hoomd.context.exec_conf,
-            llvm_ir_iso, r_cut_iso, llvm_ir, r_cut);
+            llvm_ir_iso, r_cut_iso, array_size_iso, llvm_ir, r_cut,  array_size);
         mc.set_PatchEnergyEvaluator(self);
 
         self.mc = mc
         self.enabled = True
         self.log = False
+        self.cpp_evaluator.alpha_iso[:] = [0]*array_size_iso
+        self.cpp_evaluator.alpha_union[:] = [0]*array_size
+        self.alpha_iso = self.cpp_evaluator.alpha_iso[:]
+        self.alpha_union = self.cpp_evaluator.alpha_union[:]
 
     R''' Set the union shape parameters for a given particle type
 
     Args:
         type (string): The type to set the interactions for
-        positions: The positions of the consitutent particles (list of vectors)
-        orientations: The orientations of the consituent particles (list of four-vectors)
+        positions: The positions of the constituent particles (list of vectors)
+        orientations: The orientations of the constituent particles (list of four-vectors)
         diameters: The diameters of the constituent particles (list of floats)
         charges: The charges of the constituent particles (list of floats)
         leaf_capacity: The number of particles in a leaf of the internal tree data structure

@@ -8,7 +8,8 @@
 
 #include "hoomd/HOOMDMPI.h"
 #include "hoomd/Updater.h"
-#include "hoomd/Saru.h"
+#include "hoomd/RandomNumbers.h"
+#include "hoomd/RNGIdentifiers.h"
 
 #include <set>
 #include <list>
@@ -540,7 +541,6 @@ void UpdaterClusters<Shape>::findInteractions(unsigned int timestep, vec3<Scalar
 
     // update the image list
     auto image_list = m_mc->updateImageList();
-    auto image_hkl = m_mc->getImageHKL();
 
     // minimum AABB extent
     Scalar min_core_diameter = m_mc->getMinCoreDiameter();
@@ -568,6 +568,9 @@ void UpdaterClusters<Shape>::findInteractions(unsigned int timestep, vec3<Scalar
     // cluster according to overlap of excluded volume shells
     // loop over local particles
     unsigned int nptl = m_pdata->getN();
+
+    // locality data in new configuration
+    const detail::AABBTree& aabb_tree = m_mc->buildAABBTree();
 
     // access particle data
     ArrayHandle<Scalar4> h_postype(m_pdata->getPositions(), access_location::host, access_mode::read);
@@ -670,8 +673,11 @@ void UpdaterClusters<Shape>::findInteractions(unsigned int timestep, vec3<Scalar
                                     // update map
                                     m_energy_old_old[p] = U;
 
-                                    int3 delta_img = -image_hkl[cur_image] + m_image_backup[i] - m_image_backup[j];
-                                    if (line && !swap && (delta_img.x || delta_img.y || delta_img.z))
+                                    int3 delta_img = m_image_backup[i] - m_image_backup[j];
+                                    bool interacts_via_pbc = delta_img.x || delta_img.y || delta_img.z;
+                                    interacts_via_pbc |= cur_image != 0;
+
+                                    if (line && !swap && interacts_via_pbc)
                                         {
                                         // if interaction across PBC, reject cluster move
                                         m_local_reject.insert(new_tag_i);
@@ -767,8 +773,12 @@ void UpdaterClusters<Shape>::findInteractions(unsigned int timestep, vec3<Scalar
                                 if (h_overlaps.data[overlap_idx(typ_i,typ_j)]
                                     && test_overlap(r_ij, shape_i, shape_j, err))
                                     {
-                                    int3 delta_img = -image_hkl[cur_image] + h_image.data[i] - m_image_backup[j];
-                                    bool reject = (line &&!swap) && (delta_img.x || delta_img.y || delta_img.z);
+
+                                    int3 delta_img = h_image.data[i] - m_image_backup[j];
+                                    bool interacts_via_pbc = delta_img.x || delta_img.y || delta_img.z;
+                                    interacts_via_pbc |= cur_image != 0;
+
+                                    bool reject = (line &&!swap) && interacts_via_pbc;
 
                                     if (swap && ((typ_i != m_ab_types[0] && typ_i != m_ab_types[1])
                                         || (typ_j != m_ab_types[0] && typ_j != m_ab_types[1])))
@@ -869,8 +879,11 @@ void UpdaterClusters<Shape>::findInteractions(unsigned int timestep, vec3<Scalar
                                     // update map
                                     m_energy_new_old[p] = U;
 
-                                    int3 delta_img = -image_hkl[cur_image] + h_image.data[i] - m_image_backup[j];
-                                    if (line && !swap && (delta_img.x || delta_img.y || delta_img.z))
+                                    int3 delta_img = h_image.data[i] - m_image_backup[j];
+                                    bool interacts_via_pbc = delta_img.x || delta_img.y || delta_img.z;
+                                    interacts_via_pbc |= cur_image != 0;
+
+                                    if (line && !swap && interacts_via_pbc)
                                         {
                                         // if interaction across PBC, reject cluster move
                                         m_local_reject.insert(h_tag.data[i]);
@@ -897,9 +910,6 @@ void UpdaterClusters<Shape>::findInteractions(unsigned int timestep, vec3<Scalar
 
     if (line && !swap)
         {
-        // locality data in new configuration
-        const detail::AABBTree& aabb_tree = m_mc->buildAABBTree();
-
         // check if particles are interacting in the new configuration
         #ifdef ENABLE_TBB
         tbb::parallel_for((unsigned int)0,nptl, [&](unsigned int i)
@@ -973,8 +983,11 @@ void UpdaterClusters<Shape>::findInteractions(unsigned int timestep, vec3<Scalar
                                 if (interact_patch || (rsq_ij <= RaRb*RaRb && h_overlaps.data[overlap_idx(typ_i,typ_j)]
                                         && test_overlap(r_ij, shape_i, shape_j, err)))
                                     {
-                                    int3 delta_img = -image_hkl[cur_image] + h_image.data[i] - h_image.data[j];
-                                    if (delta_img.x || delta_img.y || delta_img.z)
+                                    int3 delta_img = h_image.data[i] - h_image.data[j];
+                                    bool interacts_via_pbc = delta_img.x || delta_img.y || delta_img.z;
+                                    interacts_via_pbc |= cur_image != 0;
+
+                                    if (interacts_via_pbc)
                                         {
                                         // add to reject list
                                         m_local_reject.insert(h_tag.data[i]);
@@ -1053,11 +1066,11 @@ void UpdaterClusters<Shape>::update(unsigned int timestep)
     if (m_prof) m_prof->push(m_exec_conf,"Transform");
 
     // generate the move, select a pivot
-    hoomd::detail::Saru rng(timestep, this->m_seed, 0x09365bf5);
+    hoomd::RandomGenerator rng(hoomd::RNGIdentifier::UpdaterClusters, timestep, this->m_seed);
     BoxDim box = m_pdata->getGlobalBox();
     vec3<Scalar> pivot(0,0,0);
 
-    bool swap = m_ab_types.size() && (rng.template s<Scalar>() < m_swap_move_ratio);
+    bool swap = m_ab_types.size() && (hoomd::detail::generate_canonical<Scalar>(rng) <= m_swap_move_ratio);
 
     if (swap)
         {
@@ -1072,7 +1085,7 @@ void UpdaterClusters<Shape>::update(unsigned int timestep)
         }
 
     // is this a line reflection?
-    bool line = !swap && (m_mc->hasOrientation() || (rng.template s<Scalar>() > m_move_ratio));
+    bool line = !swap && (m_mc->hasOrientation() || (hoomd::detail::generate_canonical<Scalar>(rng) > m_move_ratio));
 
     quat<Scalar> q;
 
@@ -1083,8 +1096,8 @@ void UpdaterClusters<Shape>::update(unsigned int timestep)
 
         if (m_sysdef->getNDimensions() == 3)
             {
-            Scalar theta = rng.template s<Scalar>(Scalar(0.0),Scalar(2.0*M_PI));
-            Scalar z = rng.template s<Scalar>(Scalar(-1.0),Scalar(1.0));
+            Scalar theta = hoomd::UniformDistribution<Scalar>(Scalar(0.0),Scalar(2.0*M_PI))(rng);
+            Scalar z = hoomd::UniformDistribution<Scalar>(Scalar(-1.0),Scalar(1.0))(rng);
             n = vec3<Scalar>(fast::sqrt(Scalar(1.0)-z*z)*fast::cos(theta),fast::sqrt(Scalar(1.0)-z*z)*fast::sin(theta),z);
             }
         else
@@ -1099,11 +1112,11 @@ void UpdaterClusters<Shape>::update(unsigned int timestep)
     else
         {
         Scalar3 f;
-        f.x = rng.template s<Scalar>();
-        f.y = rng.template s<Scalar>();
+        f.x = hoomd::detail::generate_canonical<Scalar>(rng);
+        f.y = hoomd::detail::generate_canonical<Scalar>(rng);
         if (m_sysdef->getNDimensions() == 3)
             {
-            f.z = rng.template s<Scalar>();
+            f.z = hoomd::detail::generate_canonical<Scalar>(rng);
             }
         else
             {
@@ -1623,10 +1636,10 @@ void UpdaterClusters<Shape>::update(unsigned int timestep)
                     unsigned int j = it->first.second;
 
                     // create a RNG specific to this particle pair
-                    hoomd::detail::Saru rng_ij(timestep+this->m_seed, std::min(i,j), std::max(i,j));
+                    hoomd::RandomGenerator rng_ij(hoomd::RNGIdentifier::UpdaterClustersPairwise, this->m_seed, timestep, std::min(i,j), std::max(i,j));
 
                     float pij = 1.0f-exp(-delU);
-                    if (rng_ij.f() <= pij) // GCA
+                    if (hoomd::detail::generate_canonical<float>(rng_ij) <= pij) // GCA
                         {
                         // add bond
                         m_G.addEdge(i,j);
@@ -1667,7 +1680,7 @@ void UpdaterClusters<Shape>::update(unsigned int timestep)
                     reject = true;
                 }
 
-            bool flip = rng.f() < m_flip_probability;
+            bool flip = hoomd::detail::generate_canonical<float>(rng) <= m_flip_probability;
 
             // count number of A and B particles in old and new config
             if (swap && m_ab_types.size())
@@ -1690,7 +1703,7 @@ void UpdaterClusters<Shape>::update(unsigned int timestep)
 
                 Scalar NdelMu = 0.5*(Scalar)(n_B_new-n_A_new-n_B_old+n_A_old)*m_delta_mu;
 
-                if (rng.f() > exp(NdelMu))
+                if (hoomd::detail::generate_canonical<float>(rng) > exp(NdelMu))
                     reject = true;
                 }
 
@@ -1788,11 +1801,12 @@ void UpdaterClusters<Shape>::update(unsigned int timestep)
 
         Scalar3 shift = make_scalar3(0,0,0);
 
-        shift.x = rng.s(-max_shift/Scalar(2.0),max_shift/Scalar(2.0));
-        shift.y = rng.s(-max_shift/Scalar(2.0),max_shift/Scalar(2.0));
+        hoomd::UniformDistribution<Scalar> shift_gen(-max_shift/Scalar(2.0),max_shift/Scalar(2.0));
+        shift.x = shift_gen(rng);
+        shift.y = shift_gen(rng);
         if (this->m_sysdef->getNDimensions() == 3)
             {
-            shift.z = rng.s(-max_shift/Scalar(2.0),max_shift/Scalar(2.0));
+            shift.z = shift_gen(rng);
             }
 
         for (unsigned int i = 0; i < m_pdata->getN(); i++)

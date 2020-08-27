@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #include "hoomd/HOOMDMath.h"
@@ -19,8 +19,10 @@
 // DEVICE is __device__ when included in nvcc and blank when included into the host compiler
 #ifdef NVCC
 #define DEVICE __device__
+#define HOSTDEVICE __host__ __device__
 #else
 #define DEVICE
+#define HOSTDEVICE
 #include <iostream>
 #endif
 
@@ -36,7 +38,7 @@ namespace detail
     by the sweep radius.
 
     There are some current features under consideration for special handling of 0 and 1-vertex inputs. See
-    ShapeSphereopolyhedron for documentation on these cases.
+    ShapeSpheropolyhedron for documentation on these cases.
 
     \ingroup minkowski
 */
@@ -82,7 +84,7 @@ class SupportFuncSpheropolyhedron
     **required** that the origin is inside the shape, and it is best if the origin is the center of mass.
 
     ShapeSpheropolygon interprets two additional fields in the verts struct that ShapeConvexPolyhedron lacks.
-    The first is sweep_radius which defines the radius of the sphere to sweep around the polyong. The 2nd
+    The first is sweep_radius which defines the radius of the sphere to sweep around the polygon. The 2nd
     is ignore. When two shapes are checked for overlap, if both of them have ignore set to true (non-zero) then
     there is assumed to be no collision. This is intended for use with the penetrable hard-sphere model for depletants,
     but could be useful in other cases.
@@ -128,6 +130,32 @@ struct ShapeSpheropolyhedron
         // not implemented
         return OverlapReal(0.0);
         }
+
+    #ifndef NVCC
+    std::string getShapeSpec() const
+        {
+        std::ostringstream shapedef;
+        unsigned int nverts = verts.N;
+        if (nverts == 1)
+            {
+            shapedef << "{\"type\": \"Sphere\", " << "\"diameter\": " << verts.diameter << "}";
+            }
+        else if (nverts == 2)
+            {
+            throw std::runtime_error("Shape definition not supported for 2-vertex spheropolyhedra");
+            }
+        else
+            {
+            shapedef << "{\"type\": \"ConvexPolyhedron\", \"rounding_radius\": " << verts.sweep_radius << ", \"vertices\": [";
+            for (unsigned int i = 0; i < nverts-1; i++)
+                {
+                shapedef << "[" << verts.x[i] << ", " << verts.y[i] << ", " << verts.z[i] << "], ";
+                }
+            shapedef << "[" << verts.x[nverts-1] << ", " << verts.y[nverts-1] << ", " << verts.z[nverts-1] << "]]}";
+            }
+        return shapedef.str();
+        }
+    #endif
 
     //! Return the bounding box of the shape in world coordinates
     DEVICE detail::AABB getAABB(const vec3<Scalar>& pos) const
@@ -219,4 +247,6 @@ DEVICE inline bool test_overlap(const vec3<Scalar>& r_ab,
 
 }; // end namespace hpmc
 
+#undef DEVICE
+#undef HOSTDEVICE
 #endif //__SHAPE_SPHEROPOLYHEDRON_H__

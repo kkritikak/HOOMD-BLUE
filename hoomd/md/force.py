@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: joaander / All Developers are free to add commands for new features
@@ -10,12 +10,13 @@ from hoomd import _hoomd
 from hoomd.md import _md;
 import sys;
 import hoomd;
+import numpy as np
 
 ## \internal
 # \brief Base class for forces
 #
-# A force in hoomd_script reflects a ForceCompute in c++. It is responsible
-# for all high-level management that happens behind the scenes for hoomd_script
+# A force in hoomd reflects a ForceCompute in c++. It is responsible
+# for all high-level management that happens behind the scenes for hoomd
 # writers. 1) The instance of the c++ analyzer itself is tracked and added to the
 # System 2) methods are provided for disabling the force from being added to the
 # net force on each particle
@@ -29,7 +30,7 @@ class _force(hoomd.meta._metadata):
     # If specified, assigns a name to the instance
     # Assigns a name to the force in force_name;
     def __init__(self, name=None):
-        # check if initialization has occured
+        # check if initialization has occurred
         if not hoomd.init.is_initialized():
             hoomd.context.msg.error("Cannot create force before initialization\n");
             raise RuntimeError('Error creating force');
@@ -71,7 +72,7 @@ class _force(hoomd.meta._metadata):
     def check_initialization(self):
         # check that we have been initialized properly
         if self.cpp_force is None:
-            hoomd.context.msg.error('Bug in hoomd_script: cpp_force not set, please report\n');
+            hoomd.context.msg.error('Bug in hoomd: cpp_force not set, please report\n');
             raise RuntimeError();
 
     def disable(self, log=False):
@@ -154,6 +155,42 @@ class _force(hoomd.meta._metadata):
         """
         return self.cpp_force.calcEnergyGroup(group.cpp_group)
 
+    def get_net_force(self,group):
+        R""" Get the force of a particle group.
+
+        Args:
+            group (:py:mod:`hoomd.group`): The particle group to query the force for.
+
+        Returns:
+            The last computed force for the members in the group.
+
+        Examples:
+
+            g = group.all()
+            force = force.get_net_force(g)
+        """
+
+        return (self.cpp_force.calcForceGroup(group.cpp_group).x, self.cpp_force.calcForceGroup(group.cpp_group).y, self.cpp_force.calcForceGroup(group.cpp_group).z)
+
+    def get_net_virial(self,group):
+        R""" Get the virial of a particle group.
+
+        Args:
+            group (:py:mod:`hoomd.group`): The particle group to query the virial for.
+
+        Returns:
+            The last computed virial for the members in the group.
+
+        Examples:
+
+            g = group.all()
+            virial = force.get_net_virial(g)
+        """
+        return np.asarray(self.cpp_force.calcVirialGroup(group.cpp_group))
+
+
+
+
     ## \internal
     # \brief updates force coefficients
     def update_coeffs(self):
@@ -193,7 +230,7 @@ class constant(_force):
         fy (float): y component of force, retained for backwards compatibility
         fz (float): z component of force, retained for backwards compatibility
         group (:py:mod:`hoomd.group`): Group for which the force will be set.
-        callback (callable): A python callback invoked every time the forces are computed
+        callback (`callable`): A python callback invoked every time the forces are computed
 
     :py:class:`constant` specifies that a constant force should be added to every
     particle in the simulation or optionally to all particles in a group.
@@ -320,7 +357,7 @@ class constant(_force):
     R""" Set a python callback to be called before the force is evaluated
 
     Args:
-        callback (callable) The callback function
+        callback (`callable`) The callback function
 
      Examples:
         const = force.constant(fx=0.4, fy=1.0, fz=0.5)

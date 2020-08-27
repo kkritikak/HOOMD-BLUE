@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -22,10 +22,7 @@
     \brief Defines GPU kernel code for calculating the harmonic dihedral forces. Used by HarmonicDihedralForceComputeGPU.
 */
 
-//! Texture for reading dihedral parameters
-scalar4_tex_t dihedral_params_tex;
-
-//! Kernel for caculating harmonic dihedral forces on the GPU
+//! Kernel for calculating harmonic dihedral forces on the GPU
 /*! \param d_force Device memory to write computed forces
     \param d_virial Device memory to write computed virials
     \param virial_pitch pitch of 2D virial array
@@ -137,10 +134,11 @@ void gpu_compute_harmonic_dihedral_forces_kernel(Scalar4* d_force,
         dcbm = box.minImage(dcbm);
 
         // get the dihedral parameters (MEM TRANSFER: 12 bytes)
-        Scalar4 params = texFetchScalar4(d_params, dihedral_params_tex, cur_dihedral_type);
+        Scalar4 params = __ldg(d_params + cur_dihedral_type);
         Scalar K = params.x;
         Scalar sign = params.y;
         Scalar multi = params.z;
+        Scalar phi_0 = params.w;
 
         Scalar aax = dab.y*dcbm.z - dab.z*dcbm.y;
         Scalar aay = dab.z*dcbm.x - dab.x*dcbm.z;
@@ -182,8 +180,14 @@ void gpu_compute_harmonic_dihedral_forces_kernel(Scalar4* d_force,
 
 /////////////////////////
 // FROM LAMMPS: sin_shift is always 0... so dropping all sin_shift terms!!!!
+// Adding charmm dihedral functionality, sin_shift not always 0,
+// cos_shift not always 1
 /////////////////////////
+        Scalar sin_phi_0 = fast::sin(phi_0);
+        Scalar cos_phi_0 = fast::cos(phi_0);
+        p = p*cos_phi_0 + dfab*sin_phi_0;
         p *= sign;
+        dfab = dfab*cos_phi_0 - ddfab*sin_phi_0;
         dfab *= sign;
         dfab *= -multi;
         p += Scalar(1.0);
@@ -236,7 +240,7 @@ void gpu_compute_harmonic_dihedral_forces_kernel(Scalar4* d_force,
         Scalar ffcz = -sz2 - ffdz;
 
         // Now, apply the force to each individual atom a,b,c,d
-        // and accumlate the energy/virial
+        // and accumulate the energy/virial
         // compute 1/4 of the energy, 1/4 for each atom in the dihedral
         //Scalar dihedral_eng = p*K*Scalar(1.0/4.0);
         Scalar dihedral_eng = p*K*Scalar(1.0/8.0); // the 1/8th term is (1/2)K * 1/4
@@ -319,8 +323,7 @@ cudaError_t gpu_compute_harmonic_dihedral_forces(Scalar4* d_force,
                                                  const unsigned int *n_dihedrals_list,
                                                  Scalar4 *d_params,
                                                  unsigned int n_dihedral_types,
-                                                 int block_size,
-                                                 const unsigned int compute_capability)
+                                                 int block_size)
     {
     assert(d_params);
 
@@ -337,14 +340,6 @@ cudaError_t gpu_compute_harmonic_dihedral_forces(Scalar4* d_force,
     // setup the grid to run the kernel
     dim3 grid( N / run_block_size + 1, 1, 1);
     dim3 threads(run_block_size, 1, 1);
-
-    // bind the texture on pre sm35 devices
-    if (compute_capability < 350)
-        {
-        cudaError_t error = cudaBindTexture(0, dihedral_params_tex, d_params, sizeof(Scalar4) * n_dihedral_types);
-        if (error != cudaSuccess)
-            return error;
-        }
 
     // run the kernel
     gpu_compute_harmonic_dihedral_forces_kernel<<< grid, threads>>>(d_force, d_virial, virial_pitch, N, d_pos, d_params, box, tlist, dihedral_ABCD, pitch, n_dihedrals_list);

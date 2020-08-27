@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: joaander
@@ -18,16 +18,21 @@ particles in the neighbor list will have to be read and skipped because they lie
 The simplest way to build a neighbor list is :math:`O(N^2)`: each particle loops over all other particles and only
 includes those within the neighbor list cutoff. This algorithm is no longer implemented in HOOMD-blue because it is
 slow and inefficient. Instead, three accelerated algorithms based on cell lists and bounding volume hierarchy trees
-are implemented. The cell list implementation is fastest when the cutoff radius is similar between all pair forces
-(smaller than 2:1 ratio). The stencil implementation is a different variant of the cell list, and is usually fastest
-when there is large disparity in the pair cutoff radius and a high number fraction of particles with the
-bigger cutoff (at least 30%). The tree implementation is faster when there is large size disparity and
-the number fraction of big objects is low. Because the performance of these algorithms depends sensitively on your
-system and hardware, you should carefully test which option is fastest for your simulation.
+are implemented. The cell list implementation is usually fastest when the cutoff radius is similar between all pair forces
+(smaller than 2:1 ratio). The stencil implementation is a different variant of the cell list, and its main use is when a
+cell list would be faster than a tree but memory demands are too big. The tree implementation is faster when there is
+large size disparity, but its performance has been improved to be only slightly slower than the cell list for many use
+cases. Because the performance of these algorithms depends on your system and hardware, you should carefully test which
+option is fastest for your simulation.
 
 Particles can be excluded from the neighbor list based on certain criteria. Setting :math:`r_\mathrm{cut}(i,j) \le 0`
 will exclude this cross interaction from the neighbor list on build time. Particles can also be excluded by topology
-or for belonging to the same rigid body (see :py:meth:`nlist.reset_exclusions()`).
+or for belonging to the same rigid body (see :py:meth:`nlist.reset_exclusions()`). To support molecular structures,
+the body flag can also be used to exclude particles that are not part of a rigid structure. All particles with
+positive values of the body flag are considered part of a rigid body (see :py:class:`hoomd.md.constrain.rigid`),
+while the default value of -1 indicates that a particle is free. Any other negative value of the body flag indicates
+that the particles are part of a floppy body; such particles are integrated
+separately, but are automatically excluded from the neighbor list as well.
 
 Examples::
 
@@ -49,14 +54,15 @@ class nlist:
     """
 
     def __init__(self):
-        # check if initialization has occured
+        # check if initialization has occurred
         if not hoomd.init.is_initialized():
             hoomd.context.msg.error("Cannot create neighbor list before initialization\n");
             raise RuntimeError('Error creating neighbor list');
 
         # default exclusions
         self.is_exclusion_overridden = False;
-        self.exclusions = None
+        self.exclusions = None  # Excluded groups
+        self.exclusion_list = []  # Specific pairs to exclude
 
         # save the parameters we set
         self.r_cut = rcut();
@@ -114,6 +120,12 @@ class nlist:
             self.reset_exclusions(exclusions=['body', 'bond','constraint']);
             hoomd.util.unquiet_status();
 
+        # Add any specific interparticle exclusions
+        for i, j in self.exclusion_list:
+            hoomd.util.quiet_status();
+            self.cpp_nlist.addExclusion(i, j)
+            hoomd.util.unquiet_status();
+
     def set_params(self, r_buff=None, check_period=None, d_max=None, dist_check=True):
         R""" Change neighbor list parameters.
 
@@ -169,7 +181,7 @@ class nlist:
         hoomd.util.print_status_line();
 
         if self.cpp_nlist is None:
-            hoomd.context.msg.error('Bug in hoomd_script: cpp_nlist not set, please report\n');
+            hoomd.context.msg.error('Bug in hoomd: cpp_nlist not set, please report\n');
             raise RuntimeError('Error setting neighbor list parameters');
 
         # update the parameters
@@ -193,7 +205,7 @@ class nlist:
 
         - Directly bonded particles.
         - Directly constrained particles.
-        - Particles that are in the same rigid body.
+        - Particles that are in the same body (i.e. have the same body flag). Note that these bodies need not be rigid.
 
         reset_exclusions allows the defaults to be overridden to add other exclusions or to remove
         the exclusion for bonded or constrained particles.
@@ -231,7 +243,7 @@ class nlist:
         self.is_exclusion_overridden = True;
 
         if self.cpp_nlist is None:
-            hoomd.context.msg.error('Bug in hoomd_script: cpp_nlist not set, please report\n');
+            hoomd.context.msg.error('Bug in hoomd: cpp_nlist not set, please report\n');
             raise RuntimeError('Error resetting exclusions');
 
         # clear all of the existing exclusions
@@ -292,6 +304,27 @@ class nlist:
         # collect and print statistics about the number of exclusions.
         self.cpp_nlist.countExclusions();
 
+    def add_exclusion(self, i, j):
+        R"""Add a specific pair of particles to the exclusion list.
+
+        Args:
+            i (int): The tag of the first particle in the pair.
+            j (int): The tag of the second particle in the pair.
+
+        Examples::
+
+            nl.add_exclusions(system.particles[0].tag, system.particles[1].tag)
+        """
+        hoomd.util.print_status_line();
+
+        if self.cpp_nlist is None:
+            hoomd.context.msg.error('Bug in hoomd_script: cpp_nlist not set, please report\n');
+            raise RuntimeError('Error resetting exclusions');
+
+        # store exclusions for later use
+        self.exclusion_list.append((i, j))
+        self.cpp_nlist.addExclusion(i, j);
+
     def query_update_period(self):
         R""" Query the maximum possible check_period.
 
@@ -307,7 +340,7 @@ class nlist:
 
         """
         if self.cpp_nlist is None:
-            hoomd.context.msg.error('Bug in hoomd_script: cpp_nlist not set, please report\n');
+            hoomd.context.msg.error('Bug in hoomd: cpp_nlist not set, please report\n');
             raise RuntimeError('Error setting neighbor list parameters');
 
         return self.cpp_nlist.getSmallestRebuild()-1;
@@ -347,7 +380,7 @@ class nlist:
             hoomd.context.msg.error("Cannot tune r_buff before initialization\n");
 
         if self.cpp_nlist is None:
-            hoomd.context.msg.error('Bug in hoomd_script: cpp_nlist not set, please report\n')
+            hoomd.context.msg.error('Bug in hoomd: cpp_nlist not set, please report\n')
             raise RuntimeError('Error tuning neighbor list')
 
         # quiet the tuner starting here so that the user doesn't see all of the parameter set and run calls
@@ -533,9 +566,7 @@ class cell(nlist):
     spatially sorted into cells based on the largest pairwise cutoff radius attached to this instance of the neighbor
     list. Particles then query their adjacent cells, and neighbors are included based on pairwise cutoffs. This method
     is very efficient for systems with nearly monodisperse cutoffs, but performance degrades for large cutoff radius
-    asymmetries due to the significantly increased number of particles per cell. Users can create multiple neighbor
-    lists, and may see significant performance increases by doing so for systems with size asymmetry, especially when
-    used in conjunction with :py:class:`tree`.
+    asymmetries due to the significantly increased number of particles per cell.
 
     Use base class methods to change parameters (:py:meth:`set_params <nlist.set_params>`), reset the exclusion list
     (:py:meth:`reset_exclusions <nlist.reset_exclusions>`) or tune *r_buff* (:py:meth:`tune <nlist.tune>`).
@@ -613,7 +644,8 @@ class stencil(nlist):
     per particle type based on the largest cutoff radius that type participates in, which defines the bins that the
     particle must search in. Distances to the bins in the stencil are precomputed so that certain particles can be
     quickly excluded from the neighbor list, leading to improved performance compared to :py:class:`cell` when there is size
-    disparity in the cutoff radius.
+    disparity in the cutoff radius. The memory demands of :py:class:`stencil` can also be lower than :py:class:`cell` if your
+    system is large and has many small cells in it; however, :py:class:`tree` is usually a better choice for these systems.
 
     The performance of the stencil depends strongly on the choice of *cell_width*. The best performance is obtained
     when the cutoff radii are multiples of the *cell_width*, and when the *cell_width* covers the simulation box with
@@ -723,7 +755,7 @@ class stencil(nlist):
             hoomd.context.msg.error("Cannot tune r_buff before initialization\n");
 
         if self.cpp_nlist is None:
-            hoomd.context.msg.error('Bug in hoomd_script: cpp_nlist not set, please report\n')
+            hoomd.context.msg.error('Bug in hoomd: cpp_nlist not set, please report\n')
             raise RuntimeError('Error tuning neighbor list')
 
         min_cell_width = min_width
@@ -786,7 +818,7 @@ class stencil(nlist):
 stencil.cur_id = 0
 
 class tree(nlist):
-    R""" Fast neighbor list for size asymmetric particles.
+    R""" Bounding volume hierarchy based neighbor list.
 
     Args:
         r_buff (float):  Buffer width.
@@ -798,15 +830,14 @@ class tree(nlist):
     :py:class:`tree` creates a neighbor list using bounding volume hierarchy (BVH) tree traversal. Pair potentials are attached
     for computing non-bonded pairwise interactions. A BVH tree of axis-aligned bounding boxes is constructed per particle
     type, and each particle queries each tree to determine its neighbors. This method of searching leads to significantly
-    improved performance compared to cell lists in systems with moderate size asymmetry, but has poorer performance
-    for monodisperse systems. The user should carefully benchmark neighbor list build times to select the appropriate
-    neighbor list construction type.
+    improved performance compared to cell lists in systems with moderate size asymmetry, but has slightly poorer performance
+    (10% slower) for monodisperse systems. :py:class:`tree` can also be slower than :py:class:`cell` if there are multiple
+    types in the system, but the cutoffs between types are identical. (This is because one BVH is created per type.)
+    The user should carefully benchmark neighbor list build times to select the appropriate neighbor list construction type.
 
-    `M.P. Howard et al. 2016 <http://dx.doi.org/10.1016/j.cpc.2016.02.003>`_ describes this neighbor list implementation
-    in HOOMD-blue. Cite it if you utilize this neighbor list style in your work.
-
-    Users can create multiple neighbor lists, and may see significant performance increases by doing so for systems with
-    size asymmetry, especially when used in conjunction with nlist.cell.
+    `M.P. Howard et al. 2016 <http://dx.doi.org/10.1016/j.cpc.2016.02.003>`_ describes the original implementation of this
+    algorithm for HOOMD-blue. `M.P. Howard et al. 2019 <https://doi.org/10.1016/j.commatsci.2019.04.004>`_ describes the
+    improved algorithm that is currently implemented. Cite both if you utilize this neighbor list style in your work.
 
     Examples::
 
@@ -820,15 +851,12 @@ class tree(nlist):
         is the only pair potential requiring this shifting, and setting *d_max* for other potentials may lead to
         significantly degraded performance or incorrect results.
 
-    .. attention::
-        BVH tree neighbor lists are currently only supported on Kepler (sm_30) architecture devices and newer.
-
     """
     def __init__(self, r_buff=0.4, check_period=1, d_max=None, dist_check=True, name=None):
         hoomd.util.print_status_line()
 
         # register the citation
-        c = hoomd.cite.article(cite_key='howard2016',
+        c1 = hoomd.cite.article(cite_key='howard2016',
                          author=['M P Howard', 'J A Anderson', 'A Nikoubashman', 'S C Glotzer', 'A Z Panagiotopoulos'],
                          title='Efficient neighbor list calculation for molecular simulation of colloidal systems using graphics processing units',
                          journal='Computer Physics Communications',
@@ -838,7 +866,17 @@ class tree(nlist):
                          year='2016',
                          doi='10.1016/j.cpc.2016.02.003',
                          feature='tree neighbor lists')
-        hoomd.cite._ensure_global_bib().add(c)
+        c2 = hoomd.cite.article(cite_key='howard2019',
+                         author=['M P Howard', 'A Statt', 'F Madutsa', 'T M Truskett', 'A Z Panagiotopoulos'],
+                         title='Quantized bounding volume hierarchies for neighbor search in molecular simulations on graphics processing units',
+                         journal='Computational Materials Science',
+                         volume=164,
+                         pages='139--146',
+                         month='Jun',
+                         year='2019',
+                         doi='10.1016/j.commatsci.2019.04.004',
+                         feature='tree neighbor lists')
+        hoomd.cite._ensure_global_bib().add((c1,c2))
 
         nlist.__init__(self)
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -40,7 +40,7 @@ inline void Sleep(int msec)
 
 //! Source of time measurements
 /*! Access the operating system's timer and reports a time since construction in nanoseconds.
-    The resolution of the timer is system dependant, though typically around 10 microseconds
+    The resolution of the timer is system dependent, though typically around 10 microseconds
     or better. Critical accessor methods are inlined for low overhead
     \ingroup utils
 */

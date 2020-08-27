@@ -86,6 +86,7 @@ set(_md_headers ActiveForceComputeGPU.h
                 EvaluatorPairMie.h
                 EvaluatorPairMoliere.h
                 EvaluatorPairMorse.h
+                EvaluatorPairFourier.h
                 EvaluatorPairReactionField.h
                 EvaluatorPairSLJ.h
                 EvaluatorPairYukawa.h
@@ -211,6 +212,7 @@ set(_md_cu_sources ActiveForceComputeGPU.cu
                       MieDriverPotentialPairGPU.cu
                       MoliereDriverPotentialPairGPU.cu
                       MorseDriverPotentialPairGPU.cu
+                      FourierDriverPotentialPairGPU.cu
                       PairLJ1208DriverPotentialPairGPU.cu
                       ReactionFieldDriverPotentialPairGPU.cu
                       SLJDriverPotentialPairGPU.cu
@@ -263,14 +265,13 @@ endif()
 
 # link the library to its dependencies
 if (CUSOLVER_AVAILABLE)
-    if(${CUDA_VERSION} VERSION_LESS 8.0)
-        target_link_libraries(_md PRIVATE _hoomd ${HOOMD_COMMON_LIBS} ${CUDA_cusolver_LIBRARY} ${CUDA_cusparse_LIBRARY})
-    else()
-        # CUDA 8.0 requires that we link in gomp
-        target_link_libraries(_md PRIVATE _hoomd ${HOOMD_COMMON_LIBS} ${CUDA_cusolver_LIBRARY} ${CUDA_cusparse_LIBRARY} gomp)
-    endif()
+    # CUDA 8.0 requires that we link in gomp
+    target_link_libraries(_md PRIVATE _hoomd ${HOOMD_COMMON_LIBS} ${CUDA_cusolver_LIBRARY} ${CUDA_cusparse_LIBRARY} gomp)
 else()
     target_link_libraries(_md PRIVATE _hoomd ${HOOMD_COMMON_LIBS})
+endif()
+if (ENABLE_CUDA)
+    target_link_libraries(_md PRIVATE neighbor)
 endif()
 
 # if we are compiling with MPI support built in, set appropriate

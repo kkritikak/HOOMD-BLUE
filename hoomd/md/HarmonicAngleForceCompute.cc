@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -240,7 +240,7 @@ void HarmonicAngleForceCompute::computeForces(unsigned int timestep)
         angle_virial[4] = Scalar(1./3.) * ( dab.z*fab[1] + dcb.z*fcb[1] );
         angle_virial[5] = Scalar(1./3.) * ( dab.z*fab[2] + dcb.z*fcb[2] );
 
-        // Now, apply the force to each individual atom a,b,c, and accumlate the energy/virial
+        // Now, apply the force to each individual atom a,b,c, and accumulate the energy/virial
         // do not update ghost particles
         if (idx_a < m_pdata->getN())
             {

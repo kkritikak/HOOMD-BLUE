@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 #ifndef __UPDATER_MUVT_IMPLICIT_H__
@@ -42,7 +42,7 @@ class UpdaterMuVTImplicit : public UpdaterMuVT<Shape>
         /*! Check for overlaps in the new configuration
          * \param timestep  time step
          * \param type Type of particle to test
-         * \param pos Position of fictitous particle
+         * \param pos Position of fictitious particle
          * \param orientation Orientation of particle
          * \param lnboltzmann Log of Boltzmann weight of insertion attempt (return value)
          * \returns True if boltzmann weight is non-zero
@@ -163,8 +163,8 @@ void export_UpdaterMuVTImplicit(pybind11::module& m, const std::string& name)
     }
 
 /*! Constructor
-    \param sysdef The system defintion
-    \param mc_implict The HPMC integrator
+    \param sysdef The system definition
+    \param mc_implicit The HPMC integrator
     \param seed RNG seed
     \param npartition How many partitions to use in parallel for Gibbs ensemble (n=1 == grand canonical)
 */
@@ -338,7 +338,7 @@ bool UpdaterMuVTImplicit<Shape,Integrator>::trySwitchType(unsigned int timestep,
     // reject if depletant overlap
     if (! this->m_gibbs && n_overlap)
         {
-        // FIXME: need to apply GC acceptance criterium here for muVT
+        // FIXME: need to apply GC acceptance criterion here for muVT
         nonzero = false;
         }
 
@@ -620,7 +620,7 @@ bool UpdaterMuVTImplicit<Shape,Integrator>::moveDepletantsInUpdatedRegion(unsign
                     unsigned int j = h_rtag.data[tag];
                     assert(j < this->m_pdata->getN());
 
-                    // load the old position and orientation of the udpated particle
+                    // load the old position and orientation of the updated particle
                     Scalar4 postype_j = h_postype.data[j];
                     Scalar4 orientation_j = h_orientation.data[j];
 
@@ -691,7 +691,8 @@ bool UpdaterMuVTImplicit<Shape,Integrator>::moveDepletantsIntoNewPosition(unsign
     if (this->m_pdata->getDomainDecomposition())
         {
         const BoxDim& global_box = this->m_pdata->getGlobalBox();
-        is_local = this->m_exec_conf->getRank() == this->m_pdata->getDomainDecomposition()->placeParticle(global_box, vec_to_scalar3(pos));
+        ArrayHandle<unsigned int> h_cart_ranks(this->m_pdata->getDomainDecomposition()->getCartRanks(), access_location::host, access_mode::read);
+        is_local = this->m_exec_conf->getRank() == this->m_pdata->getDomainDecomposition()->placeParticle(global_box, vec_to_scalar3(pos), h_cart_ranks.data);
         }
     #endif
 
@@ -999,7 +1000,7 @@ bool UpdaterMuVTImplicit<Shape,Integrator>::moveDepletantsIntoOldPosition(unsign
                 unsigned int j = h_rtag.data[tag];
                 assert(j < this->m_pdata->getN());
 
-                // load the old position and orientation of the udpated particle
+                // load the old position and orientation of the updated particle
                 Scalar4 postype_j = h_postype.data[j];
                 Scalar4 orientation_j = h_orientation.data[j];
 
@@ -1061,7 +1062,8 @@ unsigned int UpdaterMuVTImplicit<Shape,Integrator>::countDepletantOverlapsInNewP
     if (this->m_pdata->getDomainDecomposition())
         {
         const BoxDim& global_box = this->m_pdata->getGlobalBox();
-        is_local = this->m_exec_conf->getRank() == this->m_pdata->getDomainDecomposition()->placeParticle(global_box, vec_to_scalar3(pos));
+        ArrayHandle<unsigned int> h_cart_ranks(this->m_pdata->getDomainDecomposition()->getCartRanks(), access_location::host, access_mode::read);
+        is_local = this->m_exec_conf->getRank() == this->m_pdata->getDomainDecomposition()->placeParticle(global_box, vec_to_scalar3(pos), h_cart_ranks.data);
         }
     #endif
 
@@ -1222,7 +1224,8 @@ unsigned int UpdaterMuVTImplicit<Shape,Integrator>::countDepletantOverlaps(unsig
     if (this->m_pdata->getDomainDecomposition())
         {
         const BoxDim& global_box = this->m_pdata->getGlobalBox();
-        is_local = this->m_exec_conf->getRank() == this->m_pdata->getDomainDecomposition()->placeParticle(global_box, vec_to_scalar3(pos));
+        ArrayHandle<unsigned int> h_cart_ranks(this->m_pdata->getDomainDecomposition()->getCartRanks(), access_location::host, access_mode::read);
+        is_local = this->m_exec_conf->getRank() == this->m_pdata->getDomainDecomposition()->placeParticle(global_box, vec_to_scalar3(pos), h_cart_ranks.data);
         }
     #endif
 

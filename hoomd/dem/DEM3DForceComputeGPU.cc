@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mspells
@@ -26,7 +26,7 @@ using namespace std;
 
 /*! \param sysdef System to compute forces on
   \param nlist Neighborlist to use for computing the forces
-  \param r_cut Cuttoff radius beyond which the force is 0
+  \param r_cut Cutoff radius beyond which the force is 0
   \param potential Global potential parameters for the compute
 
   \post memory is allocated with empty shape vectors
@@ -41,7 +41,7 @@ DEM3DForceComputeGPU<Real, Real4, Potential>::DEM3DForceComputeGPU(std::shared_p
     : DEM3DForceCompute<Real, Real4, Potential>(sysdef, nlist, r_cut, potential)
     {
     // can't run on the GPU if there aren't any GPUs in the execution configuration
-    if (!this->exec_conf->isCUDAEnabled())
+    if (!this->m_exec_conf->isCUDAEnabled())
         {
         this->m_exec_conf->msg->error() << "Creating a DEM3DForceComputeGPU with no GPU in the execution configuration" << endl;
         throw std::runtime_error("Error initializing DEM3DForceComputeGPU");
@@ -50,8 +50,8 @@ DEM3DForceComputeGPU<Real, Real4, Potential>::DEM3DForceComputeGPU(std::shared_p
 #if SINGLE_PRECISION
     int cudaVersion(0);
     cudaRuntimeGetVersion(&cudaVersion);
-    if (this->exec_conf->dev_prop.major == 5 &&
-        this->exec_conf->dev_prop.minor == 2 &&
+    if (this->m_exec_conf->dev_prop.major == 5 &&
+        this->m_exec_conf->dev_prop.minor == 2 &&
         cudaVersion <= 7050)
         {
         this->m_exec_conf->msg->warning() << "3D DEM in single precision is "
@@ -100,7 +100,7 @@ size_t DEM3DForceComputeGPU<Real, Real4, Potential>::maxGPUThreads() const
             std::pair<unsigned int, unsigned int> edge(smaller, larger);
             edges.insert(edge);
             }
-        maxGPUThreads = max(maxGPUThreads, 2*this->m_vertsVec[i].size() + edges.size());
+        maxGPUThreads = max(maxGPUThreads, 2*this->m_shapes[i].size() + edges.size());
         }
 
     return maxGPUThreads;
@@ -120,7 +120,7 @@ void DEM3DForceComputeGPU<Real, Real4, Potential>::computeForces(unsigned int ti
     this->m_nlist->compute(timestep);
 
     // start the profile
-    if (this->m_prof) this->m_prof->push(this->exec_conf, "DEM3D pair");
+    if (this->m_prof) this->m_prof->push(this->m_exec_conf, "DEM3D pair");
 
     // The GPU implementation CANNOT handle a half neighborlist, error out now
     bool third_law = this->m_nlist->getStorageMode() == NeighborList::half;
@@ -203,7 +203,7 @@ void DEM3DForceComputeGPU<Real, Real4, Potential>::computeForces(unsigned int ti
         d_firstTypeEdge.data, d_numTypeEdges.data, d_numTypeFaces.data,
         d_vertexConnectivity.data, d_edges.data);
 
-    if (this->exec_conf->isCUDAErrorCheckingEnabled())
+    if (this->m_exec_conf->isCUDAErrorCheckingEnabled())
         CHECK_CUDA_ERROR();
     m_tuner->end();
 
@@ -211,7 +211,7 @@ void DEM3DForceComputeGPU<Real, Real4, Potential>::computeForces(unsigned int ti
     int64_t n_calc = int64_t(avg_neigh * this->m_pdata->getN());
     int64_t mem_transfer = this->m_pdata->getN() * (4 + 16 + 20) + n_calc * (4 + 16);
     int64_t flops = n_calc * (3+12+5+2+3+11+3+8+7);
-    if (this->m_prof) this->m_prof->pop(this->exec_conf, flops, mem_transfer);
+    if (this->m_prof) this->m_prof->pop(this->m_exec_conf, flops, mem_transfer);
     }
 
 #endif

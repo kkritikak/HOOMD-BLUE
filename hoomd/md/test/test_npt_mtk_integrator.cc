@@ -1,8 +1,5 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
-
-
-
 
 #include <iostream>
 
@@ -30,7 +27,13 @@
 #include "hoomd/CellListGPU.h"
 #endif
 
-#include "hoomd/Saru.h"
+#include "hoomd/RandomNumbers.h"
+#include "hoomd/extern/pybind/include/pybind11/pybind11.h"
+#include "hoomd/extern/pybind/include/pybind11/embed.h"
+namespace py = pybind11;
+
+#include "hoomd/Variant.h"
+
 using namespace hoomd;
 
 #include <math.h>
@@ -46,6 +49,12 @@ using namespace std::placeholders;
 #include "hoomd/test/upp11_config.h"
 HOOMD_UP_MAIN();
 
+PYBIND11_EMBEDDED_MODULE(variant, m)
+    {
+    export_Variant(m);
+    }
+
+
 typedef struct
     {
     std::shared_ptr<SystemDefinition> sysdef;
@@ -60,7 +69,7 @@ typedef struct
     unsigned int flags;
     } args_t;
 
-//! Typedef'd NPTMTKUpdator class factory
+//! Typedef'd NPTMTKUpdater class factory
 typedef std::function<std::shared_ptr<TwoStepNPTMTK> (args_t args) > twostep_npt_mtk_creator;
 
 //! Basic functionality test of a generic TwoStepNPTMTK
@@ -184,7 +193,7 @@ void npt_mtk_updater_test(twostep_npt_mtk_creator npt_mtk_creator, std::shared_p
         npt_mtk->addIntegrationMethod(two_step_npt_mtk);
         npt_mtk->prepRun(0);
 
-        // step for a 10,000 timesteps to relax pessure and temperature
+        // step for a 10,000 timesteps to relax pressure and temperature
         // before computing averages
 
         std::cout << "Equilibrating 10,000 steps... " << std::endl;
@@ -315,16 +324,6 @@ void npt_mtk_updater_test(twostep_npt_mtk_creator npt_mtk_creator, std::shared_p
         }
     }
 
-//! Helper function to get gaussian random numbers
-Scalar inline gaussianRand(detail::Saru& saru, Scalar sigma)
-{
-    Scalar x1 = saru.d();
-    Scalar x2 = saru.d();
-    Scalar z = sqrt(-2.0 * log(x1)) * cos(2 * M_PI * x2);
-    z = z * sigma;
-    return z;
-}
-
 //! Test ability to integrate in the NPH ensemble
 void nph_integration_test(twostep_npt_mtk_creator nph_creator, std::shared_ptr<ExecutionConfiguration> exec_conf)
     {
@@ -343,7 +342,7 @@ void nph_integration_test(twostep_npt_mtk_creator nph_creator, std::shared_ptr<E
     std::shared_ptr<ParticleData> pdata = sysdef->getParticleData();
 
     // give the particles velocities according to a Maxwell-Boltzmann distribution
-    detail::Saru saru(54321);
+    RandomGenerator rng(54321);
 
     // total up the system momentum
     Scalar3 total_momentum = make_scalar3(0.0, 0.0, 0.0);
@@ -355,9 +354,10 @@ void nph_integration_test(twostep_npt_mtk_creator nph_creator, std::shared_ptr<E
         // generate gaussian velocities
         Scalar mass = pdata->getMass(idx);
         Scalar sigma = T0 / mass;
-        Scalar vx = gaussianRand(saru, sigma);
-        Scalar vy = gaussianRand(saru, sigma);
-        Scalar vz = gaussianRand(saru, sigma);
+        NormalDistribution<Scalar> normal(sigma);
+        Scalar vx = normal(rng);
+        Scalar vy = normal(rng);
+        Scalar vz = normal(rng);
 
         // total up the system momentum
         total_momentum.x += vx * mass;
@@ -455,7 +455,7 @@ void nph_integration_test(twostep_npt_mtk_creator nph_creator, std::shared_ptr<E
     nph->addForceCompute(fc);
     nph->prepRun(0);
 
-    // step for a 10,000 timesteps to relax pessure and tempreratue
+    // step for a 10,000 timesteps to relax pressure and temperature
     // before computing averages
 
     for (int i = 0; i < 10000; i++)
@@ -646,7 +646,7 @@ void npt_mtk_updater_aniso(twostep_npt_mtk_creator npt_mtk_creator, std::shared_
 
         npt_mtk->prepRun(0);
 
-        // step for a 10,000 timesteps to relax pessure and temperature
+        // step for a 10,000 timesteps to relax pressure and temperature
         // before computing averages
 
         unsigned int n_equil_steps = 1500;
@@ -785,6 +785,18 @@ void npt_mtk_updater_aniso(twostep_npt_mtk_creator npt_mtk_creator, std::shared_
 std::shared_ptr<TwoStepNPTMTK> base_class_npt_mtk_creator(args_t args)
     {
     std::shared_ptr<Variant> P_variant(new VariantConst(args.P));
+    std::shared_ptr<Variant> zero_variant(new VariantConst(0.0));
+    // necessary to create python objects
+    py::scoped_interpreter guard{};
+    py::module::import("variant");
+    py::list S;
+    S.append(P_variant);
+    S.append(P_variant);
+    S.append(P_variant);
+    S.append(zero_variant);
+    S.append(zero_variant);
+    S.append(zero_variant);
+
     std::shared_ptr<Variant> T_variant(new VariantConst(args.T));
     // for the tests, we can assume that group is the all group
     return std::shared_ptr<TwoStepNPTMTK>(new TwoStepNPTMTK(args.sysdef,
@@ -794,7 +806,7 @@ std::shared_ptr<TwoStepNPTMTK> base_class_npt_mtk_creator(args_t args)
         args.tau,
         args.tauP,
         T_variant,
-        P_variant,
+        S,
         args.mode,
         args.flags,
         false));
@@ -803,6 +815,19 @@ std::shared_ptr<TwoStepNPTMTK> base_class_npt_mtk_creator(args_t args)
 std::shared_ptr<TwoStepNPTMTK> base_class_nph_creator(args_t args)
     {
     std::shared_ptr<Variant> P_variant(new VariantConst(args.P));
+    std::shared_ptr<Variant> zero_variant(new VariantConst(0.0));
+    // necessary to create python objects
+    py::scoped_interpreter guard{};
+    py::module::import("variant");
+    py::list S;
+    S.append(P_variant);
+    S.append(P_variant);
+    S.append(P_variant);
+    S.append(zero_variant);
+    S.append(zero_variant);
+    S.append(zero_variant);
+    std::cout << py::len(S) << std::endl;
+
     std::shared_ptr<Variant> T_variant(new VariantConst(args.T));
     // for the tests, we can assume that group is the all group
     return std::shared_ptr<TwoStepNPTMTK>(new TwoStepNPTMTK(args.sysdef,
@@ -812,7 +837,7 @@ std::shared_ptr<TwoStepNPTMTK> base_class_nph_creator(args_t args)
         args.tau,
         args.tauP,
         T_variant,
-        P_variant,
+        S,
         args.mode,
         args.flags,true));
     }
@@ -822,18 +847,41 @@ std::shared_ptr<TwoStepNPTMTK> base_class_nph_creator(args_t args)
 std::shared_ptr<TwoStepNPTMTK> gpu_npt_mtk_creator(args_t args)
     {
     std::shared_ptr<Variant> P_variant(new VariantConst(args.P));
+    std::shared_ptr<Variant> zero_variant(new VariantConst(0.0));
+    // necessary to create python objects
+    py::scoped_interpreter guard{};
+    py::module::import("variant");
+    py::list S;
+    S.append(P_variant);
+    S.append(P_variant);
+    S.append(P_variant);
+    S.append(zero_variant);
+    S.append(zero_variant);
+    S.append(zero_variant);
     std::shared_ptr<Variant> T_variant(new VariantConst(args.T));
     // for the tests, we can assume that group is the all group
     return std::shared_ptr<TwoStepNPTMTK>(new TwoStepNPTMTKGPU(args.sysdef, args.group, args.thermo_group, args.thermo_group_t,
-        args.tau, args.tauP, T_variant, P_variant,args.mode,args.flags,false));
+        args.tau, args.tauP, T_variant, S,args.mode,args.flags,false));
     }
 
 std::shared_ptr<TwoStepNPTMTK> gpu_nph_creator(args_t args)
     {
     std::shared_ptr<Variant> P_variant(new VariantConst(args.P));
+    std::shared_ptr<Variant> zero_variant(new VariantConst(0.0));
+    // necessary to create python objects
+    py::scoped_interpreter guard{};
+    py::module::import("variant");
+    py::list S;
+    S.append(P_variant);
+    S.append(P_variant);
+    S.append(P_variant);
+    S.append(zero_variant);
+    S.append(zero_variant);
+    S.append(zero_variant);
+
     std::shared_ptr<Variant> T_variant(new VariantConst(args.T));
     return std::shared_ptr<TwoStepNPTMTK>(new TwoStepNPTMTKGPU(args.sysdef, args.group, args.thermo_group, args.thermo_group_t,
-        args.tau, args.tauP, T_variant, P_variant,args.mode,args.flags,true));
+        args.tau, args.tauP, T_variant, S, args.mode,args.flags,true));
     }
 #endif
 

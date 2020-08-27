@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
@@ -30,7 +30,7 @@ mpcd::CommunicatorGPU::CommunicatorGPU(std::shared_ptr<mpcd::SystemData> system_
       m_comm_mask(0),
       m_tmp_keys(m_exec_conf)
     {
-    // initialize communciation stages
+    // initialize communication stages
     initializeCommunicationStages();
 
     GPUArray<unsigned int> neigh_send(neigh_max,m_exec_conf);
@@ -66,7 +66,7 @@ void mpcd::CommunicatorGPU::initializeCommunicationStages()
         m_max_stages = 3;
         }
 
-    // accesss neighbors and adjacency  array
+    // access neighbors and adjacency  array
     ArrayHandle<unsigned int> h_adj_mask(m_adj_mask, access_location::host, access_mode::read);
 
     Index3D di= m_decomposition->getDomainIndexer();
@@ -154,13 +154,19 @@ void mpcd::CommunicatorGPU::initializeCommunicationStages()
             }
         }
 
-    m_exec_conf->msg->notice(4) << "MPCD ComunicatorGPU: Using " << m_num_stages
+    m_exec_conf->msg->notice(4) << "MPCD CommunicatorGPU: Using " << m_num_stages
         << " communication stage(s)." << std::endl;
     }
 
 void mpcd::CommunicatorGPU::migrateParticles(unsigned int timestep)
     {
     if (m_prof) m_prof->push("migrate");
+
+    if (m_mpcd_pdata->getNVirtual() > 0)
+        {
+        m_exec_conf->msg->warning() << "MPCD communication with virtual particles set is not supported, removing them." << std::endl;
+        m_mpcd_pdata->removeVirtualParticles();
+        }
 
     // reserve per neighbor memory
     m_n_send_ptls.resize(m_n_unique_neigh);
@@ -272,8 +278,8 @@ void mpcd::CommunicatorGPU::migrateParticles(unsigned int timestep)
                 if (m_n_send_ptls[ineigh])
                     {
                     MPI_Isend(h_sendbuf.data+sendidx,
-                        m_n_send_ptls[ineigh]*sizeof(mpcd::detail::pdata_element),
-                        MPI_BYTE,
+                        m_n_send_ptls[ineigh],
+                        m_pdata_element,
                         neighbor,
                         1,
                         m_mpi_comm,
@@ -286,8 +292,8 @@ void mpcd::CommunicatorGPU::migrateParticles(unsigned int timestep)
                 if (m_n_recv_ptls[ineigh])
                     {
                     MPI_Irecv(h_recvbuf.data+m_offsets[ineigh],
-                        m_n_recv_ptls[ineigh]*sizeof(mpcd::detail::pdata_element),
-                        MPI_BYTE,
+                        m_n_recv_ptls[ineigh],
+                        m_pdata_element,
                         neighbor,
                         1,
                         m_mpi_comm,

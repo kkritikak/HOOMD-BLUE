@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 // Maintainer: mphoward
@@ -36,9 +36,6 @@ class PYBIND11_EXPORT SRDCollisionMethod : public mpcd::CollisionMethod
 
         //! Destructor
         virtual ~SRDCollisionMethod();
-
-        //! Implementation of the collision rule
-        virtual void collide(unsigned int timestep);
 
         //! Get the MPCD rotation angle
         double getRotationAngle() const
@@ -97,6 +94,9 @@ class PYBIND11_EXPORT SRDCollisionMethod : public mpcd::CollisionMethod
         std::shared_ptr<::Variant> m_T; //!< Temperature for thermostat
         GPUVector<double> m_factors;    //!< Cell-level rescale factors
 
+        //! Implementation of the collision rule
+        virtual void rule(unsigned int timestep);
+
         //! Randomly draw cell rotation vectors
         virtual void drawRotationVectors(unsigned int timestep);
 
@@ -110,6 +110,6 @@ namespace detail
 void export_SRDCollisionMethod(pybind11::module& m);
 } // end namespace detail
 
-} // end namespace azplugins
+} // end namespace mpcd
 
 #endif // MPCD_SRD_COLLISION_METHOD_H_

@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -72,8 +72,8 @@ void improper_force_basic_tests(improperforce_creator tf_creator, std::shared_pt
     fc_4->compute(0);
 
     {
-    GPUArray<Scalar4>& force_array_1 =  fc_4->getForceArray();
-    GPUArray<Scalar>& virial_array_1 =  fc_4->getVirialArray();
+    GlobalArray<Scalar4>& force_array_1 =  fc_4->getForceArray();
+    GlobalArray<Scalar>& virial_array_1 =  fc_4->getVirialArray();
     unsigned int pitch = virial_array_1.getPitch();
     ArrayHandle<Scalar4> h_force_1(force_array_1,access_location::host,access_mode::read);
     ArrayHandle<Scalar> h_virial_1(virial_array_1,access_location::host,access_mode::read);
@@ -92,7 +92,7 @@ void improper_force_basic_tests(improperforce_creator tf_creator, std::shared_pt
     }
 
     // add an impropers and check again
-    sysdef_4->getImproperData()->addBondedGroup(Dihedral(0,0,1,2,3)); // add type 0 improper bewtween atoms 0-1-2-3
+    sysdef_4->getImproperData()->addBondedGroup(Dihedral(0,0,1,2,3)); // add type 0 improper between atoms 0-1-2-3
     fc_4->compute(1);
     /*
      FORCE 1: fx = 0.024609  fy = -0.178418  fz = -0.221484
@@ -105,8 +105,8 @@ void improper_force_basic_tests(improperforce_creator tf_creator, std::shared_pt
 
     {
     // this time there should be a force
-    GPUArray<Scalar4>& force_array_2 =  fc_4->getForceArray();
-    GPUArray<Scalar>& virial_array_2 =  fc_4->getVirialArray();
+    GlobalArray<Scalar4>& force_array_2 =  fc_4->getForceArray();
+    GlobalArray<Scalar>& virial_array_2 =  fc_4->getVirialArray();
     unsigned int pitch = virial_array_2.getPitch();
     ArrayHandle<Scalar4> h_force_2(force_array_2,access_location::host,access_mode::read);
     ArrayHandle<Scalar> h_virial_2(virial_array_2,access_location::host,access_mode::read);
@@ -167,8 +167,8 @@ void improper_force_basic_tests(improperforce_creator tf_creator, std::shared_pt
     fc_4->compute(1);
 
     {
-    GPUArray<Scalar4>& force_array_3 =  fc_4->getForceArray();
-    GPUArray<Scalar>& virial_array_3 =  fc_4->getVirialArray();
+    GlobalArray<Scalar4>& force_array_3 =  fc_4->getForceArray();
+    GlobalArray<Scalar>& virial_array_3 =  fc_4->getVirialArray();
     unsigned int pitch = virial_array_3.getPitch();
     ArrayHandle<Scalar4> h_force_3(force_array_3,access_location::host,access_mode::read);
     ArrayHandle<Scalar> h_virial_3(virial_array_3,access_location::host,access_mode::read);
@@ -193,7 +193,7 @@ void improper_force_basic_tests(improperforce_creator tf_creator, std::shared_pt
     ////////////////////////////////////////////////////////////////////
     // now, lets do a more thorough test and include boundary conditions
     // there are way too many permutations to test here, so I will simply
-    // test +x, -x, +y, -y, +z, and -z independantly
+    // test +x, -x, +y, -y, +z, and -z independently
     // build a 8 particle system with particles across each boundary
     // also test more than one type of impropers
     std::shared_ptr<SystemDefinition> sysdef_8(new SystemDefinition(8, BoxDim(60.0, 70.0, 80.0), 1, 0, 0, 0, 2, exec_conf));
@@ -222,8 +222,8 @@ void improper_force_basic_tests(improperforce_creator tf_creator, std::shared_pt
 
     {
     // check that the forces are correctly computed
-    GPUArray<Scalar4>& force_array_4 =  fc_8->getForceArray();
-    GPUArray<Scalar>& virial_array_4 =  fc_8->getVirialArray();
+    GlobalArray<Scalar4>& force_array_4 =  fc_8->getForceArray();
+    GlobalArray<Scalar>& virial_array_4 =  fc_8->getVirialArray();
     unsigned int pitch = virial_array_4.getPitch();
     ArrayHandle<Scalar4> h_force_4(force_array_4,access_location::host,access_mode::read);
     ArrayHandle<Scalar> h_virial_4(virial_array_4,access_location::host,access_mode::read);
@@ -353,8 +353,8 @@ void improper_force_basic_tests(improperforce_creator tf_creator, std::shared_pt
     fc_5->compute(0);
 
     {
-    GPUArray<Scalar4>& force_array_5 =  fc_5->getForceArray();
-    GPUArray<Scalar>& virial_array_5 =  fc_5->getVirialArray();
+    GlobalArray<Scalar4>& force_array_5 =  fc_5->getForceArray();
+    GlobalArray<Scalar>& virial_array_5 =  fc_5->getVirialArray();
     unsigned int pitch = virial_array_5.getPitch();
     ArrayHandle<Scalar4> h_force_5(force_array_5,access_location::host,access_mode::read);
     ArrayHandle<Scalar> h_virial_5(virial_array_5,access_location::host,access_mode::read);
@@ -421,7 +421,7 @@ void improper_force_comparison_tests(improperforce_creator tf_creator1,
                                      improperforce_creator tf_creator2,
                                      std::shared_ptr<ExecutionConfiguration> exec_conf)
     {
-    // INTERESTING NOTE: the code will depending on the number of ramdom particles
+    // INTERESTING NOTE: the code will depending on the number of random particles
     // even 1000 will make the code blow up, 500 is used for safety... hope it works!
     const unsigned int N = 500;
 
@@ -437,7 +437,7 @@ void improper_force_comparison_tests(improperforce_creator tf_creator1,
     fc1->setParams(0, Scalar(2.0), Scalar(3.0));
     fc2->setParams(0, Scalar(2.0), Scalar(3.0));
 
-    // add improperrs
+    // add impropers
     for (unsigned int i = 0; i < N-3; i++)
         {
         sysdef->getImproperData()->addBondedGroup(Dihedral(0, i, i+1,i+2, i+3));
@@ -449,12 +449,12 @@ void improper_force_comparison_tests(improperforce_creator tf_creator1,
 
     {
     // verify that the forces are identical (within roundoff errors)
-    GPUArray<Scalar4>& force_array_6 =  fc1->getForceArray();
-    GPUArray<Scalar>& virial_array_6 =  fc1->getVirialArray();
+    GlobalArray<Scalar4>& force_array_6 =  fc1->getForceArray();
+    GlobalArray<Scalar>& virial_array_6 =  fc1->getVirialArray();
     ArrayHandle<Scalar4> h_force_6(force_array_6,access_location::host,access_mode::read);
     ArrayHandle<Scalar> h_virial_6(virial_array_6,access_location::host,access_mode::read);
-    GPUArray<Scalar4>& force_array_7 =  fc2->getForceArray();
-    GPUArray<Scalar>& virial_array_7 =  fc2->getVirialArray();
+    GlobalArray<Scalar4>& force_array_7 =  fc2->getForceArray();
+    GlobalArray<Scalar>& virial_array_7 =  fc2->getVirialArray();
     ArrayHandle<Scalar4> h_force_7(force_array_7,access_location::host,access_mode::read);
     ArrayHandle<Scalar> h_virial_7(virial_array_7,access_location::host,access_mode::read);
 

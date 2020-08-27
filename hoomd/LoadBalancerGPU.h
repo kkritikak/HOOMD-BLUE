@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -61,7 +61,6 @@ class PYBIND11_EXPORT LoadBalancerGPU : public LoadBalancer
     private:
         std::unique_ptr<Autotuner> m_tuner;   //!< Autotuner for block size counting particles
         GPUArray<unsigned int> m_off_ranks;     //!< Array to hold the ranks of particles that have moved
-        GPUFlags<unsigned int> m_n_off_rank;    //!< Device flag to count the total number of particles off rank
     };
 
 //! Export the LoadBalancerGPU to python

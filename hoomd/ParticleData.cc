@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -16,6 +16,7 @@
 
 #ifdef ENABLE_CUDA
 #include "CachedAllocator.h"
+#include "GPUPartition.cuh"
 #endif
 
 #include "hoomd/extern/pybind/include/pybind11/numpy.h"
@@ -91,11 +92,20 @@ ParticleData::ParticleData(unsigned int N, const BoxDim &global_box, unsigned in
     if (decomposition) setDomainDecomposition(decomposition);
     #endif
 
-    // initialize box dimensions on all procesors
+    // initialize box dimensions on all processors
     setGlobalBox(global_box);
 
+    #ifdef ENABLE_CUDA
+    if (m_exec_conf->isCUDAEnabled())
+        {
+        m_gpu_partition = GPUPartition(m_exec_conf->getGPUIds());
+        m_memory_advice_last_Nmax = UINT_MAX;
+        }
+    #endif
+
     // initialize rtag array
-    GPUVector<unsigned int>(exec_conf).swap(m_rtag);
+    GlobalVector<unsigned int>(exec_conf).swap(m_rtag);
+    TAG_ALLOCATION(m_rtag);
 
     // initialize all processors
     initializeFromSnapshot(snap);
@@ -150,7 +160,7 @@ ParticleData::ParticleData(const SnapshotParticleData<Real>& snapshot,
     if (decomposition) setDomainDecomposition(decomposition);
     #endif
 
-    // initialize box dimensions on all procesors
+    // initialize box dimensions on all processors
     setGlobalBox(global_box);
 
     // it is an error for particles to be initialized outside of their box
@@ -160,8 +170,17 @@ ParticleData::ParticleData(const SnapshotParticleData<Real>& snapshot,
         throw runtime_error("Error initializing ParticleData");
         }
 
+    #ifdef ENABLE_CUDA
+    if (m_exec_conf->isCUDAEnabled())
+        {
+        m_gpu_partition = GPUPartition(m_exec_conf->getGPUIds());
+        m_memory_advice_last_Nmax = UINT_MAX;
+        }
+    #endif
+
     // initialize rtag array
-    GPUVector<unsigned int>(exec_conf).swap(m_rtag);
+    GlobalVector<unsigned int>(exec_conf).swap(m_rtag);
+    TAG_ALLOCATION(m_rtag);
 
     // initialize particle data with snapshot contents
     initializeFromSnapshot(snapshot);
@@ -241,6 +260,17 @@ const BoxDim & ParticleData::getGlobalBox() const
 */
 void ParticleData::notifyParticleSort()
     {
+    #ifdef ENABLE_CUDA
+    if (m_exec_conf->isCUDAEnabled())
+        {
+        // need to update GPUPartition if particle number changes
+        m_gpu_partition.setN(getN());
+
+        // update our CUDA hints
+        setGPUAdvice();
+        }
+    #endif
+
     m_sort_signal.emit();
     }
 
@@ -284,7 +314,7 @@ std::string ParticleData::getNameByType(unsigned int type) const
     // check for an invalid request
     if (type >= getNTypes())
         {
-        m_exec_conf->msg->error() << "Requesting type name for non-existant type " << type << endl;
+        m_exec_conf->msg->error() << "Requesting type name for non-existent type " << type << endl;
         throw runtime_error("Error mapping type name");
         }
 
@@ -303,7 +333,7 @@ void ParticleData::setTypeName(unsigned int type, const std::string& name)
     // check for an invalid request
     if (type >= getNTypes())
         {
-        m_exec_conf->msg->error() << "Setting name for non-existant type " << type << endl;
+        m_exec_conf->msg->error() << "Setting name for non-existent type " << type << endl;
         throw runtime_error("Error mapping type name");
         }
 
@@ -312,7 +342,7 @@ void ParticleData::setTypeName(unsigned int type, const std::string& name)
 
 
 /*! \param N Number of particles to allocate memory for
-    \pre No memory is allocated and the per-particle GPUArrays are unitialized
+    \pre No memory is allocated and the per-particle GPUArrays are uninitialized
     \post All per-particle GPUArrays are allocated
 */
 void ParticleData::allocate(unsigned int N)
@@ -321,52 +351,101 @@ void ParticleData::allocate(unsigned int N)
     m_max_nparticles = N;
 
     // positions
-    GPUArray< Scalar4 > pos(N, m_exec_conf);
+    GlobalArray< Scalar4 > pos(N, m_exec_conf);
     m_pos.swap(pos);
+    TAG_ALLOCATION(m_pos);
 
     // velocities
-    GPUArray< Scalar4 > vel(N, m_exec_conf);
+    GlobalArray< Scalar4 > vel(N, m_exec_conf);
     m_vel.swap(vel);
+    TAG_ALLOCATION(m_vel);
 
     // accelerations
-    GPUArray< Scalar3 > accel(N, m_exec_conf);
+    GlobalArray< Scalar3 > accel(N, m_exec_conf);
     m_accel.swap(accel);
+    TAG_ALLOCATION(m_accel);
 
     // charge
-    GPUArray< Scalar > charge(N, m_exec_conf);
+    GlobalArray< Scalar > charge(N, m_exec_conf);
     m_charge.swap(charge);
+    TAG_ALLOCATION(m_charge);
 
     // diameter
-    GPUArray< Scalar > diameter(N, m_exec_conf);
+    GlobalArray< Scalar > diameter(N, m_exec_conf);
     m_diameter.swap(diameter);
+    TAG_ALLOCATION(m_diameter);
 
     // image
-    GPUArray< int3 > image(N, m_exec_conf);
+    GlobalArray< int3 > image(N, m_exec_conf);
     m_image.swap(image);
+    TAG_ALLOCATION(m_image);
 
     // global tag
-    GPUArray< unsigned int> tag(N, m_exec_conf);
+    GlobalArray< unsigned int> tag(N, m_exec_conf);
     m_tag.swap(tag);
+    TAG_ALLOCATION(m_tag);
 
     // body ID
-    GPUArray< unsigned int > body(N, m_exec_conf);
+    GlobalArray< unsigned int > body(N, m_exec_conf);
     m_body.swap(body);
+    TAG_ALLOCATION(m_body);
 
-    GPUArray< Scalar4 > net_force(N, m_exec_conf);
+    GlobalArray< Scalar4 > net_force(N, m_exec_conf);
     m_net_force.swap(net_force);
-    GPUArray< Scalar > net_virial(N,6, m_exec_conf);
+    TAG_ALLOCATION(m_net_force);
+    GlobalArray< Scalar > net_virial(N,6, m_exec_conf);
     m_net_virial.swap(net_virial);
-    GPUArray< Scalar4 > net_torque(N, m_exec_conf);
+    TAG_ALLOCATION(m_net_virial);
+    GlobalArray< Scalar4 > net_torque(N, m_exec_conf);
     m_net_torque.swap(net_torque);
-    GPUArray< Scalar4 > orientation(N, m_exec_conf);
-    m_orientation.swap(orientation);
-    GPUArray< Scalar4 > angmom(N, m_exec_conf);
-    m_angmom.swap(angmom);
-    GPUArray< Scalar3 > inertia(N, m_exec_conf);
-    m_inertia.swap(inertia);
+    TAG_ALLOCATION(m_net_torque);
 
-    GPUArray< unsigned int > comm_flags(N, m_exec_conf);
+        {
+        ArrayHandle<Scalar4> h_net_force(m_net_force, access_location::host, access_mode::overwrite);
+        ArrayHandle<Scalar4> h_net_torque(m_net_torque, access_location::host, access_mode::overwrite);
+        ArrayHandle<Scalar> h_net_virial(m_net_virial, access_location::host, access_mode::overwrite);
+        memset(h_net_force.data, 0, sizeof(Scalar4)*m_net_force.getNumElements());
+        memset(h_net_torque.data, 0, sizeof(Scalar4)*m_net_torque.getNumElements());
+        memset(h_net_virial.data, 0, sizeof(Scalar)*m_net_virial.getNumElements());
+        }
+
+    GlobalArray< Scalar4 > orientation(N, m_exec_conf);
+    m_orientation.swap(orientation);
+    TAG_ALLOCATION(m_orientation);
+    GlobalArray< Scalar4 > angmom(N, m_exec_conf);
+    m_angmom.swap(angmom);
+    TAG_ALLOCATION(m_angmom);
+    GlobalArray< Scalar3 > inertia(N, m_exec_conf);
+    m_inertia.swap(inertia);
+    TAG_ALLOCATION(m_inertia);
+
+    GlobalArray< unsigned int > comm_flags(N, m_exec_conf);
     m_comm_flags.swap(comm_flags);
+    TAG_ALLOCATION(m_comm_flags);
+
+    #ifdef ENABLE_CUDA
+    if (m_exec_conf->isCUDAEnabled() && m_exec_conf->allConcurrentManagedAccess())
+        {
+        auto gpu_map = m_exec_conf->getGPUIds();
+
+        // set up GPU memory mappings
+        for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
+            {
+            // only optimize access for those fields used in force computation
+            // (i.e. no net_force/virial/torque, also angmom and inertia are only used by the integrator)
+            cudaMemAdvise(m_pos.get(), sizeof(Scalar4)*m_pos.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_vel.get(), sizeof(Scalar4)*m_vel.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_accel.get(), sizeof(Scalar3)*m_accel.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_charge.get(), sizeof(Scalar)*m_charge.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_diameter.get(), sizeof(Scalar)*m_diameter.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_image.get(), sizeof(int3)*m_image.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_tag.get(), sizeof(unsigned int)*m_tag.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_body.get(), sizeof(unsigned int)*m_body.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_orientation.get(), sizeof(Scalar4)*m_orientation.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            }
+        CHECK_CUDA_ERROR();
+        }
+    #endif
 
     // allocate alternate particle data arrays (for swapping in-out)
     allocateAlternateArrays(N);
@@ -378,66 +457,112 @@ void ParticleData::allocate(unsigned int N)
     }
 
 /*! \param N Number of particles to allocate memory for
-    \pre No memory is allocated and the alternate per-particle GPUArrays are unitialized
+    \pre No memory is allocated and the alternate per-particle GPUArrays are uninitialized
     \post All alternate per-particle GPUArrays are allocated
 */
 void ParticleData::allocateAlternateArrays(unsigned int N)
     {
     // positions
-    GPUArray< Scalar4 > pos_alt(N, m_exec_conf);
+    GlobalArray< Scalar4 > pos_alt(N, m_exec_conf);
     m_pos_alt.swap(pos_alt);
+    TAG_ALLOCATION(m_pos_alt);
 
     // velocities
-    GPUArray< Scalar4 > vel_alt(N, m_exec_conf);
+    GlobalArray< Scalar4 > vel_alt(N, m_exec_conf);
     m_vel_alt.swap(vel_alt);
+    TAG_ALLOCATION(m_vel_alt);
 
     // accelerations
-    GPUArray< Scalar3 > accel_alt(N, m_exec_conf);
+    GlobalArray< Scalar3 > accel_alt(N, m_exec_conf);
     m_accel_alt.swap(accel_alt);
+    TAG_ALLOCATION(m_accel_alt);
 
     // charge
-    GPUArray< Scalar > charge_alt(N, m_exec_conf);
+    GlobalArray< Scalar > charge_alt(N, m_exec_conf);
     m_charge_alt.swap(charge_alt);
+    TAG_ALLOCATION(m_charge_alt);
 
     // diameter
-    GPUArray< Scalar > diameter_alt(N, m_exec_conf);
+    GlobalArray< Scalar > diameter_alt(N, m_exec_conf);
     m_diameter_alt.swap(diameter_alt);
+    TAG_ALLOCATION(m_diameter_alt);
 
     // image
-    GPUArray< int3 > image_alt(N, m_exec_conf);
+    GlobalArray< int3 > image_alt(N, m_exec_conf);
     m_image_alt.swap(image_alt);
+    TAG_ALLOCATION(m_image_alt);
 
     // global tag
-    GPUArray< unsigned int> tag_alt(N, m_exec_conf);
+    GlobalArray< unsigned int> tag_alt(N, m_exec_conf);
     m_tag_alt.swap(tag_alt);
+    TAG_ALLOCATION(m_tag_alt);
 
     // body ID
-    GPUArray< unsigned int > body_alt(N, m_exec_conf);
+    GlobalArray< unsigned int > body_alt(N, m_exec_conf);
     m_body_alt.swap(body_alt);
+    TAG_ALLOCATION(m_body_alt);
 
     // orientation
-    GPUArray< Scalar4 > orientation_alt(N, m_exec_conf);
+    GlobalArray< Scalar4 > orientation_alt(N, m_exec_conf);
     m_orientation_alt.swap(orientation_alt);
+    TAG_ALLOCATION(m_orientation_alt);
 
     // angular momentum
-    GPUArray< Scalar4 > angmom_alt(N, m_exec_conf);
+    GlobalArray< Scalar4 > angmom_alt(N, m_exec_conf);
     m_angmom_alt.swap(angmom_alt);
+    TAG_ALLOCATION(m_angmom_alt);
 
     // moments of inertia
-    GPUArray< Scalar3 > inertia_alt(N, m_exec_conf);
+    GlobalArray< Scalar3 > inertia_alt(N, m_exec_conf);
     m_inertia_alt.swap(inertia_alt);
+    TAG_ALLOCATION(m_inertia_alt);
 
     // Net force
-    GPUArray< Scalar4 > net_force_alt(N, m_exec_conf);
+    GlobalArray< Scalar4 > net_force_alt(N, m_exec_conf);
     m_net_force_alt.swap(net_force_alt);
+    TAG_ALLOCATION(m_net_force_alt);
 
     // Net virial
-    GPUArray< Scalar > net_virial_alt(N,6, m_exec_conf);
+    GlobalArray< Scalar > net_virial_alt(N,6, m_exec_conf);
     m_net_virial_alt.swap(net_virial_alt);
+    TAG_ALLOCATION(m_net_virial_alt);
 
     // Net torque
-    GPUArray< Scalar4 > net_torque_alt(N, m_exec_conf);
+    GlobalArray< Scalar4 > net_torque_alt(N, m_exec_conf);
     m_net_torque_alt.swap(net_torque_alt);
+    TAG_ALLOCATION(m_net_torque_alt);
+
+        {
+        ArrayHandle<Scalar4> h_net_force_alt(m_net_force_alt, access_location::host, access_mode::overwrite);
+        ArrayHandle<Scalar4> h_net_torque_alt(m_net_torque_alt, access_location::host, access_mode::overwrite);
+        ArrayHandle<Scalar> h_net_virial_alt(m_net_virial_alt, access_location::host, access_mode::overwrite);
+        memset(h_net_force_alt.data, 0, sizeof(Scalar4)*m_net_force_alt.getNumElements());
+        memset(h_net_torque_alt.data, 0, sizeof(Scalar4)*m_net_torque_alt.getNumElements());
+        memset(h_net_virial_alt.data, 0, sizeof(Scalar)*m_net_virial_alt.getNumElements());
+        }
+
+
+    #ifdef ENABLE_CUDA
+    if (m_exec_conf->isCUDAEnabled() && m_exec_conf->allConcurrentManagedAccess())
+        {
+        auto gpu_map = m_exec_conf->getGPUIds();
+
+        // set up GPU memory mappings
+        for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
+            {
+            cudaMemAdvise(m_pos_alt.get(), sizeof(Scalar4)*m_pos_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_vel_alt.get(), sizeof(Scalar4)*m_vel_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_accel_alt.get(), sizeof(Scalar3)*m_accel_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_charge_alt.get(), sizeof(Scalar)*m_charge_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_diameter_alt.get(), sizeof(Scalar)*m_diameter_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_image_alt.get(), sizeof(int3)*m_image_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_tag_alt.get(), sizeof(unsigned int)*m_tag_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_body_alt.get(), sizeof(unsigned int)*m_body_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_orientation_alt.get(), sizeof(Scalar4)*m_orientation_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            }
+        CHECK_CUDA_ERROR();
+        }
+    #endif
     }
 
 
@@ -453,20 +578,39 @@ void ParticleData::setNGlobal(unsigned int nglobal)
 
     // we have changed the global particle number, notify subscribers
     m_global_particle_num_signal.emit();
+
+    #ifdef ENABLE_CUDA
+    if (m_exec_conf->isCUDAEnabled() && m_exec_conf->allConcurrentManagedAccess())
+        {
+        auto gpu_map = m_exec_conf->getGPUIds();
+
+        // set up GPU memory mappings
+        for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
+            {
+            cudaMemAdvise(m_rtag.get(), sizeof(unsigned int)*m_rtag.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            }
+        CHECK_CUDA_ERROR();
+        }
+    #endif
     }
 
 /*! \param new_nparticles New particle number
  */
 void ParticleData::resize(unsigned int new_nparticles)
     {
-    // do nothing if zero size is requested
+    // update the partition information, so it is available to subscribers of various signals early
+    #ifdef ENABLE_CUDA
+    if (m_exec_conf->isCUDAEnabled())
+        m_gpu_partition.setN(new_nparticles);
+    #endif
 
     if (new_nparticles == 0)
         {
-        // gurantee that arrays are allocated
+        // guarantee that arrays are allocated
         if (! m_arrays_allocated)
             allocate(1);
         m_nparticles = new_nparticles;
+
         return;
         }
 
@@ -489,7 +633,7 @@ void ParticleData::resize(unsigned int new_nparticles)
     m_nparticles = new_nparticles;
     }
 
-/*! \param max_n new maximum size of particle data arrays (can be greater or smaller than the current maxium size)
+/*! \param max_n new maximum size of particle data arrays (can be greater or smaller than the current maximum size)
  *  To inform classes that allocate arrays for per-particle information of the change of the particle data size,
  *  this method issues a m_max_particle_num_signal.emit().
  *
@@ -521,11 +665,42 @@ void ParticleData::reallocate(unsigned int max_n)
     m_net_force.resize(max_n);
     m_net_virial.resize(max_n,6);
     m_net_torque.resize(max_n);
+        {
+        ArrayHandle<Scalar4> h_net_force(m_net_force, access_location::host, access_mode::readwrite);
+        ArrayHandle<Scalar4> h_net_torque(m_net_torque, access_location::host, access_mode::readwrite);
+        ArrayHandle<Scalar> h_net_virial(m_net_virial, access_location::host, access_mode::readwrite);
+        memset(h_net_force.data, 0, sizeof(Scalar4)*m_net_force.getNumElements());
+        memset(h_net_torque.data, 0, sizeof(Scalar4)*m_net_torque.getNumElements());
+        memset(h_net_virial.data, 0, sizeof(Scalar)*m_net_virial.getNumElements());
+        }
+
     m_orientation.resize(max_n);
     m_angmom.resize(max_n);
     m_inertia.resize(max_n);
 
     m_comm_flags.resize(max_n);
+
+    #ifdef ENABLE_CUDA
+    if (m_exec_conf->isCUDAEnabled() && m_exec_conf->allConcurrentManagedAccess())
+        {
+        auto gpu_map = m_exec_conf->getGPUIds();
+
+        // set up GPU memory mappings
+        for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
+            {
+            cudaMemAdvise(m_pos.get(), sizeof(Scalar4)*m_pos.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_vel.get(), sizeof(Scalar4)*m_vel.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_accel.get(), sizeof(Scalar3)*m_accel.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_charge.get(), sizeof(Scalar)*m_charge.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_diameter.get(), sizeof(Scalar)*m_diameter.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_image.get(), sizeof(int3)*m_image.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_tag.get(), sizeof(unsigned int)*m_tag.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_body.get(), sizeof(unsigned int)*m_body.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            cudaMemAdvise(m_orientation.get(), sizeof(Scalar4)*m_orientation.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+            }
+        CHECK_CUDA_ERROR();
+        }
+    #endif
 
     if (! m_pos_alt.isNull())
         {
@@ -541,9 +716,41 @@ void ParticleData::reallocate(unsigned int max_n)
         m_orientation_alt.resize(max_n);
         m_angmom_alt.resize(max_n);
         m_inertia_alt.resize(max_n);
+
         m_net_force_alt.resize(max_n);
         m_net_torque_alt.resize(max_n);
         m_net_virial_alt.resize(max_n, 6);
+
+            {
+            ArrayHandle<Scalar4> h_net_force_alt(m_net_force_alt, access_location::host, access_mode::overwrite);
+            ArrayHandle<Scalar4> h_net_torque_alt(m_net_torque_alt, access_location::host, access_mode::overwrite);
+            ArrayHandle<Scalar> h_net_virial_alt(m_net_virial_alt, access_location::host, access_mode::overwrite);
+            memset(h_net_force_alt.data, 0, sizeof(Scalar4)*m_net_force_alt.getNumElements());
+            memset(h_net_torque_alt.data, 0, sizeof(Scalar4)*m_net_torque_alt.getNumElements());
+            memset(h_net_virial_alt.data, 0, sizeof(Scalar)*m_net_virial_alt.getNumElements());
+            }
+
+        #ifdef ENABLE_CUDA
+        if (m_exec_conf->isCUDAEnabled() && m_exec_conf->allConcurrentManagedAccess())
+            {
+            auto gpu_map = m_exec_conf->getGPUIds();
+
+            // set up GPU memory mappings
+            for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
+                {
+                cudaMemAdvise(m_pos_alt.get(), sizeof(Scalar4)*m_pos_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+                cudaMemAdvise(m_vel_alt.get(), sizeof(Scalar4)*m_vel_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+                cudaMemAdvise(m_accel_alt.get(), sizeof(Scalar3)*m_accel_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+                cudaMemAdvise(m_charge_alt.get(), sizeof(Scalar)*m_charge_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+                cudaMemAdvise(m_diameter_alt.get(), sizeof(Scalar)*m_diameter_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+                cudaMemAdvise(m_image_alt.get(), sizeof(int3)*m_image_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+                cudaMemAdvise(m_tag_alt.get(), sizeof(unsigned int)*m_tag_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+                cudaMemAdvise(m_body_alt.get(), sizeof(unsigned int)*m_body_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+                cudaMemAdvise(m_orientation_alt.get(), sizeof(Scalar4)*m_orientation_alt.getNumElements(), cudaMemAdviseSetAccessedBy, gpu_map[idev]);
+                }
+            CHECK_CUDA_ERROR();
+            }
+        #endif
         }
 
     // notify observers
@@ -557,10 +764,8 @@ void ParticleData::maybe_rebuild_tag_cache()
     if(!m_invalid_cached_tags)
         return;
 
-    // GPUVector checks if the resize is necessary
+    // GlobalVector checks if the resize is necessary
     m_cached_tag_set.resize(m_tag_set.size());
-
-    ArrayHandle<unsigned int> h_active_tag(m_cached_tag_set, access_location::host, access_mode::overwrite);
 
     // iterate over each element in the set, building a mapping
     // from dense array indices to sparse particle tag indices
@@ -568,7 +773,7 @@ void ParticleData::maybe_rebuild_tag_cache()
     for(std::set<unsigned int>::const_iterator it(m_tag_set.begin());
         it != m_tag_set.end(); ++it, ++i)
         {
-        h_active_tag.data[i] = *it;
+        m_cached_tag_set[i] = *it;
         }
 
     m_invalid_cached_tags = false;
@@ -691,6 +896,8 @@ void ParticleData::initializeFromSnapshot(const SnapshotParticleData<Real>& snap
 
         if (my_rank == 0)
             {
+            ArrayHandle<unsigned int> h_cart_ranks(m_decomposition->getCartRanks(), access_location::host, access_mode::read);
+
             // check the input for errors
             if (snapshot.type_mapping.size() == 0)
                 {
@@ -708,8 +915,8 @@ void ParticleData::initializeFromSnapshot(const SnapshotParticleData<Real>& snap
                 {
                 unsigned int snap_idx = it - snapshot.pos.begin();
 
-                // if requested, do not initalize constituent particles of rigid bodies
-                if (ignore_bodies && snapshot.body[snap_idx] != NO_BODY)
+                // if requested, do not initialize constituent particles of bodies
+                if (ignore_bodies && snapshot.body[snap_idx] < MIN_FLOPPY)
                     {
                     continue;
                     }
@@ -751,7 +958,7 @@ void ParticleData::initializeFromSnapshot(const SnapshotParticleData<Real>& snap
                 global_box.wrap(pos, img, flags);
 
                 // place particle using actual domain fractions, not global box fraction
-                unsigned int rank = m_decomposition->placeParticle(m_global_box, pos);
+                unsigned int rank = m_decomposition->placeParticle(m_global_box, pos, h_cart_ranks.data);
 
                 if (rank >= n_ranks)
                     {
@@ -909,7 +1116,7 @@ void ParticleData::initializeFromSnapshot(const SnapshotParticleData<Real>& snap
         // Now that active tag list has changed, invalidate the cache
         m_invalid_cached_tags = true;
 
-        // allocate particle data such that we can accomodate the particles
+        // allocate particle data such that we can accommodate the particles
         resize(snapshot.size);
 
         ArrayHandle< Scalar4 > h_pos(m_pos, access_location::host, access_mode::overwrite);
@@ -927,7 +1134,7 @@ void ParticleData::initializeFromSnapshot(const SnapshotParticleData<Real>& snap
 
         for (unsigned int snap_idx = 0; snap_idx < snapshot.size; snap_idx++)
             {
-            // if requested, do not initalize constituent particles of rigid bodies
+            // if requested, do not initialize constituent particles of rigid bodies
             if (ignore_bodies && snapshot.body[snap_idx] != NO_BODY)
                 {
                 continue;
@@ -995,7 +1202,7 @@ void ParticleData::initializeFromSnapshot(const SnapshotParticleData<Real>& snap
 template <class Real>
 std::map<unsigned int, unsigned int> ParticleData::takeSnapshot(SnapshotParticleData<Real> &snapshot)
     {
-    // a map to containt a particle tag-> snapshot idx lookup
+    // a map to contain a particle tag-> snapshot idx lookup
     std::map<unsigned int, unsigned int> index;
 
     m_exec_conf->msg->notice(4) << "ParticleData: taking snapshot" << std::endl;
@@ -1230,7 +1437,7 @@ std::map<unsigned int, unsigned int> ParticleData::takeSnapshot(SnapshotParticle
   don't need tags.
 
   \param nghosts number of ghost particles to add
-  \post the particle data arrays are resized if necessary to accomodate the ghost particles,
+  \post the particle data arrays are resized if necessary to accommodate the ghost particles,
         the number of ghost particles is updated
 */
 void ParticleData::addGhostParticles(const unsigned int nghosts)
@@ -1398,7 +1605,7 @@ int3 ParticleData::getImage(unsigned int tag) const
 #endif
     assert(found);
 
-    //corect for origin shift
+    //correct for origin shift
     result.x-=m_o_image.x;
     result.y-=m_o_image.y;
     result.z-=m_o_image.z;
@@ -1720,7 +1927,8 @@ void ParticleData::setPosition(unsigned int tag, const Scalar3& pos, bool move)
         assert(!ptl_local || owner_rank == my_rank);
 
         // get rank where the particle should be according to new position
-        unsigned int new_rank = m_decomposition->placeParticle(m_global_box, tmp_pos);
+        ArrayHandle<unsigned int> h_cart_ranks(m_decomposition->getCartRanks(), access_location::host, access_mode::read);
+        unsigned int new_rank = m_decomposition->placeParticle(m_global_box, tmp_pos, h_cart_ranks.data);
         bcast(new_rank, 0, m_exec_conf->getMPICommunicator());
 
         // should the particle migrate?
@@ -2060,6 +2268,8 @@ unsigned int ParticleData::addParticle(unsigned int type)
         ArrayHandle<Scalar> h_charge(getCharges(), access_location::host, access_mode::readwrite);
         ArrayHandle<Scalar> h_diameter(getDiameters(), access_location::host, access_mode::readwrite);
         ArrayHandle<int3> h_image(getImages(), access_location::host, access_mode::readwrite);
+        ArrayHandle<Scalar4> h_angmom(getAngularMomentumArray(), access_location::host, access_mode::readwrite);
+        ArrayHandle<Scalar3> h_inertia(getMomentsOfInertiaArray(), access_location::host, access_mode::readwrite);
         ArrayHandle<unsigned int> h_body(getBodies(), access_location::host, access_mode::readwrite);
         ArrayHandle<Scalar4> h_orientation(getOrientationArray(), access_location::host, access_mode::readwrite);
         ArrayHandle<unsigned int> h_tag(getTags(), access_location::host, access_mode::readwrite);
@@ -2072,8 +2282,10 @@ unsigned int ParticleData::addParticle(unsigned int type)
         h_vel.data[idx] = make_scalar4(0,0,0,1.0);
         h_accel.data[idx] = make_scalar3(0,0,0);
         h_charge.data[idx] = 0.0;
-        h_diameter.data[idx] = 0.0;
+        h_diameter.data[idx] = 1.0;
         h_image.data[idx] = make_int3(0,0,0);
+        h_angmom.data[idx] = make_scalar4(0,0,0,0);
+        h_inertia.data[idx] = make_scalar3(0,0,0);
         h_body.data[idx] = NO_BODY;
         h_orientation.data[idx] = make_scalar4(1.0,0.0,0.0,0.0);
         h_tag.data[idx] = tag;
@@ -2660,7 +2872,7 @@ void ParticleData::addParticles(const std::vector<pdata_element>& in)
  *        no ghost particles are present, because ghost particle values
  *        are undefined after calling this method.
  */
-void ParticleData::removeParticlesGPU(GPUVector<pdata_element>& out, GPUVector<unsigned int> &comm_flags)
+void ParticleData::removeParticlesGPU(GlobalVector<pdata_element>& out, GlobalVector<unsigned int> &comm_flags)
     {
     if (m_prof) m_prof->push(m_exec_conf, "pack");
 
@@ -2729,7 +2941,9 @@ void ParticleData::removeParticlesGPU(GPUVector<pdata_element>& out, GPUVector<u
             ArrayHandle<unsigned int> d_comm_flags_out(comm_flags, access_location::device, access_mode::overwrite);
 
             // get temporary buffer
-            ScopedAllocation<unsigned int> d_tmp(m_exec_conf->getCachedAllocator(), getN());
+            ScopedAllocation<unsigned int> d_tmp(m_exec_conf->getCachedAllocatorManaged(), getN());
+
+            m_exec_conf->beginMultiGPU();
 
             n_out = gpu_pdata_remove(getN(),
                            d_pos.data,
@@ -2767,9 +2981,14 @@ void ParticleData::removeParticlesGPU(GPUVector<pdata_element>& out, GPUVector<u
                            d_comm_flags_out.data,
                            max_n_out,
                            d_tmp.data,
-                           m_mgpu_context);
-           }
-        if (m_exec_conf->isCUDAErrorCheckingEnabled()) CHECK_CUDA_ERROR();
+                           m_mgpu_context,
+                           m_gpu_partition);
+
+            if (m_exec_conf->isCUDAErrorCheckingEnabled())
+                CHECK_CUDA_ERROR();
+
+            m_exec_conf->endMultiGPU();
+            }
 
         // resize output vector
         out.resize(n_out);
@@ -2808,7 +3027,7 @@ void ParticleData::removeParticlesGPU(GPUVector<pdata_element>& out, GPUVector<u
     }
 
 //! Add new particle data (GPU version)
-void ParticleData::addParticlesGPU(const GPUVector<pdata_element>& in)
+void ParticleData::addParticlesGPU(const GlobalVector<pdata_element>& in)
     {
     if (m_prof) m_prof->push(m_exec_conf, "unpack");
 
@@ -2877,6 +3096,115 @@ void ParticleData::addParticlesGPU(const GPUVector<pdata_element>& in)
 #endif // ENABLE_CUDA
 #endif // ENABLE_MPI
 
+void ParticleData::setGPUAdvice()
+    {
+    #ifdef ENABLE_CUDA
+    if (m_exec_conf->isCUDAEnabled())
+        {
+        // only call CUDA API when necessary
+        if (m_memory_advice_last_Nmax == m_max_nparticles)
+            return;
+
+        m_memory_advice_last_Nmax = m_max_nparticles;
+
+        auto gpu_map = m_exec_conf->getGPUIds();
+
+        if (! m_exec_conf->allConcurrentManagedAccess())
+            return;
+
+        // split preferred location of particle data across GPUs
+        for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
+            {
+            auto range = m_gpu_partition.getRange(idev);
+            unsigned int nelem =  range.second - range.first;
+
+            if (!nelem)
+                continue;
+
+            cudaMemAdvise(m_pos.get()+range.first, sizeof(Scalar4)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            cudaMemAdvise(m_vel.get()+range.first, sizeof(Scalar4)*nelem,cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            cudaMemAdvise(m_accel.get()+range.first, sizeof(Scalar3)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            cudaMemAdvise(m_charge.get()+range.first, sizeof(Scalar)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            cudaMemAdvise(m_diameter.get()+range.first, sizeof(Scalar)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            cudaMemAdvise(m_image.get()+range.first, sizeof(int3)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            cudaMemAdvise(m_tag.get()+range.first, sizeof(unsigned int)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            cudaMemAdvise(m_body.get()+range.first, sizeof(unsigned int)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            cudaMemAdvise(m_orientation.get()+range.first, sizeof(Scalar4)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            cudaMemAdvise(m_angmom.get()+range.first, sizeof(Scalar4)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            cudaMemAdvise(m_inertia.get()+range.first, sizeof(Scalar3)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            cudaMemAdvise(m_net_force.get()+range.first, sizeof(Scalar4)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            for (unsigned int i = 0; i < 6; ++i)
+                cudaMemAdvise(m_net_virial.get()+i*m_net_virial.getPitch()+range.first, sizeof(Scalar)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+            cudaMemAdvise(m_net_torque.get()+range.first, sizeof(Scalar4)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+
+            // migrate data to preferred location
+            cudaMemPrefetchAsync(m_pos.get()+range.first, sizeof(Scalar4)*nelem, gpu_map[idev]);
+            cudaMemPrefetchAsync(m_vel.get()+range.first, sizeof(Scalar4)*nelem,gpu_map[idev]);
+            cudaMemPrefetchAsync(m_accel.get()+range.first, sizeof(Scalar3)*nelem, gpu_map[idev]);
+            cudaMemPrefetchAsync(m_charge.get()+range.first, sizeof(Scalar)*nelem, gpu_map[idev]);
+            cudaMemPrefetchAsync(m_diameter.get()+range.first, sizeof(Scalar)*nelem, gpu_map[idev]);
+            cudaMemPrefetchAsync(m_image.get()+range.first, sizeof(int3)*nelem, gpu_map[idev]);
+            cudaMemPrefetchAsync(m_tag.get()+range.first, sizeof(unsigned int)*nelem, gpu_map[idev]);
+            cudaMemPrefetchAsync(m_body.get()+range.first, sizeof(unsigned int)*nelem, gpu_map[idev]);
+            cudaMemPrefetchAsync(m_orientation.get()+range.first, sizeof(Scalar4)*nelem, gpu_map[idev]);
+            cudaMemPrefetchAsync(m_angmom.get()+range.first, sizeof(Scalar4)*nelem, gpu_map[idev]);
+            cudaMemPrefetchAsync(m_inertia.get()+range.first, sizeof(Scalar3)*nelem, gpu_map[idev]);
+            cudaMemPrefetchAsync(m_net_force.get()+range.first, sizeof(Scalar4)*nelem, gpu_map[idev]);
+            for (unsigned int i = 0; i < 6; ++i)
+                cudaMemPrefetchAsync(m_net_virial.get()+i*m_net_virial.getPitch()+range.first, sizeof(Scalar)*nelem, gpu_map[idev]);
+            cudaMemPrefetchAsync(m_net_torque.get()+range.first, sizeof(Scalar4)*nelem, gpu_map[idev]);
+            }
+        CHECK_CUDA_ERROR();
+
+        if (! m_pos_alt.isNull())
+            {
+            for (unsigned int idev = 0; idev < m_exec_conf->getNumActiveGPUs(); ++idev)
+                {
+                auto range = m_gpu_partition.getRange(idev);
+                unsigned int nelem =  range.second - range.first;
+
+                if (!nelem)
+                    continue;
+
+                cudaMemAdvise(m_pos_alt.get()+range.first, sizeof(Scalar4)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                cudaMemAdvise(m_vel_alt.get()+range.first, sizeof(Scalar4)*nelem,cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                cudaMemAdvise(m_accel_alt.get()+range.first, sizeof(Scalar3)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                cudaMemAdvise(m_charge_alt.get()+range.first, sizeof(Scalar)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                cudaMemAdvise(m_diameter_alt.get()+range.first, sizeof(Scalar)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                cudaMemAdvise(m_image_alt.get()+range.first, sizeof(int3)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                cudaMemAdvise(m_tag_alt.get()+range.first, sizeof(unsigned int)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                cudaMemAdvise(m_body_alt.get()+range.first, sizeof(unsigned int)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                cudaMemAdvise(m_orientation_alt.get()+range.first, sizeof(Scalar4)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                cudaMemAdvise(m_angmom_alt.get()+range.first, sizeof(Scalar4)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                cudaMemAdvise(m_inertia_alt.get()+range.first, sizeof(Scalar3)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                cudaMemAdvise(m_net_force_alt.get()+range.first, sizeof(Scalar4)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                for (unsigned int i = 0; i < 6; ++i)
+                    cudaMemAdvise(m_net_virial_alt.get()+i*m_net_virial_alt.getPitch()+range.first, sizeof(Scalar)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+                cudaMemAdvise(m_net_torque_alt.get()+range.first, sizeof(Scalar4)*nelem, cudaMemAdviseSetPreferredLocation, gpu_map[idev]);
+
+                cudaMemPrefetchAsync(m_pos_alt.get()+range.first, sizeof(Scalar4)*nelem, gpu_map[idev]);
+                cudaMemPrefetchAsync(m_vel_alt.get()+range.first, sizeof(Scalar4)*nelem,gpu_map[idev]);
+                cudaMemPrefetchAsync(m_accel_alt.get()+range.first, sizeof(Scalar3)*nelem, gpu_map[idev]);
+                cudaMemPrefetchAsync(m_charge_alt.get()+range.first, sizeof(Scalar)*nelem, gpu_map[idev]);
+                cudaMemPrefetchAsync(m_diameter_alt.get()+range.first, sizeof(Scalar)*nelem, gpu_map[idev]);
+                cudaMemPrefetchAsync(m_image_alt.get()+range.first, sizeof(int3)*nelem, gpu_map[idev]);
+                cudaMemPrefetchAsync(m_tag_alt.get()+range.first, sizeof(unsigned int)*nelem, gpu_map[idev]);
+                cudaMemPrefetchAsync(m_body_alt.get()+range.first, sizeof(unsigned int)*nelem, gpu_map[idev]);
+                cudaMemPrefetchAsync(m_orientation_alt.get()+range.first, sizeof(Scalar4)*nelem, gpu_map[idev]);
+                cudaMemPrefetchAsync(m_angmom_alt.get()+range.first, sizeof(Scalar4)*nelem, gpu_map[idev]);
+                cudaMemPrefetchAsync(m_inertia_alt.get()+range.first, sizeof(Scalar3)*nelem, gpu_map[idev]);
+                cudaMemPrefetchAsync(m_net_force_alt.get()+range.first, sizeof(Scalar4)*nelem, gpu_map[idev]);
+                for (unsigned int i = 0; i < 6; ++i)
+                    cudaMemPrefetchAsync(m_net_virial_alt.get()+i*m_net_virial_alt.getPitch()+range.first, sizeof(Scalar)*nelem, gpu_map[idev]);
+                cudaMemPrefetchAsync(m_net_torque_alt.get()+range.first, sizeof(Scalar4)*nelem, gpu_map[idev]);
+                }
+
+            CHECK_CUDA_ERROR();
+            }
+        }
+    #endif
+    }
+
 unsigned int ParticleData::addType(const std::string& type_name)
     {
     m_type_mapping.push_back(type_name);
@@ -2903,7 +3231,7 @@ void SnapshotParticleData<Real>::replicate(unsigned int nx, unsigned int ny, uns
         vec3<Real> p = pos[i];
         int3 img = image[i];
 
-        // need to cast to a scalar and back because the Box is in Scalars, but we might be in a differen type
+        // need to cast to a scalar and back because the Box is in Scalars, but we might be in a different type
         p = vec3<Real>(old_box.shift(vec3<Scalar>(p), img));
         vec3<Real> f = old_box.makeFraction(p);
 
@@ -2938,7 +3266,14 @@ void SnapshotParticleData<Real>::replicate(unsigned int nx, unsigned int ny, uns
                     mass[k] = mass[i];
                     charge[k] = charge[i];
                     diameter[k] = diameter[i];
+                    // This math also accounts for floppy bodies since body[i]
+                    // is already greater than MIN_FLOPPY, so the new body id
+                    // body[k] is guaranteed to be so as well. However, we
+                    // check to ensure that something that wasn't originally a
+                    // floppy body doesn't overflow into the floppy body tags.
                     body[k] = (body[i] != NO_BODY ? j*old_size + body[i] : NO_BODY);
+                    if (body[i] < MIN_FLOPPY && body[k] >= MIN_FLOPPY)
+                        throw std::runtime_error("Replication would create more distinct rigid bodies than HOOMD supports!");
                     orientation[k] = orientation[i];
                     angmom[k] = angmom[i];
                     inertia[k] = inertia[i];

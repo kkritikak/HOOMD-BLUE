@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -33,9 +33,9 @@ class PYBIND11_EXPORT ComputeThermoGPU : public ComputeThermo
         virtual ~ComputeThermoGPU();
 
     protected:
-        GPUVector<Scalar4> m_scratch;  //!< Scratch space for partial sums
-        GPUVector<Scalar> m_scratch_pressure_tensor; //!< Scratch space for pressure tensor partial sums
-        GPUVector<Scalar> m_scratch_rot; //!< Scratch space for rotational kinetic energy partial sums
+        GlobalVector<Scalar4> m_scratch;  //!< Scratch space for partial sums
+        GlobalVector<Scalar> m_scratch_pressure_tensor; //!< Scratch space for pressure tensor partial sums
+        GlobalVector<Scalar> m_scratch_rot; //!< Scratch space for rotational kinetic energy partial sums
         unsigned int m_block_size;   //!< Block size executed
         cudaEvent_t m_event;         //!< CUDA event for synchronization
 

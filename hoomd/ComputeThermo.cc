@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -33,8 +33,18 @@ ComputeThermo::ComputeThermo(std::shared_ptr<SystemDefinition> sysdef,
     m_exec_conf->msg->notice(5) << "Constructing ComputeThermo" << endl;
 
     assert(m_pdata);
-    GPUArray< Scalar > properties(thermo_index::num_quantities, m_exec_conf);
+    GlobalArray< Scalar > properties(thermo_index::num_quantities, m_exec_conf);
     m_properties.swap(properties);
+    TAG_ALLOCATION(m_properties);
+
+    #ifdef ENABLE_CUDA
+    if (m_exec_conf->isCUDAEnabled() && m_exec_conf->allConcurrentManagedAccess())
+        {
+        // store in host memory for faster access from CPU
+        cudaMemAdvise(m_properties.get(), m_properties.getNumElements()*sizeof(Scalar), cudaMemAdviseSetPreferredLocation, cudaCpuDeviceId);
+        CHECK_CUDA_ERROR();
+        }
+    #endif
 
     m_logname_list.push_back(string("temperature") + suffix);
     m_logname_list.push_back(string("translational_temperature") + suffix);
@@ -201,10 +211,12 @@ void ComputeThermo::computeProperties()
 
     // access the particle data
     ArrayHandle<Scalar4> h_vel(m_pdata->getVelocities(), access_location::host, access_mode::read);
+    ArrayHandle<unsigned int> h_body(m_pdata->getBodies(), access_location::host, access_mode::read);
+    ArrayHandle<unsigned int> h_tag(m_pdata->getTags(), access_location::host, access_mode::read);
 
     // access the net force, pe, and virial
-    const GPUArray< Scalar4 >& net_force = m_pdata->getNetForce();
-    const GPUArray< Scalar >& net_virial = m_pdata->getNetVirial();
+    const GlobalArray< Scalar4 >& net_force = m_pdata->getNetForce();
+    const GlobalArray< Scalar >& net_virial = m_pdata->getNetVirial();
     ArrayHandle<Scalar4> h_net_force(net_force, access_location::host, access_mode::read);
     ArrayHandle<Scalar> h_net_virial(net_virial, access_location::host, access_mode::read);
 
@@ -226,13 +238,17 @@ void ComputeThermo::computeProperties()
         for (unsigned int group_idx = 0; group_idx < group_size; group_idx++)
             {
             unsigned int j = m_group->getMemberIndex(group_idx);
-            double mass = h_vel.data[j].w;
-            pressure_kinetic_xx += mass*(  (double)h_vel.data[j].x * (double)h_vel.data[j].x );
-            pressure_kinetic_xy += mass*(  (double)h_vel.data[j].x * (double)h_vel.data[j].y );
-            pressure_kinetic_xz += mass*(  (double)h_vel.data[j].x * (double)h_vel.data[j].z );
-            pressure_kinetic_yy += mass*(  (double)h_vel.data[j].y * (double)h_vel.data[j].y );
-            pressure_kinetic_yz += mass*(  (double)h_vel.data[j].y * (double)h_vel.data[j].z );
-            pressure_kinetic_zz += mass*(  (double)h_vel.data[j].z * (double)h_vel.data[j].z );
+            // ignore rigid body constituent particles in the sum
+            if (h_body.data[j] >= MIN_FLOPPY || h_body.data[j] == h_tag.data[j])
+                {
+                double mass = h_vel.data[j].w;
+                pressure_kinetic_xx += mass*(  (double)h_vel.data[j].x * (double)h_vel.data[j].x );
+                pressure_kinetic_xy += mass*(  (double)h_vel.data[j].x * (double)h_vel.data[j].y );
+                pressure_kinetic_xz += mass*(  (double)h_vel.data[j].x * (double)h_vel.data[j].z );
+                pressure_kinetic_yy += mass*(  (double)h_vel.data[j].y * (double)h_vel.data[j].y );
+                pressure_kinetic_yz += mass*(  (double)h_vel.data[j].y * (double)h_vel.data[j].z );
+                pressure_kinetic_zz += mass*(  (double)h_vel.data[j].z * (double)h_vel.data[j].z );
+                }
             }
         // kinetic energy = 1/2 trace of kinetic part of pressure tensor
         ke_trans_total = Scalar(0.5)*(pressure_kinetic_xx + pressure_kinetic_yy + pressure_kinetic_zz);
@@ -243,10 +259,13 @@ void ComputeThermo::computeProperties()
         for (unsigned int group_idx = 0; group_idx < group_size; group_idx++)
             {
             unsigned int j = m_group->getMemberIndex(group_idx);
-            ke_trans_total += (double)h_vel.data[j].w*( (double)h_vel.data[j].x * (double)h_vel.data[j].x
-                                                + (double)h_vel.data[j].y * (double)h_vel.data[j].y
-                                                + (double)h_vel.data[j].z * (double)h_vel.data[j].z);
-
+            // ignore rigid body constituent particles in the sum
+            if (h_body.data[j] >= MIN_FLOPPY || h_body.data[j] == h_tag.data[j])
+                {
+                ke_trans_total += (double)h_vel.data[j].w*( (double)h_vel.data[j].x * (double)h_vel.data[j].x
+                                                    + (double)h_vel.data[j].y * (double)h_vel.data[j].y
+                                                    + (double)h_vel.data[j].z * (double)h_vel.data[j].z);
+                }
             }
 
         ke_trans_total *= Scalar(0.5);
@@ -265,23 +284,27 @@ void ComputeThermo::computeProperties()
         for (unsigned int group_idx = 0; group_idx < group_size; group_idx++)
             {
             unsigned int j = m_group->getMemberIndex(group_idx);
-            Scalar3 I = h_inertia.data[j];
-            quat<Scalar> q(h_orientation.data[j]);
-            quat<Scalar> p(h_angmom.data[j]);
-            quat<Scalar> s(Scalar(0.5)*conj(q)*p);
+            // ignore rigid body constituent particles in the sum
+            if (h_body.data[j] >= MIN_FLOPPY || h_body.data[j] == h_tag.data[j])
+                {
+                Scalar3 I = h_inertia.data[j];
+                quat<Scalar> q(h_orientation.data[j]);
+                quat<Scalar> p(h_angmom.data[j]);
+                quat<Scalar> s(Scalar(0.5)*conj(q)*p);
 
-            // only if the moment of inertia along one principal axis is non-zero, that axis carries angular momentum
-            if (I.x >= EPSILON)
-                {
-                ke_rot_total += s.v.x*s.v.x/I.x;
-                }
-            if (I.y >= EPSILON)
-                {
-                ke_rot_total += s.v.y*s.v.y/I.y;
-                }
-            if (I.z >= EPSILON)
-                {
-                ke_rot_total += s.v.z*s.v.z/I.z;
+                // only if the moment of inertia along one principal axis is non-zero, that axis carries angular momentum
+                if (I.x >= EPSILON)
+                    {
+                    ke_rot_total += s.v.x*s.v.x/I.x;
+                    }
+                if (I.y >= EPSILON)
+                    {
+                    ke_rot_total += s.v.y*s.v.y/I.y;
+                    }
+                if (I.z >= EPSILON)
+                    {
+                    ke_rot_total += s.v.z*s.v.z/I.z;
+                    }
                 }
             }
 
@@ -295,7 +318,12 @@ void ComputeThermo::computeProperties()
         for (unsigned int group_idx = 0; group_idx < group_size; group_idx++)
             {
             unsigned int j = m_group->getMemberIndex(group_idx);
-            pe_total += (double)h_net_force.data[j].w;
+
+            // ignore rigid body constituent particles in the sum
+            if (h_body.data[j] >= MIN_FLOPPY || h_body.data[j] == h_tag.data[j])
+                {
+                pe_total += (double)h_net_force.data[j].w;
+                }
             }
 
         pe_total += m_pdata->getExternalEnergy();
@@ -316,12 +344,16 @@ void ComputeThermo::computeProperties()
         for (unsigned int group_idx = 0; group_idx < group_size; group_idx++)
             {
             unsigned int j = m_group->getMemberIndex(group_idx);
-            virial_xx += (double)h_net_virial.data[j+0*virial_pitch];
-            virial_xy += (double)h_net_virial.data[j+1*virial_pitch];
-            virial_xz += (double)h_net_virial.data[j+2*virial_pitch];
-            virial_yy += (double)h_net_virial.data[j+3*virial_pitch];
-            virial_yz += (double)h_net_virial.data[j+4*virial_pitch];
-            virial_zz += (double)h_net_virial.data[j+5*virial_pitch];
+            // ignore rigid body constituent particles in the sum
+            if (h_body.data[j] >= MIN_FLOPPY || h_body.data[j] == h_tag.data[j])
+                {
+                virial_xx += (double)h_net_virial.data[j+0*virial_pitch];
+                virial_xy += (double)h_net_virial.data[j+1*virial_pitch];
+                virial_xz += (double)h_net_virial.data[j+2*virial_pitch];
+                virial_yy += (double)h_net_virial.data[j+3*virial_pitch];
+                virial_yz += (double)h_net_virial.data[j+4*virial_pitch];
+                virial_zz += (double)h_net_virial.data[j+5*virial_pitch];
+                }
             }
 
         if (flags[pdata_flag::isotropic_virial])
@@ -337,9 +369,13 @@ void ComputeThermo::computeProperties()
         for (unsigned int group_idx = 0; group_idx < group_size; group_idx++)
             {
             unsigned int j = m_group->getMemberIndex(group_idx);
-            W += Scalar(1./3.)* ((double)h_net_virial.data[j+0*virial_pitch] +
-                                 (double)h_net_virial.data[j+3*virial_pitch] +
-                                 (double)h_net_virial.data[j+5*virial_pitch] );
+            // ignore rigid body constituent particles in the sum
+            if (h_body.data[j] >= MIN_FLOPPY || h_body.data[j] == h_tag.data[j])
+                {
+                W += Scalar(1./3.)* ((double)h_net_virial.data[j+0*virial_pitch] +
+                                     (double)h_net_virial.data[j+3*virial_pitch] +
+                                     (double)h_net_virial.data[j+5*virial_pitch] );
+                }
             }
         }
 
@@ -373,7 +409,7 @@ void ComputeThermo::computeProperties()
     Scalar pressure_yz = (pressure_kinetic_yz + virial_yz) / volume;
     Scalar pressure_zz = (pressure_kinetic_zz + virial_zz) / volume;
 
-    // fill out the GPUArray
+    // fill out the GlobalArray
     ArrayHandle<Scalar> h_properties(m_properties, access_location::host, access_mode::overwrite);
     h_properties.data[thermo_index::translational_kinetic_energy] = Scalar(ke_trans_total);
     h_properties.data[thermo_index::rotational_kinetic_energy] = Scalar(ke_rot_total);

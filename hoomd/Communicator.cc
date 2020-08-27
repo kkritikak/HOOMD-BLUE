@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -12,6 +12,7 @@
 
 #include "Communicator.h"
 #include "System.h"
+#include "HOOMDMPI.h"
 
 #include <algorithm>
 #include <hoomd/extern/pybind/include/pybind11/stl.h>
@@ -620,13 +621,13 @@ void Communicator::GroupCommunicator<group_data>::migrateGroups(bool incomplete,
 
         unsigned int old_ngroups = m_gdata->getN();
 
-        // resize group arrays to accomodate additional groups (there can still be duplicates with local groups)
+        // resize group arrays to accommodate additional groups (there can still be duplicates with local groups)
         m_gdata->addGroups(n_recv_unique);
 
-        GPUVector<typename group_data::members_t>& groups_array = m_gdata->getMembersArray();
-        GPUVector<typeval_t>& group_typeval_array = m_gdata->getTypeValArray();
-        GPUVector<unsigned int>& group_tag_array = m_gdata->getTags();
-        GPUVector<typename group_data::ranks_t>& group_ranks_array = m_gdata->getRanksArray();
+        auto& groups_array = m_gdata->getMembersArray();
+        auto& group_typeval_array = m_gdata->getTypeValArray();
+        auto& group_tag_array = m_gdata->getTags();
+        auto& group_ranks_array = m_gdata->getRanksArray();
 
         unsigned int nremove = 0;
 
@@ -694,7 +695,7 @@ void Communicator::GroupCommunicator<group_data>::migrateGroups(bool incomplete,
 //! Mark ghost particles
 template<class group_data>
 void Communicator::GroupCommunicator<group_data>::markGhostParticles(
-    const GPUArray<unsigned int>& plans,
+    const GlobalVector<unsigned int>& plans,
     unsigned int mask)
     {
     if (m_gdata->getNGlobal())
@@ -796,7 +797,7 @@ void Communicator::GroupCommunicator<group_data>::markGhostParticles(
 
 template<class group_data>
 void Communicator::GroupCommunicator<group_data>::exchangeGhostGroups(
-    const GPUArray<unsigned int>& plans, unsigned int mask)
+    const GlobalArray<unsigned int>& plans, unsigned int mask)
     {
     if (m_gdata->getNGlobal())
         {
@@ -1109,7 +1110,7 @@ Communicator::Communicator(std::shared_ptr<SystemDefinition> sysdef,
 
     for (unsigned int dir = 0; dir < 6; dir ++)
         {
-        GPUVector<unsigned int> copy_ghosts(m_exec_conf);
+        GlobalVector<unsigned int> copy_ghosts(m_exec_conf);
         m_copy_ghosts[dir].swap(copy_ghosts);
         m_num_copy_ghosts[dir] = 0;
         m_num_recv_ghosts[dir] = 0;
@@ -1118,14 +1119,14 @@ Communicator::Communicator(std::shared_ptr<SystemDefinition> sysdef,
     // All buffers corresponding to sending ghosts in reverse
     for (unsigned int dir = 0; dir < 6; dir ++)
         {
-        GPUVector<unsigned int> copy_ghosts_reverse(m_exec_conf);
+        GlobalVector<unsigned int> copy_ghosts_reverse(m_exec_conf);
         m_copy_ghosts_reverse[dir].swap(copy_ghosts_reverse);
-        GPUVector<unsigned int> plan_reverse_copybuf(m_exec_conf);
+        GlobalVector<unsigned int> plan_reverse_copybuf(m_exec_conf);
         m_plan_reverse_copybuf[dir].swap(plan_reverse_copybuf);
         m_num_copy_local_ghosts_reverse[dir] = 0;
         m_num_recv_local_ghosts_reverse[dir] = 0;
 
-        GPUVector<unsigned int> forward_ghosts_reverse(m_exec_conf);
+        GlobalVector<unsigned int> forward_ghosts_reverse(m_exec_conf);
         m_forward_ghosts_reverse[dir].swap(forward_ghosts_reverse);
         m_num_forward_ghosts_reverse[dir] = 0;
         m_num_recv_forward_ghosts_reverse[dir] = 0;
@@ -1141,10 +1142,10 @@ Communicator::Communicator(std::shared_ptr<SystemDefinition> sysdef,
     m_pdata->getNumTypesChangeSignal().connect<Communicator, &Communicator::slotNumTypesChanged>(this);
 
     // allocate per type ghost width
-    GPUArray<Scalar> r_ghost(m_pdata->getNTypes(), m_exec_conf);
+    GlobalArray<Scalar> r_ghost(m_pdata->getNTypes(), m_exec_conf);
     m_r_ghost.swap(r_ghost);
 
-    GPUArray<Scalar> r_ghost_body(m_pdata->getNTypes(), m_exec_conf);
+    GlobalArray<Scalar> r_ghost_body(m_pdata->getNTypes(), m_exec_conf);
     m_r_ghost_body.swap(r_ghost_body);
 
     /*
@@ -1169,23 +1170,54 @@ Communicator::Communicator(std::shared_ptr<SystemDefinition> sysdef,
     m_sysdef->getPairData()->getGroupNumChangeSignal().connect<Communicator, &Communicator::setPairsChanged>(this);
 
     // allocate memory
-    GPUArray<unsigned int> neighbors(NEIGH_MAX,m_exec_conf);
+    GlobalArray<unsigned int> neighbors(NEIGH_MAX,m_exec_conf);
     m_neighbors.swap(neighbors);
 
-    GPUArray<unsigned int> unique_neighbors(NEIGH_MAX,m_exec_conf);
+    GlobalArray<unsigned int> unique_neighbors(NEIGH_MAX,m_exec_conf);
     m_unique_neighbors.swap(unique_neighbors);
 
     // neighbor masks
-    GPUArray<unsigned int> adj_mask(NEIGH_MAX, m_exec_conf);
+    GlobalArray<unsigned int> adj_mask(NEIGH_MAX, m_exec_conf);
     m_adj_mask.swap(adj_mask);
 
-    GPUArray<unsigned int> begin(NEIGH_MAX,m_exec_conf);
+    GlobalArray<unsigned int> begin(NEIGH_MAX,m_exec_conf);
     m_begin.swap(begin);
 
-    GPUArray<unsigned int> end(NEIGH_MAX,m_exec_conf);
+    GlobalArray<unsigned int> end(NEIGH_MAX,m_exec_conf);
     m_end.swap(end);
 
     initializeNeighborArrays();
+
+    /* create a type for pdata_element */
+    const int nitems=14;
+    int blocklengths[14] = {4,4,3,1,1,3,1,4,4,3,1,4,4,6};
+    MPI_Datatype types[14] = {MPI_HOOMD_SCALAR, MPI_HOOMD_SCALAR, MPI_HOOMD_SCALAR, MPI_HOOMD_SCALAR,
+        MPI_HOOMD_SCALAR, MPI_INT, MPI_UNSIGNED, MPI_HOOMD_SCALAR, MPI_HOOMD_SCALAR, MPI_HOOMD_SCALAR,
+        MPI_UNSIGNED, MPI_HOOMD_SCALAR, MPI_HOOMD_SCALAR, MPI_HOOMD_SCALAR};
+    MPI_Aint offsets[14];
+
+    offsets[0] = offsetof(pdata_element, pos);
+    offsets[1] = offsetof(pdata_element, vel);
+    offsets[2] = offsetof(pdata_element, accel);
+    offsets[3] = offsetof(pdata_element, charge);
+    offsets[4] = offsetof(pdata_element, diameter);
+    offsets[5] = offsetof(pdata_element, image);
+    offsets[6] = offsetof(pdata_element, body);
+    offsets[7] = offsetof(pdata_element, orientation);
+    offsets[8] = offsetof(pdata_element, angmom);
+    offsets[9] = offsetof(pdata_element, inertia);
+    offsets[10] = offsetof(pdata_element, tag);
+    offsets[11] = offsetof(pdata_element, net_force);
+    offsets[12] = offsetof(pdata_element, net_torque);
+    offsets[13] = offsetof(pdata_element, net_virial);
+
+    MPI_Datatype tmp;
+    MPI_Type_create_struct(nitems, blocklengths, offsets, types, &tmp);
+    MPI_Type_commit(&tmp);
+
+    MPI_Type_create_resized(tmp, 0, sizeof(pdata_element), &m_mpi_pdata_element);
+    MPI_Type_commit(&m_mpi_pdata_element);
+    MPI_Type_free(&tmp);
     }
 
 //! Destructor
@@ -1202,6 +1234,8 @@ Communicator::~Communicator()
     m_sysdef->getImproperData()->getGroupNumChangeSignal().disconnect<Communicator, &Communicator::setImpropersChanged>(this);
     m_sysdef->getConstraintData()->getGroupNumChangeSignal().disconnect<Communicator, &Communicator::setConstraintsChanged>(this);
     m_sysdef->getPairData()->getGroupNumChangeSignal().disconnect<Communicator, &Communicator::setPairsChanged>(this);
+
+    MPI_Type_free(&m_mpi_pdata_element);
     }
 
 void Communicator::initializeNeighborArrays()
@@ -1310,7 +1344,7 @@ void Communicator::communicate(unsigned int timestep)
                                         }
                                       , timestep);
 
-    if (!m_compute_callbacks.empty() && m_has_ghost_particles)
+    if (!m_force_migrate && !m_compute_callbacks.empty() && m_has_ghost_particles)
         {
         // do an obligatory update before determining whether to migrate
         beginUpdateGhosts(timestep);
@@ -1476,8 +1510,8 @@ void Communicator::migrateParticles()
         // exchange particle data
         m_reqs.resize(2);
         m_stats.resize(2);
-        MPI_Isend(&m_sendbuf.front(), n_send_ptls*sizeof(pdata_element), MPI_BYTE, send_neighbor, 1, m_mpi_comm, & m_reqs[0]);
-        MPI_Irecv(&m_recvbuf.front(), n_recv_ptls*sizeof(pdata_element), MPI_BYTE, recv_neighbor, 1, m_mpi_comm, & m_reqs[1]);
+        MPI_Isend(&m_sendbuf.front(), n_send_ptls, m_mpi_pdata_element, send_neighbor, 1, m_mpi_comm, & m_reqs[0]);
+        MPI_Irecv(&m_recvbuf.front(), n_recv_ptls, m_mpi_pdata_element, recv_neighbor, 1, m_mpi_comm, & m_reqs[1]);
         MPI_Waitall(2, &m_reqs.front(), &m_stats.front());
 
         if (m_prof)
@@ -1617,7 +1651,7 @@ void Communicator::exchangeGhosts()
             const unsigned int type = __scalar_as_int(postype.w);
             Scalar3 ghost_fraction = ghost_fractions[type];
 
-            if (h_body.data[idx] != NO_BODY)
+            if (h_body.data[idx] < MIN_FLOPPY)
                 {
                 ghost_fraction += ghost_fractions_body[type];
                 }
@@ -2347,7 +2381,7 @@ void Communicator::beginUpdateGhosts(unsigned int timestep)
 
                 assert(idx < m_pdata->getN() + m_pdata->getNGhosts());
 
-                // copy velocityition into send buffer
+                // copy velocity into send buffer
                 h_velocity_copybuf.data[ghost_idx] = h_vel.data[idx];
                 }
             }

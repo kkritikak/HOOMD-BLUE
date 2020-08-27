@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -148,7 +148,7 @@ void HarmonicImproperForceCompute::computeForces(unsigned int timestep)
         assert(improper.tag[2] <= m_pdata->getMaximumTag());
         assert(improper.tag[3] <= m_pdata->getMaximumTag());
 
-        // transform a, b, and c into indicies into the particle data arrays
+        // transform a, b, and c into indices into the particle data arrays
         // MEM TRANSFER: 6 ints
         unsigned int idx_a = h_rtag.data[improper.tag[0]];
         unsigned int idx_b = h_rtag.data[improper.tag[1]];

@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2018 The Regents of the University of Michigan
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
 // This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 
@@ -80,7 +80,7 @@ class EvaluatorExternalElectricField
         #ifndef NVCC
         static void updateFieldPy(field_type& field, pybind11::object field_py){}
         #endif
-
+        
         //! Evaluate the force, energy and virial
         /*! \param F force vector
             \param energy value of the energy

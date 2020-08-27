@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2018 The Regents of the University of Michigan
+# Copyright (c) 2009-2019 The Regents of the University of Michigan
 # This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
 
 # Maintainer: jproc
@@ -73,7 +73,7 @@ class group(object):
     Example::
 
         In[0]:
-        # Creating wall geometry defintions using convenience functions
+        # Creating wall geometry definitions using convenience functions
         wallstructure=wall.group()
         wallstructure.add_sphere(r=1.0,origin=(0,1,3))
         wallstructure.add_sphere(1.0,[0,-1,3],inside=False)
@@ -86,7 +86,7 @@ class group(object):
         print(wallstructure)
 
         Out[0]:
-        Wall_Data_Sturucture:
+        Wall_Data_Structure:
         spheres:2{
         [0:   Radius=1.0  Origin=(0.0, 1.0, 3.0)  Inside=True]
         [1:   Radius=1.0  Origin=(0.0, -1.0, 3.0) Inside=False]}
@@ -100,14 +100,14 @@ class group(object):
         [2:   Origin=(0.0, 0.0, 0.0)  Normal=(0.0, 2.0, 1.0)]}
 
         In[1]:
-        # Deleting wall geometry defintions using convenience functions in all accepted types
+        # Deleting wall geometry definitions using convenience functions in all accepted types
         wallstructure.del_plane(range(3))
         wallstructure.del_cylinder([0,2])
         wallstructure.del_sphere(1)
         print(wallstructure)
 
         Out[1]:
-        Wall_Data_Sturucture:
+        Wall_Data_Structure:
         spheres:1{
         [0:   Radius=1.0  Origin=(0.0, 1.0, 3.0)  Inside=True]}
         cylinders:1{
@@ -115,14 +115,14 @@ class group(object):
         planes:0{}
 
         In[2]:
-        # Modifying wall geometry defintions using convenience functions
+        # Modifying wall geometry definitions using convenience functions
         wallstructure.spheres[0].r=2.0
         wallstructure.cylinders[0].origin=[1,2,1]
         wallstructure.cylinders[0].axis=(0,0,1)
         print(wallstructure)
 
         Out[2]:
-        Wall_Data_Sturucture:
+        Wall_Data_Structure:
         spheres:1{
         [0:   Radius=2.0  Origin=(0.0, 1.0, 3.0)  Inside=True]}
         cylinders:1{
@@ -270,7 +270,7 @@ class group(object):
     ## \internal
     # \brief Returns output for print
     def __str__(self):
-        output="Wall_Data_Sturucture:\nspheres:%s{"%(len(self.spheres));
+        output="Wall_Data_Structure:\nspheres:%s{"%(len(self.spheres));
         for index in range(len(self.spheres)):
             output+="\n[%s:\t%s]"%(repr(index), str(self.spheres[index]));
 
@@ -321,20 +321,20 @@ class sphere(object):
         print(linked_walls2)
 
         Out[0]:
-        Wall_Data_Sturucture:
+        Wall_Data_Structure:
         spheres:1{
         [0:   Radius=3    Origin=(0.0, 0.0, 0.0)  Inside=True]}
         cylinders:1{
         [0:   Radius=2.5  Origin=(0.0, 0.0, 0.0)  Axis=(0.0, 0.0, 1.0)    Inside=True]}
         planes:1{
         [0:   Origin=(0.0, 0.0, 0.0)  Normal=(1.0, 0.0, 0.0)]}
-        Wall_Data_Sturucture:
+        Wall_Data_Structure:
         spheres:1{
         [0:   Radius=5.0  Origin=(0.0, 0.0, 1.0)  Inside=True]}
         cylinders:0{}
         planes:1{
         [0:   Origin=(3.0, 0.0, 0.0)  Normal=(-1.0, 0.0, 0.0)]}
-        Wall_Data_Sturucture:
+        Wall_Data_Structure:
         spheres:1{
         [0:   Radius=5.0  Origin=(0.0, 0.0, 1.0)  Inside=True]}
         cylinders:0{}
@@ -740,7 +740,7 @@ class wallpotential(external._external_force):
     Note:
         The virial due to walls is computed, but the pressure and reported by :py:class:`hoomd.analyze.log`
         is not well defined. The volume (area) of the box enters into the pressure computation, which is
-        not correct in a confined system. It may not even be possible to define an appopriate volume with
+        not correct in a confined system. It may not even be possible to define an appropriate volume with
         soft walls.
 
     Note:
@@ -910,7 +910,7 @@ class lj(wallpotential):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs += ['epsilon', 'sigma', 'alpha'];
         self.force_coeff.set_default_coeff('alpha', 1.0);
 
@@ -963,7 +963,7 @@ class gauss(wallpotential):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs += ['epsilon', 'sigma'];
 
     def process_coeff(self, coeff):
@@ -1075,7 +1075,7 @@ class yukawa(wallpotential):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs += ['epsilon', 'kappa'];
 
     def process_coeff(self, coeff):
@@ -1124,7 +1124,7 @@ class morse(wallpotential):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs += ['D0', 'alpha', 'r0'];
 
     def process_coeff(self, coeff):
@@ -1175,7 +1175,7 @@ class force_shifted_lj(wallpotential):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs += ['epsilon', 'sigma', 'alpha'];
         self.force_coeff.set_default_coeff('alpha', 1.0);
 
@@ -1229,7 +1229,7 @@ class mie(wallpotential):
 
         hoomd.context.current.system.addCompute(self.cpp_force, self.force_name);
 
-        # setup the coefficent options
+        # setup the coefficient options
         self.required_coeffs += ['epsilon', 'sigma', 'n', 'm'];
 
     def process_coeff(self, coeff):
