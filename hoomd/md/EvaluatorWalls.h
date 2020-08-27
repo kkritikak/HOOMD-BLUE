@@ -13,7 +13,6 @@
 
 #ifndef __HIPCC__
 #include <string>
-#include <hoomd/extern/pybind/include/pybind11/pybind11.h>
 #endif
 
 #include "hoomd/BoxDim.h"
@@ -96,7 +95,7 @@ class EvaluatorWalls
             qi = charge;
             }
 
-        DEVICE static bool needsFieldRescale()
+        DEVICE const static bool needsFieldRescale()
             {
             return true;
             }

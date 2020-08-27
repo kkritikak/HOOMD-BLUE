@@ -102,7 +102,10 @@ PotentialExternal<evaluator>::PotentialExternal(std::shared_ptr<SystemDefinition
 
     //set no rescale
     m_rescale = false;
-    m_old_box = m_pdata->getGlobalBox();
+    if(evaluator::needsFieldRescale())
+        {
+        m_old_box = m_pdata->getGlobalBox();
+        }
 
     // connect to the ParticleData to receive notifications when the maximum number of particles changes
     m_pdata->getNumTypesChangeSignal().template connect<PotentialExternal<evaluator>, &PotentialExternal<evaluator>::slotNumTypesChange>(this);
@@ -161,7 +164,7 @@ void PotentialExternal<evaluator>::computeForces(unsigned int timestep)
     // access the particle data arrays
     ArrayHandle<Scalar4> h_pos(m_pdata->getPositions(), access_location::host, access_mode::read);
     ArrayHandle<Scalar4> h_vel(m_pdata->getVelocities(), access_location::host, access_mode::read);
-
+    
     ArrayHandle<Scalar4> h_force(m_force,access_location::host, access_mode::overwrite);
     ArrayHandle<Scalar> h_virial(m_virial,access_location::host, access_mode::overwrite);
     ArrayHandle<Scalar> h_diameter(m_pdata->getDiameters(), access_location::host, access_mode::read);
@@ -199,8 +202,13 @@ void PotentialExternal<evaluator>::computeForces(unsigned int timestep)
         {
         // get the current particle properties
         Scalar3 X = make_scalar3(h_pos.data[idx].x, h_pos.data[idx].y, h_pos.data[idx].z);
-        Scalar3 V = make_scalar3(h_vel.data[idx].x, h_vel.data[idx].y, h_vel.data[idx].z);
-        V *= m_deltaT; // What is happening here??? This should make all the velocities quite small which in turn whould decrease the virial contributuion in a way that's dependent on the time step size.....???
+        Scalar3 V;
+        if(evaluator::needsFieldRescale())
+            {
+            V = make_scalar3(h_vel.data[idx].x, h_vel.data[idx].y, h_vel.data[idx].z);
+            V *= m_deltaT; // What is happening here??? This should make all the velocities quite small which in turn whould decrease the virial contributuion in a way that's dependent on the time step size.....???
+            }
+        
         unsigned int type = __scalar_as_int(h_pos.data[idx].w);
         Scalar3 F;
         Scalar energy;
@@ -228,8 +236,8 @@ void PotentialExternal<evaluator>::computeForces(unsigned int timestep)
         h_force.data[idx].w = energy;
         for (int k = 0; k < 6; k++)
             h_virial.data[k*m_virial_pitch+idx]  = virial[k];
-
         }
+
 
     if (m_prof)
         m_prof->pop();
@@ -263,9 +271,12 @@ void PotentialExternal<evaluator>::setField(field_type field)
 template<class evaluator>
 void PotentialExternal<evaluator>::updateFieldPy(pybind11::object field_py)
     {
-    ArrayHandle<field_type> h_field(m_field, access_location::host, access_mode::read);
-    field_type& field = *(h_field.data);
-    evaluator::updateFieldPy(field, field_py);
+    if(evaluator::needsFieldRescale())
+        {
+        ArrayHandle<field_type> h_field(m_field, access_location::host, access_mode::read);
+        field_type& field = *(h_field.data);
+        evaluator::updateFieldPy(field, field_py);
+        }
     }
 
 //! Export this external potential to python

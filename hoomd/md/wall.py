@@ -137,7 +137,6 @@ class group(object):
         for wall in walls:
             self.add(wall);
 
-
     def add(self,wall):
         R""" Generic wall add for wall objects.
 

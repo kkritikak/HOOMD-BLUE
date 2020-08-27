@@ -131,8 +131,12 @@ __global__ void gpu_compute_external_forces_kernel(Scalar4 *d_force,
     // read in the position of our particle.
     // (MEM TRANSFER: 16 bytes)
     Scalar4 posi = d_pos[idx];
-    // (MEM TRANSFER: 16 bytes)
-    Scalar4 veli = d_vel[idx];
+    Scalar4 veli; 
+    if (evaluator::needsFieldRescale())
+        {
+        // (MEM TRANSFER: 16 bytes)
+        veli = d_vel[idx];
+        }
     Scalar di;
     Scalar qi;
     if (evaluator::needsDiameter())
@@ -155,8 +159,12 @@ __global__ void gpu_compute_external_forces_kernel(Scalar4 *d_force,
 
     unsigned int typei = __scalar_as_int(posi.w);
     Scalar3 Xi = make_scalar3(posi.x, posi.y, posi.z);
-    Scalar3 Vi = make_scalar3(veli.x, veli.y, veli.z);
-            Vi *= deltaT;
+    Scalar3 Vi;
+    if(evaluator::needsFieldRescale())
+        {
+        Vi = make_scalar3(veli.x, veli.y, veli.z);
+        Vi *= deltaT;
+        }
     evaluator eval(Xi,Vi, box, params[typei], field);
 
     if (evaluator::needsDiameter())

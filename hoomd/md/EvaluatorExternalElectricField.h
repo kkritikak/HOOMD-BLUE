@@ -9,7 +9,6 @@
 
 #ifndef __HIPCC__
 #include <string>
-#include <hoomd/extern/pybind/include/pybind11/pybind11.h>
 #endif
 
 #include <math.h>
@@ -73,12 +72,12 @@ class EvaluatorExternalElectricField
         DEVICE void setCharge(Scalar qi) { m_qi = qi; }
 
         //!External Field doesn't need rescale
-        DEVICE static bool needsFieldRescale(){return false;}
+        DEVICE const static bool needsFieldRescale(){return false;}
 
-        DEVICE static void rescaleField(field_type& field, const BoxDim& new_box, const BoxDim& old_box){}
+        DEVICE inline static void rescaleField(field_type& field, const BoxDim& new_box, const BoxDim& old_box){}
 
         #ifndef NVCC
-        static void updateFieldPy(field_type& field, pybind11::object field_py){}
+        DEVICE inline static void updateFieldPy(field_type& field, pybind11::object field_py){}
         #endif
         
         //! Evaluate the force, energy and virial
