@@ -220,5 +220,15 @@ template < class T, class Base > void export_AnisoPotentialPairGPU(pybind11::mod
               ;
     }
 
+template< class aniso_evaluator >
+void AnisoPotentialPair< aniso_evaluator >::setShapePython(
+        std::string typ, pybind11::dict shape_param)
+    {
+    auto typ1 = m_pdata->getTypeByName(typ);
+    // set use_device = true for allowing shapes to have managed arrays
+    setShape(typ1, shape_param_type(shape_param, true));
+    }
+
+
 #endif // ENABLE_HIP
 #endif // __ANISO_POTENTIAL_PAIR_GPU_H__

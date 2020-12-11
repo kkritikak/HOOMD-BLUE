@@ -83,6 +83,7 @@ set(_md_headers ActiveForceComputeGPU.h
                 EvaluatorConstraintSphere.h
                 EvaluatorExternalElectricField.h
                 EvaluatorExternalPeriodic.h
+                EvaluatorPairALJ.h
                 EvaluatorPairBuckingham.h
                 EvaluatorPairDipole.h
                 EvaluatorPairDPDLJThermo.h
@@ -109,6 +110,8 @@ set(_md_headers ActiveForceComputeGPU.h
                 ForceComposite.h
                 ForceDistanceConstraintGPU.h
                 ForceDistanceConstraint.h
+                GTK.h
+                GTK_SV.h
                 HarmonicAngleForceComputeGPU.h
                 HarmonicAngleForceCompute.h
                 HarmonicDihedralForceComputeGPU.h

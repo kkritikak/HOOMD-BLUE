@@ -112,6 +112,11 @@ class AnisoPotentialPair : public ForceCompute
 
         //! Set the shape parameters for a single type
         virtual void setShape(unsigned int typ, const shape_param_type& shape_param);
+        //! Get the shape parameters for a single type from Python
+        pybind11::dict getShape(std::string typ);
+        //! Set the shape parameters for a single type in Python
+        virtual void setShapePython(std::string typ,
+                                    pybind11::dict shape_param);
 
         //! Returns a list of log quantities this compute calculates
         virtual std::vector< std::string > getProvidedLogQuantities();
@@ -489,6 +494,23 @@ void AnisoPotentialPair< aniso_evaluator >::setShape(unsigned int typ, const sha
     h_shape_params.data[typ] = shape_param;
     }
 
+template< class aniso_evaluator >
+void AnisoPotentialPair< aniso_evaluator >::setShapePython(
+        std::string typ, pybind11::dict shape_param)
+    {
+    auto typ1 = m_pdata->getTypeByName(typ);
+    setShape(typ1, shape_param_type(shape_param));
+    }
+
+template< class aniso_evaluator >
+pybind11::dict AnisoPotentialPair< aniso_evaluator >::getShape(std::string typ)
+    {
+    auto typ1 = m_pdata->getTypeByName(typ);
+    ArrayHandle<shape_param_type> h_shape_params(
+        m_shape_params, access_location::host, access_mode::readwrite);
+    return h_shape_params.data[typ].asDict();
+    }
+
 /*! \param typ1 First type index in the pair
     \param typ2 Second type index in the pair
     \param rcut Cutoff radius to set
@@ -850,6 +872,8 @@ template < class T > void export_AnisoPotentialPair(pybind11::module& m, const s
     anisopotentialpair.def(pybind11::init< std::shared_ptr<SystemDefinition>, std::shared_ptr<NeighborList>, const std::string& >())
         .def("setParams", &T::setParamsPython)
         .def("getParams", &T::getParams)
+        .def("getShape", &T::getShape)
+        .def("setShape", &T::setShape)
         .def("setRCut", &T::setRCutPython)
         .def("getRCut", &T::getRCut)
         .def("setROn", &T::setROnPython)

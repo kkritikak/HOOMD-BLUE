@@ -14,6 +14,7 @@
 #include "AnisoPotentialPairGPU.cuh"
 #include "EvaluatorPairGB.h"
 #include "EvaluatorPairDipole.h"
+#include "EvaluatorPairAlj.h"
 
 //! Compute dipole forces and torques on the GPU with EvaluatorPairDipole
 
@@ -27,4 +28,8 @@ gpu_compute_pair_aniso_forces_dipole(const a_pair_args_t&,
             const EvaluatorPairDipole::param_type*,
             const EvaluatorPairDipole::shape_param_type*);
 
+hipError_t __attribute__((visibility("default")))
+gpu_compute_pair_aniso_forces_alj(const a_pair_args_t&,
+            const EvaluatorPairALJ::param_type*,
+            const EvaluatorPairALJ::shape_param_type*);
 #endif
