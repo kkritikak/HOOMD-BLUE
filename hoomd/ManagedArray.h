@@ -224,7 +224,7 @@ class ManagedArray
 
             \returns true if array was loaded into shared memory
          */
-        DEVICE bool load_shared(char *& s_ptr, unsigned int &available_bytes)
+        DEVICE bool load_shared(char *& s_ptr, unsigned int &available_bytes) const
             {
             // align ptr to size of data type
             void *ptr_align = allocate_shared(s_ptr, available_bytes);

@@ -65,6 +65,38 @@ struct vec3
         {
         }
 
+    DEVICE Real& operator[](unsigned int i)
+    {
+        switch(i) {
+            case 0:
+                return x;
+            case 1:
+                return y;
+            case 2:
+                return z;
+        }
+        // This branch is unreachable, but must include something to avoid
+        // compiler warnings and it must be something that can be returned by
+        // reference, so x is as good a choice as any.
+        return x;
+    }
+
+    DEVICE const Real operator[](unsigned int i) const
+    {
+        switch(i) {
+            case 0:
+                return x;
+            case 1:
+                return y;
+            case 2:
+                return z;
+        }
+        // This branch is unreachable, but must include something to avoid
+        // compiler warnings. The return value is chosen to match the non-const
+        // version of the operator.
+        return x;
+    }
+
     //! Implicit cast from vec3<double> to the current Real
     DEVICE vec3(const vec3<double>& a) : x(a.x), y(a.y), z(a.z)
         {
