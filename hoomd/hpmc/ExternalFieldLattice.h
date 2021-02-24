@@ -192,7 +192,6 @@ class ExternalFieldLattice : public ExternalFieldMono<Shape>
                 {
                 m_symmetry.push_back(identity);
                 }
-            reset(0); // initializes all of the energy logging parameters.
             }
 
         ~ExternalFieldLattice()
@@ -200,95 +199,95 @@ class ExternalFieldLattice : public ExternalFieldMono<Shape>
             m_pdata->getBoxChangeSignal().template disconnect<ExternalFieldLattice<Shape>, &ExternalFieldLattice<Shape>::scaleReferencePoints>(this);
         }
 
-        Scalar calculateBoltzmannWeight(unsigned int timestep) { return 0.0; }
+	//double evaluateEnergy(const Scalar4 * const position_old_arg,
+        //                                const Scalar4 * const orientation_old_arg,
+        //                                const BoxDim * const box_old_arg
+        //                                )
 
-        double calculateDeltaE(const Scalar4 * const position_old_arg,
-                                        const Scalar4 * const orientation_old_arg,
-                                        const BoxDim * const box_old_arg
-                                        )
-            {
-            // TODO: rethink the formatting a bit.
-            ArrayHandle<Scalar4> h_pos(m_pdata->getPositions(), access_location::host, access_mode::readwrite);
-            ArrayHandle<Scalar4> h_orient(m_pdata->getOrientationArray(), access_location::host, access_mode::readwrite);
-            const Scalar4 * const position_new = h_pos.data;
-            const Scalar4 * const orientation_new = h_orient.data;
-            const BoxDim * const box_new = &m_pdata->getGlobalBox();
-            const Scalar4 * position_old=position_old_arg, * orientation_old=orientation_old_arg;
-            const BoxDim * box_old = box_old_arg;
-            if( !position_old )
-                position_old = position_new;
-            if( !orientation_old )
-                orientation_old = orientation_new;
-            if( !box_old )
-                box_old = box_new;
+	//
+        //    {
+        //    // TODO: rethink the formatting a bit.
+        //    ArrayHandle<Scalar4> h_pos(m_pdata->getPositions(), access_location::host, access_mode::readwrite);
+        //    ArrayHandle<Scalar4> h_orient(m_pdata->getOrientationArray(), access_location::host, access_mode::readwrite);
+        //    const Scalar4 * const position_new = h_pos.data;
+        //    const Scalar4 * const orientation_new = h_orient.data;
+        //    const BoxDim * const box_new = &m_pdata->getGlobalBox();
+        //    const Scalar4 * position_old=position_old_arg, * orientation_old=orientation_old_arg;
+        //    const BoxDim * box_old = box_old_arg;
+        //    if( !position_old )
+        //        position_old = position_new;
+        //    if( !orientation_old )
+        //        orientation_old = orientation_new;
+        //    if( !box_old )
+        //        box_old = box_new;
 
-            Scalar curVolume = m_box.getVolume();
-            Scalar newVolume = box_new->getVolume();
-            Scalar oldVolume = box_old->getVolume();
-            Scalar scaleOld = pow((oldVolume/curVolume), Scalar(1.0/3.0));
-            Scalar scaleNew = pow((newVolume/curVolume), Scalar(1.0/3.0));
+        //    Scalar curVolume = m_box.getVolume();
+        //    Scalar newVolume = box_new->getVolume();
+        //    Scalar oldVolume = box_old->getVolume();
+        //    Scalar scaleOld = pow((oldVolume/curVolume), Scalar(1.0/3.0));
+        //    Scalar scaleNew = pow((newVolume/curVolume), Scalar(1.0/3.0));
 
-            double dE = 0.0;
-            for(unsigned int i = 0; i < m_pdata->getN(); i++)
-                {
-                Scalar old_E = calcE(i, vec3<Scalar>(*(position_old+i)), quat<Scalar>(*(orientation_old+i)), scaleOld);
-                Scalar new_E = calcE(i, vec3<Scalar>(*(position_new+i)), quat<Scalar>(*(orientation_new+i)), scaleNew);
-                dE += new_E - old_E;
-                }
+        //    double dE = 0.0;
+        //    for(unsigned int i = 0; i < m_pdata->getN(); i++)
+        //        {
+        //        Scalar old_E = calcE(i, vec3<Scalar>(*(position_old+i)), quat<Scalar>(*(orientation_old+i)), scaleOld);
+        //        Scalar new_E = calcE(i, vec3<Scalar>(*(position_new+i)), quat<Scalar>(*(orientation_new+i)), scaleNew);
+        //        dE += new_E - old_E;
+        //        }
 
-            #ifdef ENABLE_MPI
-            if (this->m_pdata->getDomainDecomposition())
-                {
-                MPI_Allreduce(MPI_IN_PLACE, &dE, 1, MPI_HOOMD_SCALAR, MPI_SUM, m_exec_conf->getMPICommunicator());
-                }
-            #endif
+        //    #ifdef ENABLE_MPI
+        //    if (this->m_pdata->getDomainDecomposition())
+        //        {
+        //        MPI_Allreduce(MPI_IN_PLACE, &dE, 1, MPI_HOOMD_SCALAR, MPI_SUM, m_exec_conf->getMPICommunicator());
+        //        }
+        //    #endif
 
-            return dE;
-            }
+        //    return dE;
+        //    }
 
-        void compute(unsigned int timestep)
-            {
-            if(!this->shouldCompute(timestep))
-                {
-                return;
-                }
-            m_Energy = Scalar(0.0);
-            // access particle data and system box
-            ArrayHandle<Scalar4> h_postype(m_pdata->getPositions(), access_location::host, access_mode::read);
-            ArrayHandle<Scalar4> h_orient(m_pdata->getOrientationArray(), access_location::host, access_mode::read);
-            for(unsigned int i = 0; i < m_pdata->getN(); i++)
-                {
-                vec3<Scalar> position(h_postype.data[i]);
-                quat<Scalar> orientation(h_orient.data[i]);
-                m_Energy += calcE(i, position, orientation);
-                }
+        //void compute(unsigned int timestep)
+        //    {
+        //    if(!this->shouldCompute(timestep))
+        //        {
+        //        return;
+        //        }
+        //    m_Energy = Scalar(0.0);
+        //    // access particle data and system box
+        //    ArrayHandle<Scalar4> h_postype(m_pdata->getPositions(), access_location::host, access_mode::read);
+        //    ArrayHandle<Scalar4> h_orient(m_pdata->getOrientationArray(), access_location::host, access_mode::read);
+        //    for(unsigned int i = 0; i < m_pdata->getN(); i++)
+        //        {
+        //        vec3<Scalar> position(h_postype.data[i]);
+        //        quat<Scalar> orientation(h_orient.data[i]);
+        //        m_Energy += calcE(i, position, orientation);
+        //        }
 
-            #ifdef ENABLE_MPI
-            if (this->m_pdata->getDomainDecomposition())
-                {
-                MPI_Allreduce(MPI_IN_PLACE, &m_Energy, 1, MPI_HOOMD_SCALAR, MPI_SUM, m_exec_conf->getMPICommunicator());
-                }
-            #endif
+        //    #ifdef ENABLE_MPI
+        //    if (this->m_pdata->getDomainDecomposition())
+        //        {
+        //        MPI_Allreduce(MPI_IN_PLACE, &m_Energy, 1, MPI_HOOMD_SCALAR, MPI_SUM, m_exec_conf->getMPICommunicator());
+        //        }
+        //    #endif
 
-            Scalar energy_per = m_Energy / Scalar(m_pdata->getNGlobal());
-            m_EnergySum_y    = energy_per - m_EnergySum_c;
-            m_EnergySum_t    = m_EnergySum + m_EnergySum_y;
-            m_EnergySum_c    = (m_EnergySum_t-m_EnergySum) - m_EnergySum_y;
-            m_EnergySum      = m_EnergySum_t;
+        //    Scalar energy_per = m_Energy / Scalar(m_pdata->getNGlobal());
+        //    m_EnergySum_y    = energy_per - m_EnergySum_c;
+        //    m_EnergySum_t    = m_EnergySum + m_EnergySum_y;
+        //    m_EnergySum_c    = (m_EnergySum_t-m_EnergySum) - m_EnergySum_y;
+        //    m_EnergySum      = m_EnergySum_t;
 
-            Scalar energy_sq_per = energy_per*energy_per;
-            m_EnergySqSum_y    = energy_sq_per - m_EnergySqSum_c;
-            m_EnergySqSum_t    = m_EnergySqSum + m_EnergySqSum_y;
-            m_EnergySqSum_c    = (m_EnergySqSum_t-m_EnergySqSum) - m_EnergySqSum_y;
-            m_EnergySqSum      = m_EnergySqSum_t;
-            m_num_samples++;
-            }
+        //    Scalar energy_sq_per = energy_per*energy_per;
+        //    m_EnergySqSum_y    = energy_sq_per - m_EnergySqSum_c;
+        //    m_EnergySqSum_t    = m_EnergySqSum + m_EnergySqSum_y;
+        //    m_EnergySqSum_c    = (m_EnergySqSum_t-m_EnergySqSum) - m_EnergySqSum_y;
+        //    m_EnergySqSum      = m_EnergySqSum_t;
+        //    m_num_samples++;
+        //    }
 
-        double energydiff(const unsigned int& index, const vec3<Scalar>& position_old, const Shape& shape_old, const vec3<Scalar>& position_new, const Shape& shape_new)
-            {
-            double old_U = calcE(index, position_old, shape_old), new_U = calcE(index, position_new, shape_new);
-            return new_U - old_U;
-            }
+        //double energydiff(const unsigned int& index, const vec3<Scalar>& position_old, const Shape& shape_old, const vec3<Scalar>& position_new, const Shape& shape_new)
+        //    {
+        //    double old_U = calcE(index, position_old, shape_old), new_U = calcE(index, position_new, shape_new);
+        //    return new_U - old_U;
+        //    }
 
         void setReferences(const pybind11::list& r0, const pybind11::list& q0)
             {
@@ -397,53 +396,6 @@ class ExternalFieldLattice : public ExternalFieldMono<Shape>
                 m_box = newBox;
             }
 
-        //! Returns a list of log quantities this compute calculates
-        std::vector< std::string > getProvidedLogQuantities()
-            {
-            return m_ProvidedQuantities;
-            }
-
-        //! Calculates the requested log value and returns it
-        Scalar getLogValue(const std::string& quantity, unsigned int timestep)
-            {
-            compute(timestep);
-
-            if( quantity == LATTICE_ENERGY_LOG_NAME )
-                {
-                return m_Energy;
-                }
-            else if( quantity == LATTICE_ENERGY_AVG_LOG_NAME )
-                {
-                if( !m_num_samples )
-                    return 0.0;
-                return m_EnergySum/double(m_num_samples);
-                }
-            else if ( quantity == LATTICE_ENERGY_SIGMA_LOG_NAME )
-                {
-                if( !m_num_samples )
-                    return 0.0;
-                Scalar first_moment = m_EnergySum/double(m_num_samples);
-                Scalar second_moment = m_EnergySqSum/double(m_num_samples);
-                return sqrt(second_moment - (first_moment*first_moment));
-                }
-            else if ( quantity == LATTICE_TRANS_SPRING_CONSTANT_LOG_NAME )
-                {
-                return m_k;
-                }
-            else if ( quantity == LATTICE_ROTAT_SPRING_CONSTANT_LOG_NAME )
-                {
-                return m_q;
-                }
-            else if ( quantity == LATTICE_NUM_SAMPLES_LOG_NAME )
-                {
-                return m_num_samples;
-                }
-            else
-                {
-                m_exec_conf->msg->error() << "field.lattice_field: " << quantity << " is not a valid log quantity" << std::endl;
-                throw std::runtime_error("Error getting log value");
-                }
-            }
 
         void setParams(Scalar k, Scalar q)
             {
@@ -461,47 +413,16 @@ class ExternalFieldLattice : public ExternalFieldMono<Shape>
             return m_latticeOrientations.getReferenceArray();
             }
 
-        void reset( unsigned int ) // TODO: remove the timestep
-            {
-            m_EnergySum = m_EnergySum_y = m_EnergySum_t = m_EnergySum_c = Scalar(0.0);
-            m_EnergySqSum = m_EnergySqSum_y = m_EnergySqSum_t = m_EnergySqSum_c = Scalar(0.0);
-            m_num_samples = 0;
-            }
-
-        Scalar getEnergy(unsigned int timestep)
-        {
-            compute(timestep);
-            return m_Energy;
-        }
-        Scalar getAvgEnergy(unsigned int timestep)
-        {
-            compute(timestep);
-            if( !m_num_samples )
-                return 0.0;
-            return m_EnergySum/double(m_num_samples);
-        }
-        Scalar getSigma(unsigned int timestep)
-        {
-            compute(timestep);
-            if( !m_num_samples )
-                return 0.0;
-            Scalar first_moment = m_EnergySum/double(m_num_samples);
-            Scalar second_moment = m_EnergySqSum/double(m_num_samples);
-            return sqrt(second_moment - (first_moment*first_moment));
-        }
-
-
     protected:
 
         // These could be a little redundant. think about this more later.
-        Scalar calcE_trans(const unsigned int& index, const vec3<Scalar>& position, const Scalar& scale = 1.0)
+        Scalar calcE_trans(const unsigned int index, const vec3<Scalar>& position)
             {
             ArrayHandle<unsigned int> h_tags(m_pdata->getTags(), access_location::host, access_mode::read);
             int3 dummy = make_int3(0,0,0);
             vec3<Scalar> origin(m_pdata->getOrigin());
             const BoxDim& box = this->m_pdata->getGlobalBox();
             vec3<Scalar> r0(m_latticePositions.getReference(h_tags.data[index]));
-            r0 *= scale;
             Scalar3 t = vec_to_scalar3(position - origin);
             box.wrap(t, dummy);
             vec3<Scalar> shifted_pos(t);
@@ -509,7 +430,7 @@ class ExternalFieldLattice : public ExternalFieldMono<Shape>
             return m_k*dot(dr,dr);
             }
 
-        Scalar calcE_rot(const unsigned int& index, const quat<Scalar>& orientation)
+        Scalar calcE_rot(const unsigned int index, const quat<Scalar>& orientation)
             {
             assert(m_symmetry.size());
             ArrayHandle<unsigned int> h_tags(m_pdata->getTags(), access_location::host, access_mode::read);
@@ -523,29 +444,19 @@ class ExternalFieldLattice : public ExternalFieldMono<Shape>
                 }
             return m_q*dqmin;
             }
-        Scalar calcE_rot(const unsigned int& index, const Shape& shape)
-            {
-            if(!shape.hasOrientation())
-                return Scalar(0.0);
 
-            return calcE_rot(index, shape.orientation);
-            }
-        Scalar calcE(const unsigned int& index, const vec3<Scalar>& position, const quat<Scalar>& orientation, const Scalar& scale = 1.0)
+        virtual double evaluateEnergy(const unsigned int index, const vec3<Scalar>& position, const quat<Scalar>& orientation, const Shape& shape)
             {
             Scalar energy = 0.0;
             if(m_latticePositions.isValid())
                 {
-                energy += calcE_trans(index, position, scale);
+                energy += calcE_trans(index, position);
                 }
-            if(m_latticeOrientations.isValid())
+            if(shape.hasOrientation() && m_latticeOrientations.isValid())
                 {
-                energy += calcE_rot(index, orientation);
+                energy += calcE_rot(index, shape.orientation);
                 }
             return energy;
-            }
-        Scalar calcE(const unsigned int& index, const vec3<Scalar>& position, const Shape& shape, const Scalar& scale = 1.0)
-            {
-            return calcE(index, position, shape.orientation, scale);
             }
     private:
         LatticeReferenceList<Scalar3>   m_latticePositions;         // positions of the lattice.
