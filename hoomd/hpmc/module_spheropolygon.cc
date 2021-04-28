@@ -43,7 +43,7 @@ void export_spheropolygon(py::module& m)
     export_UpdaterMuVT< ShapeSpheropolygon >(m, "UpdaterMuVTSpheropolygon");
     export_UpdaterClusters< ShapeSpheropolygon >(m, "UpdaterClustersSpheropolygon");
 
-    export_ExternalFieldInterface<ShapeSpheropolygon>(m, "ExternalFieldSpheropolygon");
+    export_ExternalField<ShapeSpheropolygon>(m, "ExternalFieldSpheropolygon");
     export_LatticeField<ShapeSpheropolygon>(m, "ExternalFieldLatticeSpheropolygon");
     export_ExternalFieldComposite<ShapeSpheropolygon>(m, "ExternalFieldCompositeSpheropolygon");
     export_RemoveDriftUpdater<ShapeSpheropolygon>(m, "RemoveDriftUpdaterSpheropolygon");

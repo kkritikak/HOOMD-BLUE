@@ -46,7 +46,7 @@ void export_convex_polygon(py::module& m)
     export_UpdaterMuVT< ShapeConvexPolygon >(m, "UpdaterMuVTConvexPolygon");
     export_UpdaterClusters< ShapeConvexPolygon >(m, "UpdaterClustersConvexPolygon");
 
-    export_ExternalFieldInterface<ShapeConvexPolygon>(m, "ExternalFieldConvexPolygon");
+    export_ExternalField<ShapeConvexPolygon>(m, "ExternalFieldConvexPolygon");
     export_LatticeField<ShapeConvexPolygon>(m, "ExternalFieldLatticeConvexPolygon");
     export_ExternalFieldComposite<ShapeConvexPolygon>(m, "ExternalFieldCompositeConvexPolygon");
     export_RemoveDriftUpdater<ShapeConvexPolygon>(m, "RemoveDriftUpdaterConvexPolygon");

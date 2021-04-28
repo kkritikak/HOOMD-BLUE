@@ -502,7 +502,7 @@ struct ShapeFacetedEllipsoid
         { }
 
     /// Check if the shape may be rotated
-    DEVICE bool hasOrientation() { return (params.N > 0) ||
+    DEVICE bool hasOrientation() const { return (params.N > 0) ||
         (params.a != params.b) || (params.a != params.c) || (params.b != params.c); }
 
     /// Check if this shape should be ignored in the move statistics

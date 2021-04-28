@@ -361,7 +361,7 @@ struct ShapePolyhedron
         }
 
     /// Check if the shape may be rotated
-    DEVICE bool hasOrientation() { return data.n_verts > 1; }
+    DEVICE bool hasOrientation() const { return data.n_verts > 1; }
 
     /// Check if this shape should be ignored in the move statistics
     DEVICE bool ignoreStatistics() const { return data.ignore; }

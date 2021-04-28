@@ -493,12 +493,10 @@ void export_LatticeField(pybind11::module& m, std::string name)
     .def(pybind11::init< std::shared_ptr<SystemDefinition>, pybind11::list, Scalar, pybind11::list, Scalar, pybind11::list>())
     .def("setReferences", &ExternalFieldLattice<Shape>::setReferences)
     .def("setParams", &ExternalFieldLattice<Shape>::setParams)
-    .def("reset", &ExternalFieldLattice<Shape>::reset)
     .def("clearPositions", &ExternalFieldLattice<Shape>::clearPositions)
     .def("clearOrientations", &ExternalFieldLattice<Shape>::clearOrientations)
-    .def("getEnergy", &ExternalFieldLattice<Shape>::getEnergy)
-    .def("getAvgEnergy", &ExternalFieldLattice<Shape>::getAvgEnergy)
-    .def("getSigma", &ExternalFieldLattice<Shape>::getSigma)
+     // TO DO: Implement get energy
+    // .def("getEnergy", &ExternalFieldLattice<Shape>::getEnergy)
     ;
     }
 

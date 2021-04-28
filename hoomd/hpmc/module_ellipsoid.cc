@@ -43,7 +43,7 @@ void export_ellipsoid(py::module& m)
     export_UpdaterMuVT< ShapeEllipsoid >(m, "UpdaterMuVTEllipsoid");
     export_UpdaterClusters< ShapeEllipsoid >(m, "UpdaterClustersEllipsoid");
 
-    export_ExternalFieldInterface<ShapeEllipsoid>(m, "ExternalFieldEllipsoid");
+    export_ExternalField<ShapeEllipsoid>(m, "ExternalFieldEllipsoid");
     export_LatticeField<ShapeEllipsoid>(m, "ExternalFieldLatticeEllipsoid");
     export_ExternalFieldComposite<ShapeEllipsoid>(m, "ExternalFieldCompositeEllipsoid");
     export_RemoveDriftUpdater<ShapeEllipsoid>(m, "RemoveDriftUpdaterEllipsoid");

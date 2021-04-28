@@ -351,7 +351,7 @@ struct ShapeConvexPolygon
         }
 
     /// Check if the shape may be rotated
-    DEVICE bool hasOrientation() { return true; }
+    DEVICE bool hasOrientation() const { return true; }
 
     /// Check if this shape should be ignored in the move statistics
     DEVICE bool ignoreStatistics() const{ return verts.ignore; }

@@ -46,7 +46,7 @@ void export_simple_polygon(py::module& m)
     export_UpdaterMuVT< ShapeSimplePolygon >(m, "UpdaterMuVTSimplePolygon");
     export_UpdaterClusters< ShapeSimplePolygon >(m, "UpdaterClustersSimplePolygon");
 
-    export_ExternalFieldInterface<ShapeSimplePolygon>(m, "ExternalFieldSimplePolygon");
+    export_ExternalField<ShapeSimplePolygon>(m, "ExternalFieldSimplePolygon");
     export_LatticeField<ShapeSimplePolygon>(m, "ExternalFieldLatticeSimplePolygon");
     export_ExternalFieldComposite<ShapeSimplePolygon>(m, "ExternalFieldCompositeSimplePolygon");
     export_RemoveDriftUpdater<ShapeSimplePolygon>(m, "RemoveDriftUpdaterSimplePolygon");

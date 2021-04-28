@@ -43,7 +43,7 @@ void export_union_convex_polyhedron(py::module& m)
     export_UpdaterMuVT< ShapeUnion<ShapeSpheropolyhedron> >(m, "UpdaterMuVTConvexPolyhedronUnion");
     export_UpdaterClusters<ShapeUnion<ShapeSpheropolyhedron> >(m, "UpdaterClustersConvexPolyhedronUnion");
 
-    export_ExternalFieldInterface<ShapeUnion<ShapeSpheropolyhedron> >(m, "ExternalFieldConvexPolyhedronUnion");
+    export_ExternalField<ShapeUnion<ShapeSpheropolyhedron> >(m, "ExternalFieldConvexPolyhedronUnion");
     export_LatticeField<ShapeUnion<ShapeSpheropolyhedron> >(m, "ExternalFieldLatticeConvexPolyhedronUnion");
     export_ExternalFieldComposite<ShapeUnion<ShapeSpheropolyhedron> >(m, "ExternalFieldCompositeConvexPolyhedronUnion");
     export_RemoveDriftUpdater<ShapeUnion<ShapeSpheropolyhedron> >(m, "RemoveDriftUpdaterConvexPolyhedronUnion");

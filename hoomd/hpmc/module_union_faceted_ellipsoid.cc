@@ -43,7 +43,7 @@ void export_union_faceted_ellipsoid(py::module& m)
     export_UpdaterMuVT< ShapeUnion<ShapeFacetedEllipsoid> >(m, "UpdaterMuVTFacetedEllipsoidUnion");
     export_UpdaterClusters<ShapeUnion<ShapeFacetedEllipsoid> >(m, "UpdaterClustersFacetedEllipsoidUnion");
 
-    export_ExternalFieldInterface<ShapeUnion<ShapeFacetedEllipsoid> >(m, "ExternalFieldFacetedEllipsoidUnion");
+    export_ExternalField<ShapeUnion<ShapeFacetedEllipsoid> >(m, "ExternalFieldFacetedEllipsoidUnion");
     export_LatticeField<ShapeUnion<ShapeFacetedEllipsoid> >(m, "ExternalFieldLatticeFacetedEllipsoidUnion");
     export_ExternalFieldComposite<ShapeUnion<ShapeFacetedEllipsoid> >(m, "ExternalFieldCompositeFacetedEllipsoidUnion");
     export_RemoveDriftUpdater<ShapeUnion<ShapeFacetedEllipsoid> >(m, "RemoveDriftUpdaterFacetedEllipsoidUnion");

@@ -43,7 +43,7 @@ void export_sphinx(py::module& m)
     export_UpdaterMuVT< ShapeSphinx >(m, "UpdaterMuVTSphinx");
     export_UpdaterClusters< ShapeSphinx >(m, "UpdaterClustersSphinx");
 
-    export_ExternalFieldInterface<ShapeSphinx>(m, "ExternalFieldSphinx");
+    export_ExternalField<ShapeSphinx>(m, "ExternalFieldSphinx");
     export_LatticeField<ShapeSphinx>(m, "ExternalFieldLatticeSphinx");
     export_ExternalFieldComposite<ShapeSphinx>(m, "ExternalFieldCompositeSphinx");
     export_RemoveDriftUpdater<ShapeSphinx>(m, "RemoveDriftUpdaterSphinx");

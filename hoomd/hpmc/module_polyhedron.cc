@@ -43,7 +43,7 @@ void export_polyhedron(py::module& m)
     export_UpdaterMuVT< ShapePolyhedron >(m, "UpdaterMuVTPolyhedron");
     export_UpdaterClusters< ShapePolyhedron >(m, "UpdaterClustersPolyhedron");
 
-    export_ExternalFieldInterface<ShapePolyhedron>(m, "ExternalFieldPolyhedron");
+    export_ExternalField<ShapePolyhedron>(m, "ExternalFieldPolyhedron");
     export_LatticeField<ShapePolyhedron>(m, "ExternalFieldLatticePolyhedron");
     export_ExternalFieldComposite<ShapePolyhedron>(m, "ExternalFieldCompositePolyhedron");
     export_RemoveDriftUpdater<ShapePolyhedron>(m, "RemoveDriftUpdaterPolyhedron");

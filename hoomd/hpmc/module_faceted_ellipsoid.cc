@@ -45,7 +45,7 @@ void export_faceted_ellipsoid(py::module& m)
     export_UpdaterMuVT< ShapeFacetedEllipsoid >(m, "UpdaterMuVTFacetedEllipsoid");
     export_UpdaterClusters< ShapeFacetedEllipsoid >(m, "UpdaterClustersFacetedEllipsoid");
 
-    export_ExternalFieldInterface<ShapeFacetedEllipsoid>(m, "ExternalFieldFacetedEllipsoid");
+    export_ExternalField<ShapeFacetedEllipsoid>(m, "ExternalFieldFacetedEllipsoid");
     export_LatticeField<ShapeFacetedEllipsoid>(m, "ExternalFieldLatticeFacetedEllipsoid");
     export_ExternalFieldComposite<ShapeFacetedEllipsoid>(m, "ExternalFieldCompositeFacetedEllipsoid");
     export_RemoveDriftUpdater<ShapeFacetedEllipsoid>(m, "RemoveDriftUpdaterFacetedEllipsoid");
