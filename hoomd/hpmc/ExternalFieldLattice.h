@@ -192,12 +192,12 @@ class LatticeReferenceList
     };  // end class LatticeReferenceList
 
 
-#define LATTICE_ENERGY_LOG_NAME                 "lattice_energy"
-#define LATTICE_ENERGY_AVG_LOG_NAME             "lattice_energy_pp_avg"
-#define LATTICE_ENERGY_SIGMA_LOG_NAME           "lattice_energy_pp_sigma"
-#define LATTICE_TRANS_SPRING_CONSTANT_LOG_NAME  "lattice_translational_spring_constant"
-#define LATTICE_ROTAT_SPRING_CONSTANT_LOG_NAME  "lattice_rotational_spring_constant"
-#define LATTICE_NUM_SAMPLES_LOG_NAME            "lattice_num_samples"
+//#define LATTICE_ENERGY_LOG_NAME                 "lattice_energy"
+//#define LATTICE_ENERGY_AVG_LOG_NAME             "lattice_energy_pp_avg"
+//#define LATTICE_ENERGY_SIGMA_LOG_NAME           "lattice_energy_pp_sigma"
+//#define LATTICE_TRANS_SPRING_CONSTANT_LOG_NAME  "lattice_translational_spring_constant"
+//#define LATTICE_ROTAT_SPRING_CONSTANT_LOG_NAME  "lattice_rotational_spring_constant"
+//#define LATTICE_NUM_SAMPLES_LOG_NAME            "lattice_num_samples"
 
 template< class Shape>
 class ExternalFieldLattice : public ExternalFieldMono<Shape>
@@ -212,7 +212,9 @@ class ExternalFieldLattice : public ExternalFieldMono<Shape>
                              Scalar k,
                              pybind11::list q0,
                              Scalar q,
-                             pybind11::list symRotations)
+                             pybind11::list symRotations,
+			     const std::string& suffix)
+			     
                              : ExternalFieldMono<Shape>(sysdef),
                                m_k(k),
                                m_q(q),
@@ -220,12 +222,19 @@ class ExternalFieldLattice : public ExternalFieldMono<Shape>
                                m_group(group)
             {
             // add to provided quantities
-            m_ProvidedQuantities.push_back(LATTICE_ENERGY_LOG_NAME);
-            m_ProvidedQuantities.push_back(LATTICE_ENERGY_AVG_LOG_NAME);
-            m_ProvidedQuantities.push_back(LATTICE_ENERGY_SIGMA_LOG_NAME);
-            m_ProvidedQuantities.push_back(LATTICE_TRANS_SPRING_CONSTANT_LOG_NAME);
-            m_ProvidedQuantities.push_back(LATTICE_ROTAT_SPRING_CONSTANT_LOG_NAME);
-            m_ProvidedQuantities.push_back(LATTICE_NUM_SAMPLES_LOG_NAME);
+            //m_ProvidedQuantities.push_back(LATTICE_ENERGY_LOG_NAME);
+            //m_ProvidedQuantities.push_back(LATTICE_ENERGY_AVG_LOG_NAME);
+            //m_ProvidedQuantities.push_back(LATTICE_ENERGY_SIGMA_LOG_NAME);
+            //m_ProvidedQuantities.push_back(LATTICE_TRANS_SPRING_CONSTANT_LOG_NAME);
+            //m_ProvidedQuantities.push_back(LATTICE_ROTAT_SPRING_CONSTANT_LOG_NAME);
+            //m_ProvidedQuantities.push_back(LATTICE_NUM_SAMPLES_LOG_NAME);
+
+            m_ProvidedQuantities.push_back(std::string("lattice_energy")+suffix);
+            m_ProvidedQuantities.push_back(std::string("lattice_energy_pp_avg")+suffix);
+            m_ProvidedQuantities.push_back(std::string("lattice_energy_pp_sigma")+suffix);
+            m_ProvidedQuantities.push_back(std::string("lattice_translational_spring_constant")+suffix);
+            m_ProvidedQuantities.push_back(std::string("lattice_rotational_spring_constant")+suffix);
+            m_ProvidedQuantities.push_back(std::string("lattice_num_samples")+suffix);
 
             // Connect to the BoxChange signal
             m_box = m_pdata->getBox();
@@ -555,27 +564,51 @@ class ExternalFieldLattice : public ExternalFieldMono<Shape>
             {
             compute(timestep);
 
-            if (quantity == LATTICE_ENERGY_LOG_NAME)
+            //if (quantity == LATTICE_ENERGY_LOG_NAME)
+            //    {
+            //    return m_Energy;
+            //    }
+            //else if (quantity == LATTICE_ENERGY_AVG_LOG_NAME)
+            //    {
+            //    return getAvgEnergy(timestep);
+            //    }
+            //else if (quantity == LATTICE_ENERGY_SIGMA_LOG_NAME)
+            //    {
+            //    return getSigma(timestep);
+            //    }
+            //else if (quantity == LATTICE_TRANS_SPRING_CONSTANT_LOG_NAME)
+            //    {
+            //    return m_k;
+            //    }
+            //else if (quantity == LATTICE_ROTAT_SPRING_CONSTANT_LOG_NAME)
+            //    {
+            //    return m_q;
+            //    }
+            //else if (quantity == LATTICE_NUM_SAMPLES_LOG_NAME)
+            //    {
+            //    return m_num_samples;
+            //    }
+            if (quantity == m_ProvidedQuantities[0])
                 {
                 return m_Energy;
                 }
-            else if (quantity == LATTICE_ENERGY_AVG_LOG_NAME)
+            else if (quantity == m_ProvidedQuantities[1])
                 {
                 return getAvgEnergy(timestep);
                 }
-            else if (quantity == LATTICE_ENERGY_SIGMA_LOG_NAME)
+            else if (quantity == m_ProvidedQuantities[2])
                 {
                 return getSigma(timestep);
                 }
-            else if (quantity == LATTICE_TRANS_SPRING_CONSTANT_LOG_NAME)
+            else if (quantity == m_ProvidedQuantities[3])
                 {
                 return m_k;
                 }
-            else if (quantity == LATTICE_ROTAT_SPRING_CONSTANT_LOG_NAME)
+            else if (quantity == m_ProvidedQuantities[4])
                 {
                 return m_q;
                 }
-            else if (quantity == LATTICE_NUM_SAMPLES_LOG_NAME)
+            else if (quantity == m_ProvidedQuantities[5])
                 {
                 return m_num_samples;
                 }
@@ -770,7 +803,9 @@ void export_LatticeField(pybind11::module& m, std::string name)
          Scalar,
          pybind11::list,
          Scalar,
-         pybind11::list>())
+         pybind11::list,
+	 const std::string&>()
+	 )
     .def("setReferences", &ExternalFieldLattice<Shape>::setReferences)
     .def("setParams", &ExternalFieldLattice<Shape>::setParams)
     .def("reset", &ExternalFieldLattice<Shape>::reset)

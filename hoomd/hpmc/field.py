@@ -64,7 +64,7 @@ class lattice_field(_external):
         hpmc.field.lattice_field(mc=mc, position=fcc_lattice, k=1000.0);
         log = analyze.log(quantities=['lattice_energy'], period=100, filename='log.dat', overwrite=True);
     """
-    def __init__(self, mc, group=None, position = [], orientation = [], k = 0.0, q = 0.0, symmetry = [], composite=False):
+    def __init__(self, mc, group=None, position = [], orientation = [], k = 0.0, q = 0.0, symmetry = [], composite=False, compute_name = "lattice_field"):
         import numpy
         hoomd.util.print_status_line();
         _external.__init__(self);
@@ -103,7 +103,8 @@ class lattice_field(_external):
             hoomd.context.msg.error("GPU not supported yet")
             raise RuntimeError("Error initializing compute.position_lattice_field");
 
-        self.compute_name = "lattice_field"
+        self.compute_name = compute_name
+
         enlist = hoomd.hpmc.data._param.ensure_list;
         # Tells the code to either group all particles or give the selected group
 
@@ -112,7 +113,12 @@ class lattice_field(_external):
         else:
             self.group = group
 
-        self.cpp_compute = cls(hoomd.context.current.system_definition, self.group.cpp_group, enlist(position), float(k), enlist(orientation), float(q), enlist(symmetry));
+        # Suffix for the group
+        suffix = ''
+        if self.group.name != 'all':
+            suffix = '_' + group.name;
+
+        self.cpp_compute = cls(hoomd.context.current.system_definition, self.group.cpp_group, enlist(position), float(k), enlist(orientation), float(q), enlist(symmetry), suffix);
         hoomd.context.current.system.addCompute(self.cpp_compute, self.compute_name)
 
 
@@ -736,7 +742,8 @@ class frenkel_ladd_energy(_compute):
                     q0,
                     drift_period,
                     group=None,
-                    symmetry = []
+                    symmetry = [],
+                    composite=False
                 ):
         import math
         import numpy
@@ -765,7 +772,8 @@ class frenkel_ladd_energy(_compute):
                                         k = self.trans_spring_const,
                                         q = self.rotat_spring_const,
                                         symmetry=symmetry,
-                                        group=group);
+                                        group=group,
+                                        composite=composite);
         self.remove_drift = hoomd.hpmc.update.remove_drift(self.mc, self.lattice, period=drift_period);
 
     def reset_statistics(self):
