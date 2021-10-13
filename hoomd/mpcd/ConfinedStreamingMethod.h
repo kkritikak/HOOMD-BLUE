@@ -242,6 +242,6 @@ template<class Geometry> void export_ConfinedStreamingMethod(pybind11::module& m
                       &mpcd::ConfinedStreamingMethod<Geometry>::getGeometry,
                       &mpcd::ConfinedStreamingMethod<Geometry>::setGeometry);
     }
-    }      // end namespace detail
-    }      // end namespace mpcd
+    }  // end namespace detail
+    }  // end namespace mpcd
 #endif // MPCD_CONFINED_STREAMING_METHOD_H_

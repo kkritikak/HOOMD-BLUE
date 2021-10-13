@@ -385,9 +385,9 @@ inline std::string replace_token(std::string src, std::string token, std::string
     }
 inline std::string path_base(std::string p)
     {
-    // "/usr/local/myfile.dat" -> "/usr/local"
-    // "foo/bar"  -> "foo"
-    // "foo/bar/" -> "foo/bar"
+        // "/usr/local/myfile.dat" -> "/usr/local"
+        // "foo/bar"  -> "foo"
+        // "foo/bar/" -> "foo/bar"
 #if defined _WIN32 || defined _WIN64
     char sep = '\\';
 #else

@@ -57,6 +57,6 @@ namespace detail
     {
 //! Export SlitGeometryFillerGPU to python
 void export_SlitGeometryFillerGPU(pybind11::module& m);
-    }      // end namespace detail
-    }      // end namespace mpcd
+    }  // end namespace detail
+    }  // end namespace mpcd
 #endif // MPCD_SLIT_GEOMETRY_FILLER_GPU_H_

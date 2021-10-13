@@ -134,6 +134,6 @@ template<class Geometry> void export_ConfinedStreamingMethodGPU(pybind11::module
                       int,
                       std::shared_ptr<const Geometry>>());
     }
-    }      // end namespace detail
-    }      // end namespace mpcd
+    }  // end namespace detail
+    }  // end namespace mpcd
 #endif // MPCD_CONFINED_STREAMING_METHOD_GPU_H_

@@ -309,6 +309,6 @@ template<class Geometry> void export_BounceBackNVE(pybind11::module& m)
                       &BounceBackNVE<Geometry>::getGeometry,
                       &BounceBackNVE<Geometry>::setGeometry);
     }
-    }      // end namespace detail
-    }      // end namespace mpcd
+    }  // end namespace detail
+    }  // end namespace mpcd
 #endif // #ifndef MPCD_BOUNCE_BACK_NVE_H_

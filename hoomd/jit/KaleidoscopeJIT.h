@@ -217,9 +217,9 @@ class KaleidoscopeJIT
 
     ModuleHandleT addModule(std::unique_ptr<Module> M)
         {
-        // We need a memory manager to allocate memory and resolve symbols for this
-        // new module. Create one that resolves symbols by looking back into the
-        // JIT
+            // We need a memory manager to allocate memory and resolve symbols for this
+            // new module. Create one that resolves symbols by looking back into the
+            // JIT
 #if defined LLVM_VERSION_MAJOR && LLVM_VERSION_MAJOR == 4
         // Build our symbol resolver:
         // Lambda 1: Look back into the JIT itself to find symbols that are part of

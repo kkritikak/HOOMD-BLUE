@@ -217,7 +217,7 @@ void NeighborListGPUTree::buildNlist(uint64_t timestep)
  */
 void NeighborListGPUTree::buildTree()
     {
-    // set the data by type
+        // set the data by type
         {
         // also, check particles to filter out ghosts that lie outside the current box
         const BoxDim& box = m_pdata->getBox();
@@ -345,7 +345,7 @@ void NeighborListGPUTree::buildTree()
         m_sorted_indexes.swap(m_indexes);
         }
 
-    // count the number of each type
+        // count the number of each type
         {
         ArrayHandle<unsigned int> d_type_first(m_type_first,
                                                access_location::device,
@@ -369,7 +369,7 @@ void NeighborListGPUTree::buildTree()
         m_count_tuner->end();
         }
 
-    // build a lbvh for each type
+        // build a lbvh for each type
         {
         ArrayHandle<unsigned int> h_type_first(m_type_first,
                                                access_location::host,
@@ -443,8 +443,8 @@ void NeighborListGPUTree::buildTree()
         hipDeviceSynchronize();
         }
 
-    // put particles in primitive order for traversal and compress the lbvhs so that the data is
-    // ready for traversal
+        // put particles in primitive order for traversal and compress the lbvhs so that the data is
+        // ready for traversal
         {
         ArrayHandle<unsigned int> h_type_first(m_type_first,
                                                access_location::host,

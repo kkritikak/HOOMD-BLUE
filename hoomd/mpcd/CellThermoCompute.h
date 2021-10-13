@@ -213,5 +213,5 @@ namespace detail
 void export_CellThermoCompute(pybind11::module& m);
     } // end namespace detail
 
-    }      // end namespace mpcd
+    }  // end namespace mpcd
 #endif // #define MPCD_CELL_THERMO_COMPUTE_H_

@@ -414,7 +414,7 @@ void test_communicator_migrate(communicator_creator comm_creator,
 
     pdata->initializeFromSnapshot(snap);
 
-    // store some test data
+        // store some test data
         {
         ArrayHandle<unsigned int> h_rtag(pdata->getRTags(),
                                          access_location::host,
@@ -560,7 +560,7 @@ void test_communicator_migrate(communicator_creator comm_creator,
     // particle 7 crosses the global boundary in the - z direction
     pdata->setPosition(7, TO_TRICLINIC(make_scalar3(-0.6, -0.1, -1.5)), false);
 
-    // check that the particle data is still there
+        // check that the particle data is still there
         {
         ArrayHandle<unsigned int> h_rtag(pdata->getRTags(),
                                          access_location::host,
@@ -1127,7 +1127,7 @@ void test_communicator_ghosts(communicator_creator comm_creator,
     comm->exchangeGhosts();
 
     Scalar3 cmp;
-    // check ghost atom numbers and positions
+        // check ghost atom numbers and positions
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
         ArrayHandle<unsigned int> h_global_rtag(pdata->getRTags(),
@@ -1422,8 +1422,8 @@ void test_communicator_ghosts(communicator_creator comm_creator,
     // exchange ghosts
     comm->exchangeGhosts();
 
-    // check ghost atom numbers and positions, taking into account that the particles should have
-    // been wrapped across the boundaries
+        // check ghost atom numbers and positions, taking into account that the particles should
+        // have been wrapped across the boundaries
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
         ArrayHandle<unsigned int> h_global_rtag(pdata->getRTags(),
@@ -1675,14 +1675,14 @@ void test_communicator_ghosts(communicator_creator comm_creator,
             }
         }
 
-    //
-    // Test ghost updating
-    //
+        //
+        // Test ghost updating
+        //
 
-    // set some new positions for the ghost particles
-    // the ghost particles could have moved anywhere
-    // even outside the ghost layers or boxes they were in originally
-    //(but they should not move further than half the skin length),
+        // set some new positions for the ghost particles
+        // the ghost particles could have moved anywhere
+        // even outside the ghost layers or boxes they were in originally
+        //(but they should not move further than half the skin length),
 
         {
         unsigned int rtag;
@@ -1756,8 +1756,8 @@ void test_communicator_ghosts(communicator_creator comm_creator,
     comm->beginUpdateGhosts(0);
     comm->finishUpdateGhosts(0);
 
-    // check ghost positions, taking into account that the particles should have been wrapped across
-    // the boundaries
+        // check ghost positions, taking into account that the particles should have been wrapped
+        // across the boundaries
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
         ArrayHandle<unsigned int> h_global_rtag(pdata->getRTags(),
@@ -3557,7 +3557,7 @@ void test_communicator_ghosts_per_type(communicator_creator comm_creator,
     comm->exchangeGhosts();
 
     Scalar3 cmp;
-    // check ghost atom numbers and positions
+        // check ghost atom numbers and positions
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
         ArrayHandle<unsigned int> h_global_rtag(pdata->getRTags(),
@@ -3716,10 +3716,10 @@ UP_TEST(communicator_ghosts_test)
 
     communicator_creator communicator_creator_base = bind(base_class_communicator_creator, _1, _2);
 
-    /////////////////////
-    // uniform version //
-    /////////////////////
-    // test in a cubic box
+        /////////////////////
+        // uniform version //
+        /////////////////////
+        // test in a cubic box
         {
         BoxDim box(2.0);
         test_communicator_ghosts(communicator_creator_base,
@@ -3729,7 +3729,7 @@ UP_TEST(communicator_ghosts_test)
                                      new DomainDecomposition(exec_conf_cpu, box.getL())),
                                  make_scalar3(0.0, 0.0, 0.0));
         }
-    // triclinic box 1
+        // triclinic box 1
         {
         BoxDim box(1.0, .1, .2, .3);
         test_communicator_ghosts(communicator_creator_base,
@@ -3739,7 +3739,7 @@ UP_TEST(communicator_ghosts_test)
                                      new DomainDecomposition(exec_conf_cpu, box.getL())),
                                  make_scalar3(0.0, 0.0, 0.0));
         }
-    // triclinic box 2
+        // triclinic box 2
         {
         BoxDim box(1.0, -.6, .7, .5);
         test_communicator_ghosts(communicator_creator_base,
@@ -3759,7 +3759,7 @@ UP_TEST(communicator_ghosts_test)
     fx[0] = 0.55;
     fy[0] = 0.44;
     fz[0] = 0.57;
-    // test in a cubic box
+        // test in a cubic box
         {
         BoxDim box(2.0);
         test_communicator_ghosts(
@@ -3770,7 +3770,7 @@ UP_TEST(communicator_ghosts_test)
                 new DomainDecomposition(exec_conf_cpu, box.getL(), fx, fy, fz)),
             origin);
         }
-    // triclinic box 1
+        // triclinic box 1
         {
         BoxDim box(1.0, .1, .2, .3);
         test_communicator_ghosts(
@@ -3781,7 +3781,7 @@ UP_TEST(communicator_ghosts_test)
                 new DomainDecomposition(exec_conf_cpu, box.getL(), fx, fy, fz)),
             origin);
         }
-    // triclinic box 2
+        // triclinic box 2
         {
         BoxDim box(1.0, -.6, .7, .5);
         test_communicator_ghosts(
@@ -3801,7 +3801,7 @@ UP_TEST(communicator_bonded_ghosts_test)
             new ExecutionConfiguration(ExecutionConfiguration::CPU));
 
     communicator_creator communicator_creator_base = bind(base_class_communicator_creator, _1, _2);
-    // uniform version
+        // uniform version
         {
         BoxDim box(2.0);
         std::shared_ptr<DomainDecomposition> decomposition(
@@ -3811,7 +3811,7 @@ UP_TEST(communicator_bonded_ghosts_test)
                                         box,
                                         decomposition);
         }
-    // balanced version
+        // balanced version
         {
         BoxDim box(2.0);
         vector<Scalar> fx(1), fy(1), fz(1);
@@ -3834,7 +3834,7 @@ UP_TEST(communicator_bond_exchange_test)
             new ExecutionConfiguration(ExecutionConfiguration::CPU));
 
     communicator_creator communicator_creator_base = bind(base_class_communicator_creator, _1, _2);
-    // uniform version
+        // uniform version
         {
         BoxDim box(2.0);
         std::shared_ptr<DomainDecomposition> decomposition(
@@ -3844,7 +3844,7 @@ UP_TEST(communicator_bond_exchange_test)
                                         box,
                                         decomposition);
         }
-    // balanced version
+        // balanced version
         {
         BoxDim box(2.0);
         vector<Scalar> fx(1), fy(1), fz(1);
@@ -3970,10 +3970,10 @@ UP_TEST(communicator_ghosts_test_GPU)
 
     communicator_creator communicator_creator_gpu = bind(gpu_communicator_creator, _1, _2);
 
-    /////////////////////
-    // uniform version //
-    /////////////////////
-    // test in a cubic box
+        /////////////////////
+        // uniform version //
+        /////////////////////
+        // test in a cubic box
         {
         BoxDim box(2.0);
         test_communicator_ghosts(communicator_creator_gpu,
@@ -3983,7 +3983,7 @@ UP_TEST(communicator_ghosts_test_GPU)
                                      new DomainDecomposition(exec_conf_gpu, box.getL())),
                                  make_scalar3(0.0, 0.0, 0.0));
         }
-    // triclinic box 1
+        // triclinic box 1
         {
         BoxDim box(1.0, .1, .2, .3);
         test_communicator_ghosts(communicator_creator_gpu,
@@ -3993,7 +3993,7 @@ UP_TEST(communicator_ghosts_test_GPU)
                                      new DomainDecomposition(exec_conf_gpu, box.getL())),
                                  make_scalar3(0.0, 0.0, 0.0));
         }
-    // triclinic box 2
+        // triclinic box 2
         {
         BoxDim box(1.0, -.6, .7, .5);
         test_communicator_ghosts(communicator_creator_gpu,
@@ -4013,7 +4013,7 @@ UP_TEST(communicator_ghosts_test_GPU)
     fx[0] = 0.55;
     fy[0] = 0.44;
     fz[0] = 0.57;
-    // test in a cubic box
+        // test in a cubic box
         {
         BoxDim box(2.0);
         test_communicator_ghosts(
@@ -4024,7 +4024,7 @@ UP_TEST(communicator_ghosts_test_GPU)
                 new DomainDecomposition(exec_conf_gpu, box.getL(), fx, fy, fz)),
             origin);
         }
-    // triclinic box 1
+        // triclinic box 1
         {
         BoxDim box(1.0, .1, .2, .3);
         test_communicator_ghosts(
@@ -4035,7 +4035,7 @@ UP_TEST(communicator_ghosts_test_GPU)
                 new DomainDecomposition(exec_conf_gpu, box.getL(), fx, fy, fz)),
             origin);
         }
-    // triclinic box 2
+        // triclinic box 2
         {
         BoxDim box(1.0, -.6, .7, .5);
         test_communicator_ghosts(
@@ -4055,7 +4055,7 @@ UP_TEST(communicator_bonded_ghosts_test_GPU)
             new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     communicator_creator communicator_creator_gpu = bind(gpu_communicator_creator, _1, _2);
-    // uniform version
+        // uniform version
         {
         BoxDim box(2.0);
         std::shared_ptr<DomainDecomposition> decomposition(
@@ -4065,7 +4065,7 @@ UP_TEST(communicator_bonded_ghosts_test_GPU)
                                         box,
                                         decomposition);
         }
-    // balanced version
+        // balanced version
         {
         BoxDim box(2.0);
         vector<Scalar> fx(1), fy(1), fz(1);
@@ -4088,7 +4088,7 @@ UP_TEST(communicator_bond_exchange_test_GPU)
             new ExecutionConfiguration(ExecutionConfiguration::GPU));
 
     communicator_creator communicator_creator_gpu = bind(gpu_communicator_creator, _1, _2);
-    // uniform version
+        // uniform version
         {
         BoxDim box(2.0);
         std::shared_ptr<DomainDecomposition> decomposition(
@@ -4098,7 +4098,7 @@ UP_TEST(communicator_bond_exchange_test_GPU)
                                         box,
                                         decomposition);
         }
-    // balanced version
+        // balanced version
         {
         BoxDim box(2.0);
         vector<Scalar> fx(1), fy(1), fz(1);
@@ -4159,7 +4159,7 @@ UP_TEST(communicator_compare_test)
     std::shared_ptr<ExecutionConfiguration> exec_conf_1 = exec_conf_cpu;
     std::shared_ptr<ExecutionConfiguration> exec_conf_2 = exec_conf_gpu;
 
-    // uniform case: compare cpu and gpu
+        // uniform case: compare cpu and gpu
         {
         BoxDim box(2.0);
 
@@ -4176,7 +4176,7 @@ UP_TEST(communicator_compare_test)
                                   decomposition_2);
         }
 
-    // balanced case: compare cpu and gpu
+        // balanced case: compare cpu and gpu
         {
         BoxDim box(2.0);
         vector<Scalar> fx(1), fy(1), fz(1);
@@ -4197,7 +4197,7 @@ UP_TEST(communicator_compare_test)
                                   decomposition_2);
         }
 
-    // sanity check: compare cpu uniform and balanced with equal cuts
+        // sanity check: compare cpu uniform and balanced with equal cuts
         {
         BoxDim box(2.0);
         vector<Scalar> fx(1), fy(1), fz(1);

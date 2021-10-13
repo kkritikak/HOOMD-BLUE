@@ -332,5 +332,5 @@ namespace detail
 void export_CellList(pybind11::module& m);
     } // end namespace detail
 
-    }      // end namespace mpcd
+    }  // end namespace mpcd
 #endif // MPCD_CELL_LIST_H_
