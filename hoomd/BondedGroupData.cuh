@@ -17,14 +17,14 @@
 //! Sentinel value
 const unsigned int GROUP_NOT_LOCAL = 0xffffffff;
 
-//! Storage for group members (GPU declaration)
-template<unsigned int group_size> union group_storage {
+    //! Storage for group members (GPU declaration)
+    template<unsigned int group_size> union group_storage {
     unsigned int tag[group_size]; // access 'tags'
     unsigned int idx[group_size]; // access 'indices'
     };
 
-//! A union to allow storing a Scalar constraint value or a type integer (GPU declaration)
-union typeval_union {
+    //! A union to allow storing a Scalar constraint value or a type integer (GPU declaration)
+    union typeval_union {
     unsigned int type;
     Scalar val;
     };
