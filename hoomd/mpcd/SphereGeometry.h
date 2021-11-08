@@ -20,7 +20,7 @@ namespace mpcd
 {
 namespace detail
 {
-//! Spherical confinement geometry
+//! Spherical droplet geometry
 /*!
  * TODO: write proper description of what is being done in the class below
  */
@@ -81,13 +81,13 @@ class __attribute__((visibility("default"))) SphereGeometry
             * The point of contact can be calculated using geometrical considerations.
             *
             * We know the following quantities,
-            *    1. r(t+del_t)
-            *    2. v(t)
+            *    1. r(t+del_t)      (the point outside the sphere)
+            *    2. v(t)            (previous velocity)
             *
-            * Assuming 'r' is the point of contact on the spherical shell and dx* is the distance travelled by the
+            * Assuming 'r*' is the point of contact on the spherical shell and dx* is the distance travelled by the
             * particle outside the boundary.
             *
-            * r = r(t+del_t) + dx* * v(t)/|v|          (the -ve signs cancel out in the 2nd term)
+            * r* = r(t+del_t) + dx* * v(t)/|v|          (the -ve signs cancel out in the 2nd term)
             * and |r|**2 = R**2
             *
             * Solving the above equations,
@@ -102,7 +102,7 @@ class __attribute__((visibility("default"))) SphereGeometry
             dx_ = -r_dot_v_hat + sqrt(r_dot_v_hat*r_dot_v_hat - r2 + R*R);
             dt = dx_/mod_v;
 
-            // backtrack the particle for dt to get to point of contact
+            // backtrack the particle for time dt to get to point of contact
             pos.x -= vel.x*dt;
             pos.y -= vel.y*dt;
             pos.z -= vel.z*dt;
@@ -146,8 +146,8 @@ class __attribute__((visibility("default"))) SphereGeometry
          */
         HOSTDEVICE bool validateBox(const BoxDim& box, Scalar cell_size) const
             {
-            const Scalar3& hi;
-            const Scalar3& lo;
+            const Scalar3 hi;
+            const Scalar3 lo;
             hi.x = box.getHi().x; hi.y = box.getHi().y; hi.z = box.getHi().z;
             lo.x = box.getLo().x; lo.y = box.getLo().y; lo.z = box.getLo().z;
 
