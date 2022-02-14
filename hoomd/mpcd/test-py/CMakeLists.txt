@@ -15,6 +15,7 @@ set(TEST_LIST
     stream_bulk
     stream_slit
     stream_slit_pore
+    stream_sphere
     update_sort
     )
 SET(EXCLUDE_FROM_MPI
