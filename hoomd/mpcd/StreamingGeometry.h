@@ -15,6 +15,7 @@
 #include "BulkGeometry.h"
 #include "SlitGeometry.h"
 #include "SlitPoreGeometry.h"
+#include "SphereGeometry.h"
 
 #ifndef NVCC
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
@@ -34,6 +35,9 @@ void export_SlitGeometry(pybind11::module& m);
 
 //! Export SlitPoreGeometry to python
 void export_SlitPoreGeometry(pybind11::module& m);
+
+//! Export SphereGeometry to python
+void export_SphereGeometry(pybind11::module& m);
 
 } // end namespace detail
 } // end namespace mpcd

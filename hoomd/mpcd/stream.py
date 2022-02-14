@@ -567,3 +567,71 @@ class slit_pore(_streaming_method):
         self._cpp.geometry = _mpcd.SlitPoreGeometry(self.H,self.L,bc)
         if self._filler is not None:
             self._filler.setGeometry(self._cpp.geometry)
+
+class sphere(_streaming_method):
+    r""" Spherical streaming geometry.
+
+    Args:
+        R (float): confinement radius
+        boundary (str): boundary condition at wall ("slip" or "no_slip")
+        period (int): Number of integration steps between collisions
+
+    The sphere geometry models a fluid confined inside a sphere, centered at the
+    origin and with radius R. The solvent particles are reflected from the spherical
+    walls using appropriate boundary conditions.
+
+    Examples::
+
+        stream.sphere(period=10, R=30.)
+
+    """
+    def __init__(self, R, boundary="no_slip", period=1):
+        hoomd.util.print_status_line()
+
+        _streaming_method.__init__(self, period)
+
+        self.metadata_fields += ['R','boundary']
+        self.R = R
+        self.boundary = boundary
+
+        bc = self._process_boundary(boundary)
+
+        # create the base streaming class
+        if not hoomd.context.exec_conf.isCUDAEnabled():
+            stream_class = _mpcd.ConfinedStreamingMethodSphere
+        else:
+            stream_class = _mpcd.ConfinedStreamingMethodGPUSphere
+        self._cpp = stream_class(hoomd.context.current.mpcd.data,
+                                 hoomd.context.current.system.getCurrentTimeStep(),
+                                 self.period,
+                                 0,
+                                 _mpcd.SphereGeometry(R,bc))
+
+    def set_params(self, R=None, boundary=None):
+        """ Set parameters for the sphere geometry.
+
+        Args:
+            R (float): Sphere radius
+            boundary (str): boundary condition at wall ("slip" or "no_slip"")
+
+        Changing any of these parameters will require the geometry to be
+        constructed and validated, so do not change these too often.
+
+        Examples::
+
+            slit.set_params(R=15.0)
+            slit.set_params(R=0.2, boundary="no_slip")
+
+        """
+        hoomd.util.print_status_line()
+
+        if R is not None:
+            self.R = R
+
+        if boundary is not None:
+            self.boundary = boundary
+
+        bc = self._process_boundary(self.boundary)
+        self._cpp.geometry = _mpcd.SphereGeometry(self.R,bc)
+        if self._filler is not None:
+            self._filler.setGeometry(self._cpp.geometry)

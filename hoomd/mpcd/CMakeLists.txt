@@ -48,6 +48,7 @@ set(_mpcd_headers
     SlitPoreGeometry.h
     SlitPoreGeometryFiller.h
     Sorter.h
+    SphereGeometry.h
     SRDCollisionMethod.h
     StreamingGeometry.h
     StreamingMethod.h

@@ -139,16 +139,19 @@ PYBIND11_MODULE(_mpcd, m)
     mpcd::detail::export_BulkGeometry(m);
     mpcd::detail::export_SlitGeometry(m);
     mpcd::detail::export_SlitPoreGeometry(m);
+    mpcd::detail::export_SphereGeometry(m);
 
     mpcd::detail::export_StreamingMethod(m);
     mpcd::detail::export_ExternalFieldPolymorph(m);
     mpcd::detail::export_ConfinedStreamingMethod<mpcd::detail::BulkGeometry>(m);
     mpcd::detail::export_ConfinedStreamingMethod<mpcd::detail::SlitGeometry>(m);
     mpcd::detail::export_ConfinedStreamingMethod<mpcd::detail::SlitPoreGeometry>(m);
+    mpcd::detail::export_ConfinedStreamingMethod<mpcd::detail::SphereGeometry>(m);
     #ifdef ENABLE_CUDA
     mpcd::detail::export_ConfinedStreamingMethodGPU<mpcd::detail::BulkGeometry>(m);
     mpcd::detail::export_ConfinedStreamingMethodGPU<mpcd::detail::SlitGeometry>(m);
     mpcd::detail::export_ConfinedStreamingMethodGPU<mpcd::detail::SlitPoreGeometry>(m);
+    mpcd::detail::export_ConfinedStreamingMethodGPU<mpcd::detail::SphereGeometry>(m);
     #endif // ENABLE_CUDA
 
     mpcd::detail::export_BounceBackNVE<mpcd::detail::SlitGeometry>(m);
