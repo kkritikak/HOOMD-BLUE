@@ -8,7 +8,7 @@
  * \brief Definition of mpcd::VirtualParticleFiller
  */
 
-#include "VirtualParticleFiller.h"
+#include "ManualVirtualParticleFiller.h"
 
 mpcd::VirtualParticleFiller::VirtualParticleFiller(std::shared_ptr<mpcd::SystemData> sysdata,
                                                    Scalar density,
