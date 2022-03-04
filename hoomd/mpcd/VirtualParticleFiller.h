@@ -43,7 +43,7 @@ class PYBIND11_EXPORT VirtualParticleFiller
         virtual ~VirtualParticleFiller() {}
 
         //! Fill up virtual particles
-        void fill(unsigned int timestep);
+        virtual void fill() = 0;
 
         //! Sets the profiler for the integration method to use
         virtual void setProfiler(std::shared_ptr<Profiler> prof)
@@ -92,14 +92,6 @@ class PYBIND11_EXPORT VirtualParticleFiller
         std::shared_ptr<::Variant> m_T; //!< Temperature for filled particles
         unsigned int m_seed;            //!< Seed for PRNG
 
-        unsigned int m_N_fill;      //!< Number of particles to fill locally
-        unsigned int m_first_tag;   //!< First tag of locally held particles
-
-        //! Compute the total number of particles to fill
-        virtual void computeNumFill() {}
-
-        //! Draw particles within the fill volume
-        virtual void drawParticles(unsigned int timestep) {}
     };
 
 namespace detail
