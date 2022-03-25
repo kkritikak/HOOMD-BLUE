@@ -22,15 +22,30 @@ class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParti
     {
     public:
         RejectionVirtualParticleFiller(std::shared_ptr<mpcd::SystemData> sysdata,
-                        Scalar density,
-                        unsigned int type,
-                        std::shared_ptr<::Variant> T,
-                        unsigned int seed);
+                                       Scalar density,
+                                       unsigned int type,
+                                       std::shared_ptr<::Variant> T,
+                                       unsigned int seed,
+                                       std::shared_ptr<const Geometry> geom);
 
         virtual ~RejectionVirtualParticleFiller();
 
+        //! Get the streaming geometry
+        std::shared_ptr<const Geometry> getGeometry()
+            {
+            return m_geom;
+            }
+
+        //! Set the streaming geometry
+        void setGeometry(std::shared_ptr<const Geometry> geom)
+            {
+            m_geom = geom;
+            }
+
     protected:
-        //! Fill the particles in the padding region
+        std::shared_ptr<const Geometry> m_geom;
+
+        //! Fill the particles outside the confinement
         virtual void fill();
     };
 
