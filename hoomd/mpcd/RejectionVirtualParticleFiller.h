@@ -46,7 +46,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParti
         std::shared_ptr<const Geometry> m_geom;
 
         //! Fill the particles outside the confinement
-        virtual void fill();
+        virtual void fill(unsigned int timestep);
     };
 
 namespace detail
