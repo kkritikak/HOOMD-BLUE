@@ -49,6 +49,8 @@
 
 // virtual particle fillers
 #include "VirtualParticleFiller.h"
+#include "ManualVirtualParticleFiller.h"
+#include "RejectionVirtualParticleFiller.h"
 #include "SlitGeometryFiller.h"
 #include "SlitPoreGeometryFiller.h"
 #ifdef ENABLE_CUDA
