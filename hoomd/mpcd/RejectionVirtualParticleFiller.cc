@@ -41,12 +41,13 @@ void mpcd::RejectionVirtualParticleFiller::fill(unsigned int timestep)
     ArrayHandle<Scalar4> h_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::readwrite);
     ArrayHandle<unsigned int> h_tag(m_mpcd_pdata->getTags(), access_location::host, access_mode::readwrite);
 
+    const Scalar vel_factor = fast::sqrt(m_T->getValue(timestep) / m_mpcd_pdata->getMass());
+
     // index to start filling from
     const unsigned int pidx = m_mpcd_pdata->getN();
     for (unsigned int i=0; i<m_NVirtMax; ++i)
         {
-        /*TODO: Currently just using the constant for SlitGeometryFiller which needs to be changed in the final version
-          */
+        // TODO: Currently just using the constant for SlitGeometryFiller which needs to be changed.
         hoomd::RandomGenerator rng(hoomd::RNGIdentifiers::SlitGeometryFiller, m_seed, timestep);
 
         Scalar3 tmp_pos = make_scalar3(hoomd::UniformDistribution<Scalar>(lo.x, hi.x)(rng),

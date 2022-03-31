@@ -21,6 +21,15 @@ namespace mpcd
 class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParticleFiller
     {
     public:
+        //! Constructor
+        /*!
+         * \param sysdata - MPCD system data
+         * \param density - number density of MPCD solvent
+         * \param type - particle fill type
+         * \param T - Temperature
+         * \param seed - seed for PRNG
+         * \param geom - confinement geometry
+         */
         RejectionVirtualParticleFiller(std::shared_ptr<mpcd::SystemData> sysdata,
                                        Scalar density,
                                        unsigned int type,
@@ -28,6 +37,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParti
                                        unsigned int seed,
                                        std::shared_ptr<const Geometry> geom);
 
+        //! Destructor
         virtual ~RejectionVirtualParticleFiller();
 
         //! Get the streaming geometry
