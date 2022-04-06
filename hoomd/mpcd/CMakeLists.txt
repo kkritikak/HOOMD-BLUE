@@ -43,6 +43,7 @@ set(_mpcd_headers
     ParticleData.h
     ParticleDataSnapshot.h
     ParticleDataUtilities.h
+    RejectionVirtualParticleFiller.h
     SlitGeometry.h
     SlitGeometryFiller.h
     SlitPoreGeometry.h
