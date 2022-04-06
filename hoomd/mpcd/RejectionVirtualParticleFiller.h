@@ -18,6 +18,7 @@ namespace mpcd
  * <detailed description needed>
 */
 
+template<class Geometry>
 class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParticleFiller
     {
     public:
@@ -41,7 +42,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParti
         virtual ~RejectionVirtualParticleFiller();
 
         //! Get the streaming geometry
-        std::shared_ptr<const Geometry> getGeometry()
+        std::shared_ptr<const Geometry> getGeometry() const
             {
             return m_geom;
             }
@@ -56,12 +57,13 @@ class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParti
         std::shared_ptr<const Geometry> m_geom;
 
         //! Fill the particles outside the confinement
-        virtual void fill(unsigned int timestep);
+        void fill(unsigned int timestep);
     };
 
 namespace detail
 {
 //! Export RejectionVirtualParticleFiller to python
+template<class Geometry>
 void export_RejectionVirtualParticleFiller(pybind11::module& m);
 } // end namespace detail
 } // end namespace mpcd
