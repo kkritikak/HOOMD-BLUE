@@ -166,7 +166,10 @@ PYBIND11_MODULE(_mpcd, m)
     mpcd::detail::export_VirtualParticleFiller(m);
     mpcd::detail::export_SlitGeometryFiller(m);
     mpcd::detail::export_SlitPoreGeometryFiller(m);
-    mpcd::detail::export_RejectionVirtualParticleFiller(m);
+    mpcd::detail::export_RejectionVirtualParticleFiller<mpcd::detail::BulkGeometry>(m);
+    mpcd::detail::export_RejectionVirtualParticleFiller<mpcd::detail::SlitGeometry>(m);
+    mpcd::detail::export_RejectionVirtualParticleFiller<mpcd::detail::SlitPoreGeometry>(m);
+    mpcd::detail::export_RejectionVirtualParticleFiller<mpcd::detail::SphereGeometry>(m);
     #ifdef ENABLE_CUDA
     mpcd::detail::export_SlitGeometryFillerGPU(m);
     mpcd::detail::export_SlitPoreGeometryFillerGPU(m);
