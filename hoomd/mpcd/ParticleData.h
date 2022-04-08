@@ -350,6 +350,18 @@ class PYBIND11_EXPORT ParticleData
         //! Allocate memory for virtual particles
         void addVirtualParticles(unsigned int N);
 
+        //! Set the number of virtual particles
+        /*!
+         * For the RejectionVirtualParticleFiller class we are adding memory for N_max particles.
+         * However the true number of virtual particles is always going to be lower than N_max.
+         * Therefore, we need to reset the m_N_virtual variable to the correct value after at the
+         * end of the fill().
+         */
+         void setVirtualParticleNumber(unsigned int N)
+            {
+            m_N_virtual = N;
+            }
+
         //! Remove all virtual particles
         /*!
          * \post The virtual particle counter is reset to zero.
