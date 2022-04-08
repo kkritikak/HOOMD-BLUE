@@ -7,6 +7,8 @@
 #endif
 
 #include "VirtualParticleFiller.h"
+#include "hoomd/RandomNumbers.h"
+#include "hoomd/RNGIdentifiers.h"
 
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
 
@@ -64,7 +66,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParti
         std::shared_ptr<const Geometry> m_geom;
 
         //! Fill the particles outside the confinement
-        virtual void fill(unsigned int timestep);
+        void fill(unsigned int timestep);
     };
 
 
@@ -75,8 +77,10 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
     const BoxDim& box = m_pdata->getBox();
     const Scalar3 lo = box.getLo();
     const Scalar3 hi = box.getHi();
-    const unsigned int m_L = hi - lo;
-    const unsigned int m_NVirtMax = m_density*(m_L*m_L*m_L);
+    const unsigned int m_Lx = hi.x - lo.x;
+    const unsigned int m_Ly = hi.y - lo.y;
+    const unsigned int m_Lz = hi.z - lo.z;
+    const unsigned int m_NVirtMax = m_density*(m_Lx*m_Ly*m_Lz);
 
     // Allocate memory
     // first remove any previously added memory for virtual particles
@@ -93,15 +97,15 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
     const Scalar vel_factor = fast::sqrt(m_T->getValue(timestep) / m_mpcd_pdata->getMass());
 
     // index to start filling from
-    const unsigned int pidx = m_mpcd_pdata->getN();
+    unsigned int pidx = m_mpcd_pdata->getN();
     for (unsigned int i=0; i < m_NVirtMax; ++i)
         {
         // TODO: Currently just using the constant for SlitGeometryFiller which needs to be changed.
-        hoomd::RandomGenerator rng(hoomd::RNGIdentifiers::SlitGeometryFiller, m_seed, timestep);
+        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::SlitGeometryFiller, m_seed, timestep);
 
         Scalar3 tmp_pos = make_scalar3(hoomd::UniformDistribution<Scalar>(lo.x, hi.x)(rng),
-                                        hoomd::UniformDistribution<Scalar>(lo.y, hi.y)(rng),
-                                        hoomd::UniformDistribution<Scalar>(lo.z, hi.z)(rng));
+                                       hoomd::UniformDistribution<Scalar>(lo.y, hi.y)(rng),
+                                       hoomd::UniformDistribution<Scalar>(lo.z, hi.z)(rng));
 
         if (m_geom->isOutside(tmp_pos))
             {
@@ -122,6 +126,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
             pidx += 1;
             }
         }
+    m_mpcd_pdata->setVirtualParticleNumber(pidx - m_mpcd_pdata->getN());
     }
 
 namespace detail
@@ -139,8 +144,8 @@ void export_RejectionVirtualParticleFiller(pybind11::module& m)
              std::shared_ptr<::Variant>,
              unsigned int,
              std::shared_ptr<const Geometry>>())
-        .def("setGeometry", &mpcd::RejectionVirtualParticleFiller::setGeometry);
-        .def("getGeometry", &mpcd::RejectionVirtualParticleFiller::getGeometry);
+        .def("setGeometry", &mpcd::RejectionVirtualParticleFiller<Geometry>::setGeometry)
+        .def("getGeometry", &mpcd::RejectionVirtualParticleFiller<Geometry>::getGeometry);
     }
 } // end namespace detail
 } // end namespace mpcd
