@@ -10,7 +10,7 @@
 
 #include "ManualVirtualParticleFiller.h"
 
-mpcd::VirtualParticleFiller::VirtualParticleFiller(std::shared_ptr<mpcd::SystemData> sysdata,
+mpcd::ManualVirtualParticleFiller::ManualVirtualParticleFiller(std::shared_ptr<mpcd::SystemData> sysdata,
                                                    Scalar density,
                                                    unsigned int type,
                                                    std::shared_ptr<::Variant> T,
@@ -31,7 +31,7 @@ mpcd::VirtualParticleFiller::VirtualParticleFiller(std::shared_ptr<mpcd::SystemD
     #endif // ENABLE_MPI
     }
 
-void mpcd::VirtualParticleFiller::fill(unsigned int timestep)
+void mpcd::ManualVirtualParticleFiller::fill(unsigned int timestep)
     {
     // update the fill volume
     computeNumFill();
@@ -57,37 +57,17 @@ void mpcd::VirtualParticleFiller::fill(unsigned int timestep)
     m_mpcd_pdata->invalidateCellCache();
     }
 
-void mpcd::VirtualParticleFiller::setDensity(Scalar density)
-    {
-    if (density <= Scalar(0.0))
-        {
-        m_exec_conf->msg->error() << "MPCD virtual particle density must be positive" << std::endl;
-        throw std::runtime_error("Invalid virtual particle density");
-        }
-    m_density = density;
-    }
-
-void mpcd::VirtualParticleFiller::setType(unsigned int type)
-    {
-    if (type >= m_mpcd_pdata->getNTypes())
-        {
-        m_exec_conf->msg->error() << "Invalid type id specified for MPCD virtual particle filler" << std::endl;
-        throw std::runtime_error("Invalid type id");
-        }
-    m_type = type;
-    }
-
 /*!
  * \param m Python module to export to
  */
-void mpcd::detail::export_VirtualParticleFiller(pybind11::module& m)
+void mpcd::detail::export_ManualVirtualParticleFiller(pybind11::module& m)
     {
     namespace py = pybind11;
-    py::class_<mpcd::VirtualParticleFiller, std::shared_ptr<mpcd::VirtualParticleFiller> >(m, "VirtualParticleFiller")
+    py::class_<mpcd::ManualVirtualParticleFiller, std::shared_ptr<mpcd::ManualVirtualParticleFiller> >(m, "ManualVirtualParticleFiller")
         .def(py::init<std::shared_ptr<mpcd::SystemData>, Scalar, unsigned int, std::shared_ptr<::Variant>, unsigned int>())
-        .def("setDensity", &mpcd::VirtualParticleFiller::setDensity)
-        .def("setType", &mpcd::VirtualParticleFiller::setType)
-        .def("setTemperature", &mpcd::VirtualParticleFiller::setTemperature)
-        .def("setSeed", &mpcd::VirtualParticleFiller::setSeed)
+        .def("setDensity", &mpcd::ManualVirtualParticleFiller::setDensity)
+        .def("setType", &mpcd::ManualVirtualParticleFiller::setType)
+        .def("setTemperature", &mpcd::ManualVirtualParticleFiller::setTemperature)
+        .def("setSeed", &mpcd::ManualVirtualParticleFiller::setSeed)
         ;
     }

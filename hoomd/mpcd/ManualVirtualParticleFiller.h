@@ -8,8 +8,8 @@
  * \brief Definition of class for backfilling solid boundaries with virtual particles.
  */
 
-#ifndef MPCD_VIRTUAL_PARTICLE_FILLER_H_
-#define MPCD_VIRTUAL_PARTICLE_FILLER_H_
+#ifndef MPCD_MANUAL_VIRTUAL_PARTICLE_FILLER_H_
+#define MPCD_MANUAL_VIRTUAL_PARTICLE_FILLER_H_
 
 #ifdef NVCC
 #error This header cannot be compiled by nvcc
@@ -18,6 +18,7 @@
 #include "SystemData.h"
 #include "hoomd/Variant.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
+#include "VirtualParticleFiller.h"
 
 namespace mpcd
 {
@@ -31,67 +32,21 @@ namespace mpcd
  *  1. computeNumFill(), which is the number of virtual particles to add.
  *  2. drawParticles(), which is the rule to determine where to put the particles.
  */
-class PYBIND11_EXPORT VirtualParticleFiller
+class PYBIND11_EXPORT ManualVirtualParticleFiller
     {
     public:
-        VirtualParticleFiller(std::shared_ptr<mpcd::SystemData> sysdata,
+        ManualVirtualParticleFiller(std::shared_ptr<mpcd::SystemData> sysdata,
                               Scalar density,
                               unsigned int type,
                               std::shared_ptr<::Variant> T,
                               unsigned int seed);
 
-        virtual ~VirtualParticleFiller() {}
+        virtual ~ManualVirtualParticleFiller() {}
 
         //! Fill up virtual particles
         void fill(unsigned int timestep);
 
-        //! Sets the profiler for the integration method to use
-        virtual void setProfiler(std::shared_ptr<Profiler> prof)
-            {
-            m_prof = prof;
-            }
-
-        //! Set autotuner parameters
-        /*!
-         * \param enable Enable/disable autotuning
-         * \param period period (approximate) in time steps when returning occurs
-         *
-         * Derived classes should override this to set the parameters of their autotuners.
-         */
-        virtual void setAutotunerParams(bool enable, unsigned int period)
-            {}
-
-        //! Set the fill particle density
-        void setDensity(Scalar density);
-
-        //! Set the fill particle type
-        void setType(unsigned int type);
-
-        //! Set the fill particle temperature
-        void setTemperature(std::shared_ptr<::Variant> T)
-            {
-            m_T = T;
-            }
-
-        //! Set the fill seed
-        void setSeed(unsigned int seed)
-            {
-            m_seed = seed;
-            }
-
     protected:
-        std::shared_ptr<::SystemDefinition> m_sysdef;                   //!< HOOMD system definition
-        std::shared_ptr<::ParticleData> m_pdata;                        //!< HOOMD particle data
-        std::shared_ptr<const ExecutionConfiguration> m_exec_conf;      //!< Execution configuration
-        std::shared_ptr<mpcd::ParticleData> m_mpcd_pdata;               //!< MPCD particle data
-        std::shared_ptr<mpcd::CellList> m_cl;                           //!< MPCD cell list
-        std::shared_ptr<Profiler> m_prof;                               //!< System profiler;
-
-        Scalar m_density;               //!< Fill density
-        unsigned int m_type;            //!< Fill type
-        std::shared_ptr<::Variant> m_T; //!< Temperature for filled particles
-        unsigned int m_seed;            //!< Seed for PRNG
-
         unsigned int m_N_fill;      //!< Number of particles to fill locally
         unsigned int m_first_tag;   //!< First tag of locally held particles
 
