@@ -13,6 +13,7 @@ set(_mpcd_sources
     Communicator.cc
     ExternalField.cc
     Integrator.cc
+    ManualVirtualParticleFiller.cc
     ParticleData.cc
     ParticleDataSnapshot.cc
     SlitGeometryFiller.cc
@@ -40,6 +41,7 @@ set(_mpcd_headers
     CommunicatorUtilities.h
     ExternalField.h
     Integrator.h
+    ManualVirtualParticleFiller.h
     ParticleData.h
     ParticleDataSnapshot.h
     ParticleDataUtilities.h
