@@ -1,6 +1,6 @@
 
-#ifndef MPCD_REJECTION_FILLER_H_
-#define MPCD_REJECTION_FILLER_H_
+#ifndef MPCD_REJECTION_VIRTUAL_PARTICLE_FILLER_H_
+#define MPCD_REJECTION_VIRTUAL_PARTICLE_FILLER_H_
 
 #ifdef NVCC
 #error This header cannot be compiled by nvcc
@@ -77,10 +77,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
     const BoxDim& box = m_pdata->getBox();
     const Scalar3 lo = box.getLo();
     const Scalar3 hi = box.getHi();
-    const unsigned int m_Lx = hi.x - lo.x;
-    const unsigned int m_Ly = hi.y - lo.y;
-    const unsigned int m_Lz = hi.z - lo.z;
-    const unsigned int m_NVirtMax = m_density*(m_Lx*m_Ly*m_Lz);
+    const unsigned int m_NVirtMax = round(m_density*box.getVolume());
 
     // Allocate memory
     // first remove any previously added memory for virtual particles
