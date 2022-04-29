@@ -91,6 +91,7 @@ class PYBIND11_EXPORT VirtualParticleFiller
         unsigned int m_type;            //!< Fill type
         std::shared_ptr<::Variant> m_T; //!< Temperature for filled particles
         unsigned int m_seed;            //!< Seed for PRNG
+        unsigned int m_first_tag;       //!< First tag of locally held particles
 
     };
 
