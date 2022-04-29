@@ -48,7 +48,6 @@ class PYBIND11_EXPORT ManualVirtualParticleFiller
 
     protected:
         unsigned int m_N_fill;      //!< Number of particles to fill locally
-        unsigned int m_first_tag;   //!< First tag of locally held particles
 
         //! Compute the total number of particles to fill
         virtual void computeNumFill() {}
