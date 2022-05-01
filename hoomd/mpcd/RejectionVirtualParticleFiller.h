@@ -63,7 +63,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParti
             }
 
         //! Fill the particles outside the confinement
-        void fill(unsigned int timestep);
+        public void fill(unsigned int timestep);
 
     protected:
         std::shared_ptr<const Geometry> m_geom;
