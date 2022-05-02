@@ -65,9 +65,5 @@ void mpcd::detail::export_ManualVirtualParticleFiller(pybind11::module& m)
     namespace py = pybind11;
     py::class_<mpcd::ManualVirtualParticleFiller, std::shared_ptr<mpcd::ManualVirtualParticleFiller> >(m, "ManualVirtualParticleFiller")
         .def(py::init<std::shared_ptr<mpcd::SystemData>, Scalar, unsigned int, std::shared_ptr<::Variant>, unsigned int>())
-        .def("setDensity", &mpcd::ManualVirtualParticleFiller::setDensity)
-        .def("setType", &mpcd::ManualVirtualParticleFiller::setType)
-        .def("setTemperature", &mpcd::ManualVirtualParticleFiller::setTemperature)
-        .def("setSeed", &mpcd::ManualVirtualParticleFiller::setSeed)
         ;
     }
