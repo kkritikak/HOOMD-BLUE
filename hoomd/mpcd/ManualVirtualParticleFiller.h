@@ -15,10 +15,10 @@
 #error This header cannot be compiled by nvcc
 #endif
 
+#include "VirtualParticleFiller.h"
 #include "SystemData.h"
 #include "hoomd/Variant.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
-#include "VirtualParticleFiller.h"
 
 namespace mpcd
 {
@@ -32,7 +32,7 @@ namespace mpcd
  *  1. computeNumFill(), which is the number of virtual particles to add.
  *  2. drawParticles(), which is the rule to determine where to put the particles.
  */
-class PYBIND11_EXPORT ManualVirtualParticleFiller
+class PYBIND11_EXPORT ManualVirtualParticleFiller : public mpcd::VirtualParticleFiller
     {
     public:
         ManualVirtualParticleFiller(std::shared_ptr<mpcd::SystemData> sysdata,
@@ -59,7 +59,7 @@ class PYBIND11_EXPORT ManualVirtualParticleFiller
 namespace detail
 {
 //! Export the VirtualParticleFiller to python
-void export_VirtualParticleFiller(pybind11::module& m);
+void export_ManualVirtualParticleFiller(pybind11::module& m);
 } // end namespace detail
 } // end namespace mpcd
 
