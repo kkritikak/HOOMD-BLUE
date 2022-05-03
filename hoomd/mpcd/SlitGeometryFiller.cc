@@ -18,7 +18,7 @@ mpcd::SlitGeometryFiller::SlitGeometryFiller(std::shared_ptr<mpcd::SystemData> s
                                              std::shared_ptr<::Variant> T,
                                              unsigned int seed,
                                              std::shared_ptr<const mpcd::detail::SlitGeometry> geom)
-    : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed), m_geom(geom)
+    : mpcd::ManualVirtualParticleFiller(sysdata, density, type, T, seed), m_geom(geom)
     {
     m_exec_conf->msg->notice(5) << "Constructing MPCD SlitGeometryFiller" << std::endl;
     }
