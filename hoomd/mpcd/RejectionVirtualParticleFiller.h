@@ -98,10 +98,10 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
 
         if (m_geom->isOutside(particle))
             {
-            pos_loc[pidx] = make_scalar4(vel.x,
-                                         vel.y,
-                                         vel.z,
-                                         __int_as_scalar(mpcd::detail::NO_CELL));
+            pos_loc.data[pidx] = make_scalar4(particle.x,
+                                              particle.y,
+                                              particle.z,
+                                              __int_as_scalar(m_type);
             pidx += 1;
             }
         }
@@ -113,7 +113,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
     if (m_exec_conf->getNRanks() > 1)
         {
         // scan the number to fill to get the tag range I own
-        MPI_Exscan(&m_N_fill, &m_first_tag, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
+        MPI_Exscan(&pidx, &m_first_tag, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
         }
     #endif // ENABLE_MPI
     m_first_tag += m_mpcd_pdata->getNGlobal() + m_mpcd_pdata->getNVirtualGlobal();
@@ -129,7 +129,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
 
     // index to start filling from
     const unsigned int first_idx = m_mpcd_pdata->getN() + m_mpcd_pdata->getNVirtual() - pidx;
-    for (unsigned int i=0; i < pidx; ++i);
+    for (unsigned int i=0; i < pidx; ++i)
         {
         const unsigned int tag = m_first_tag + i;
         hoomd::RandomGenerator rng(hoomd::RNGIdentifier::SlitGeometryFiller, m_seed, tag, timestep);
@@ -157,7 +157,7 @@ template<class Geometry>
 void export_RejectionVirtualParticleFiller(pybind11::module& m)
     {
     namespace py = pybind11;
-    const std::string name = Geometry::getName() + "RejectionFiller"
+    const std::string name = Geometry::getName() + "RejectionFiller";
     py::class_<mpcd::RejectionVirtualParticleFiller<Geometry>, std::shared_ptr<mpcd::RejectionVirtualParticleFiller<Geometry>>>
         (m, name.c_str(), py::base<mpcd::VirtualParticleFiller>())
         .def(py::init<std::shared_ptr<mpcd::SystemData>,
