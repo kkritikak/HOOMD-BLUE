@@ -83,6 +83,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
     // Step 1: Create temporary GPUArrays to draw Particles locally using the worst case estimate for number
     //         number of particles.
     GPUArray<Scalar4> pos_loc(m_NVirtMax, m_exec_conf);
+    ArrayHandle<Scalar4> m_pos_loc(pos_loc, access_location::host, access_mode::readwrite);
 
     // Step 2: Draw the particles.
     unsigned int pidx = 0;
@@ -98,10 +99,10 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
 
         if (m_geom->isOutside(particle))
             {
-            pos_loc.data[pidx] = make_scalar4(particle.x,
+            m_pos_loc.data[pidx] = make_scalar4(particle.x,
                                               particle.y,
                                               particle.z,
-                                              __int_as_scalar(m_type);
+                                              __int_as_scalar(m_type));
             pidx += 1;
             }
         }
@@ -135,7 +136,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
         hoomd::RandomGenerator rng(hoomd::RNGIdentifier::SlitGeometryFiller, m_seed, tag, timestep);
 
         const unsigned int realidx = first_idx + i;
-        h_pos.data[realidx] = pos_loc[i];
+        h_pos.data[realidx] = m_pos_loc.data[i];
 
         hoomd::NormalDistribution<Scalar> gen(vel_factor, 0.0);
         Scalar3 vel;
