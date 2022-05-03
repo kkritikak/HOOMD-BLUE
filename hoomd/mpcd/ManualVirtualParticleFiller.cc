@@ -15,12 +15,7 @@ mpcd::ManualVirtualParticleFiller::ManualVirtualParticleFiller(std::shared_ptr<m
                                                    unsigned int type,
                                                    std::shared_ptr<::Variant> T,
                                                    unsigned int seed)
-    : m_sysdef(sysdata->getSystemDefinition()),
-      m_pdata(m_sysdef->getParticleData()),
-      m_exec_conf(m_pdata->getExecConf()),
-      m_mpcd_pdata(sysdata->getParticleData()),
-      m_cl(sysdata->getCellList()),
-      m_density(density), m_type(type), m_T(T), m_seed(seed), m_N_fill(0), m_first_tag(0)
+    : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed)
     {
     #ifdef ENABLE_MPI
     // synchronize seed from root across all ranks in MPI in case users has seeded from system time or entropy
