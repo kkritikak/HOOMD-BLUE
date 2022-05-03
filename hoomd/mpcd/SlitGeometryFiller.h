@@ -28,7 +28,7 @@ namespace mpcd
  * Particles are added to the volume that is overlapped by any of the cells that are also "inside" the channel,
  * subject to the grid shift.
  */
-class PYBIND11_EXPORT SlitGeometryFiller : public mpcd::VirtualParticleFiller
+class PYBIND11_EXPORT SlitGeometryFiller : public mpcd::ManualVirtualParticleFiller
     {
     public:
         SlitGeometryFiller(std::shared_ptr<mpcd::SystemData> sysdata,
