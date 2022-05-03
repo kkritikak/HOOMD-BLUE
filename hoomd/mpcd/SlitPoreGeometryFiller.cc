@@ -20,7 +20,7 @@ mpcd::SlitPoreGeometryFiller::SlitPoreGeometryFiller(std::shared_ptr<mpcd::Syste
                                              std::shared_ptr<::Variant> T,
                                              unsigned int seed,
                                              std::shared_ptr<const mpcd::detail::SlitPoreGeometry> geom)
-    : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed),
+    : mpcd::ManualVirtualParticleFiller(sysdata, density, type, T, seed),
       m_num_boxes(0), m_boxes(MAX_BOXES, m_exec_conf), m_ranges(MAX_BOXES, m_exec_conf)
     {
     m_exec_conf->msg->notice(5) << "Constructing MPCD SlitPoreGeometryFiller" << std::endl;
