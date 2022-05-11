@@ -16,15 +16,7 @@ mpcd::ManualVirtualParticleFiller::ManualVirtualParticleFiller(std::shared_ptr<m
                                                    std::shared_ptr<::Variant> T,
                                                    unsigned int seed)
     : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed)
-    {
-    #ifdef ENABLE_MPI
-    // synchronize seed from root across all ranks in MPI in case users has seeded from system time or entropy
-    if (m_exec_conf->getNRanks() > 1)
-        {
-        MPI_Bcast(&m_seed, 1, MPI_UNSIGNED, 0, m_exec_conf->getMPICommunicator());
-        }
-    #endif // ENABLE_MPI
-    }
+    {}
 
 void mpcd::ManualVirtualParticleFiller::fill(unsigned int timestep)
     {
@@ -33,15 +25,7 @@ void mpcd::ManualVirtualParticleFiller::fill(unsigned int timestep)
 
     // in mpi, do a prefix scan on the tag offset in this range
     // then shift the first tag by the current number of particles, which ensures a compact tag array
-    m_first_tag = 0;
-    #ifdef ENABLE_MPI
-    if (m_exec_conf->getNRanks() > 1)
-        {
-        // scan the number to fill to get the tag range I own
-        MPI_Exscan(&m_N_fill, &m_first_tag, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
-        }
-    #endif // ENABLE_MPI
-    m_first_tag += m_mpcd_pdata->getNGlobal() + m_mpcd_pdata->getNVirtualGlobal();
+    m_first_tag = computeFirstTag(&m_N_fill)
 
     // add the new virtual particles locally
     m_mpcd_pdata->addVirtualParticles(m_N_fill);
