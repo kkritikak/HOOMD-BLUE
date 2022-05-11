@@ -85,8 +85,8 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
     //         number of particles.
     if (NVirtMax > m_tmp_pos.getNumElements())
         {
-        GPUArray<Scalar4> tmp_pos(NVirtMax);
-        GPUArray<Scalar4> tmp_velTag(NVirtMax);
+        GPUArray<Scalar4> tmp_pos(NVirtMax, m_exec_conf);
+        GPUArray<Scalar4> tmp_velTag(NVirtMax, m_exec_conf);
         m_tmp_pos.swap(tmp_pos);
         m_tmp_velTag.swap(tmp_velTag);
         }
@@ -121,7 +121,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
             h_tmp_velTag.data[pidx++] = make_scalar4(vel.x,
                                                      vel.y,
                                                      vel.z,
-                                                     __int_as_scalar(tag))
+                                                     __int_as_scalar(tag));
 
             tag++;
             }
@@ -141,12 +141,13 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
         // positions
         h_pos.data[realidx] = h_tmp_pos.data[i];
         // velocity
-        h_vel.data[realidx] = make_scalar4(h_tmp_velTag[i].x,
-                                           h_tmp_velTag[i].y,
-                                           h_tmp_velTag[i].z,
+        Scalar4 swp = h_tmp_velTag.data[i];
+        h_vel.data[realidx] = make_scalar4(swp.x,
+                                           swp.y,
+                                           swp.z,
                                            __int_as_scalar(mpcd::detail::NO_CELL));
         // tags
-        h_tag.data[realidx] = (unsigned int)h_tmp_velTag[i].w
+        h_tag.data[realidx] = (unsigned int)swp.w;
         }
     }
 
