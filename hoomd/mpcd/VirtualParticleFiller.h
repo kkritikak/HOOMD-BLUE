@@ -81,7 +81,7 @@ class PYBIND11_EXPORT VirtualParticleFiller
 
         // in mpi, do a prefix scan on the tag offset in this range
         // then shift the first tag by the current number of particles, which ensures a compact tag array
-        unsigned int computeFirstTag(unsigned int N_fill);
+        unsigned int computeFirstTag(unsigned int *N_fill);
 
     protected:
         std::shared_ptr<::SystemDefinition> m_sysdef;                   //!< HOOMD system definition
