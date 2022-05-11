@@ -850,9 +850,13 @@ unsigned int mpcd::ParticleData::getTag(unsigned int idx) const
 /*!
  * \param N Allocate space for \a N additional virtualq particles in the particle data arrays
  */
-void mpcd::ParticleData::addVirtualParticles(unsigned int N)
+unsigned int mpcd::ParticleData::addVirtualParticles(unsigned int N)
     {
-    if (N == 0) return;
+    const unsigned int first_idx = getN() + getNVirtual();
+    if (N == 0)
+        {
+        return first_idx;
+        }
 
     // increase number of virtual particles
     m_N_virtual += N;
@@ -872,6 +876,8 @@ void mpcd::ParticleData::addVirtualParticles(unsigned int N)
         }
 
     notifyNumVirtual();
+
+    return first_idx;
     }
 
 #ifdef ENABLE_MPI

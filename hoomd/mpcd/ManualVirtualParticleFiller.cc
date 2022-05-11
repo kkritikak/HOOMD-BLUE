@@ -28,7 +28,7 @@ void mpcd::ManualVirtualParticleFiller::fill(unsigned int timestep)
     m_first_tag = computeFirstTag(&m_N_fill)
 
     // add the new virtual particles locally
-    m_mpcd_pdata->addVirtualParticles(m_N_fill);
+    const unsigned int first_idx = m_mpcd_pdata->addVirtualParticles(m_N_fill);
 
     // draw the particles consistent with those tags
     drawParticles(timestep);

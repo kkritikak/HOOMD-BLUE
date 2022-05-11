@@ -99,7 +99,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
 
     const Scalar vel_factor = fast::sqrt(m_T->getValue(timestep) / m_mpcd_pdata->getMass());
 
-    for (unsigned int i=0; i < m_NVirtMax; ++i)
+    for (unsigned int i=0; i < NVirtMax; ++i)
         {
         hoomd::RandomGenerator rng(hoomd::RNGIdentifier::RejectionFiller, m_seed, timestep, tag);
 
@@ -128,16 +128,13 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
         }
 
     // Allocate memory for the new virtual particles.
-    m_mpcd_pdata->addVirtualParticles(pidx);
+    const unsigned int first_idx = m_mpcd_pdata->addVirtualParticles(pidx);
 
     ArrayHandle<Scalar4> h_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::readwrite);
     ArrayHandle<Scalar4> h_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::readwrite);
     ArrayHandle<unsigned int> h_tag(m_mpcd_pdata->getTags(), access_location::host, access_mode::readwrite);
 
     // copy the temporary data to permanent data
-    // index to start filling from
-    const unsigned int first_idx = m_mpcd_pdata->getN() + m_mpcd_pdata->getNVirtual() - pidx;
-
     for (unsigned int i=0; i < pidx; ++i)
         {
         const unsigned int realidx = first_idx + i;
