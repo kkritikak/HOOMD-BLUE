@@ -79,7 +79,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
     const BoxDim& box = m_pdata->getBox();
     const Scalar3 lo = box.getLo();
     const Scalar3 hi = box.getHi();
-    const unsigned int m_NVirtMax = round(m_density*box.getVolume());
+    const unsigned int NVirtMax = round(m_density*box.getVolume());
 
     // Step 1: Create temporary GPUArrays to draw Particles locally using the worst case estimate for number
     //         number of particles.
@@ -93,13 +93,15 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
     ArrayHandle<Scalar4> h_tmp_pos(m_tmp_pos, access_location::host, access_mode::overwrite);
     ArrayHandle<Scalar4> h_tmp_velTag(m_tmp_velTag, access_location::host, access_mode::overwrite);
 
-    // Step 2: Draw the particles.
+    // Step 2: Draw the particles and assign velocities simultaneously by using temporary memory
     unsigned int pidx = 0;
+    unsigned int tag = computeFirstTag(&pidx);
+
+    const Scalar vel_factor = fast::sqrt(m_T->getValue(timestep) / m_mpcd_pdata->getMass());
+
     for (unsigned int i=0; i < m_NVirtMax; ++i)
         {
-        // TODO: Currently just using the constant for SlitGeometryFiller which needs to be changed
-        // NOTE: particle tags neglected for the RNG here since we don't know them.
-        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::SlitGeometryFiller, m_seed, timestep);
+        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::RejectionFiller, m_seed, timestep, tag);
 
         Scalar3 particle = make_scalar3(hoomd::UniformDistribution<Scalar>(lo.x, hi.x)(rng),
                                        hoomd::UniformDistribution<Scalar>(lo.y, hi.y)(rng),
@@ -107,25 +109,23 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
 
         if (m_geom->isOutside(particle))
             {
-            m_pos_loc.data[pidx] = make_scalar4(particle.x,
-                                              particle.y,
-                                              particle.z,
-                                              __int_as_scalar(m_type));
-            pidx += 1;
+            h_tmp_pos.data[pidx] = make_scalar4(particle.x,
+                                                particle.y,
+                                                particle.z,
+                                                __int_as_scalar(m_type));
+
+            hoomd::NormalDistribution<Scalar> gen(vel_factor, 0.0);
+            Scalar3 vel;
+            gen(vel.x, vel.y, rng);
+            vel.z = gen(rng);
+            h_tmp_velTag.data[pidx++] = make_scalar4(vel.x,
+                                                     vel.y,
+                                                     vel.z,
+                                                     __int_as_scalar(tag))
+
+            tag++;
             }
         }
-
-    // in mpi, do a prefix scan on the tag offset in this range
-    // then shift the first tag by the current number of particles, which ensures a compact tag array
-    m_first_tag = 0;
-    #ifdef ENABLE_MPI
-    if (m_exec_conf->getNRanks() > 1)
-        {
-        // scan the number to fill to get the tag range I own
-        MPI_Exscan(&pidx, &m_first_tag, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
-        }
-    #endif // ENABLE_MPI
-    m_first_tag += m_mpcd_pdata->getNGlobal() + m_mpcd_pdata->getNVirtualGlobal();
 
     // Allocate memory for the new virtual particles.
     m_mpcd_pdata->addVirtualParticles(pidx);
@@ -134,28 +134,22 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
     ArrayHandle<Scalar4> h_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::readwrite);
     ArrayHandle<unsigned int> h_tag(m_mpcd_pdata->getTags(), access_location::host, access_mode::readwrite);
 
-    const Scalar vel_factor = fast::sqrt(m_T->getValue(timestep) / m_mpcd_pdata->getMass());
-
+    // copy the temporary data to permanent data
     // index to start filling from
     const unsigned int first_idx = m_mpcd_pdata->getN() + m_mpcd_pdata->getNVirtual() - pidx;
+
     for (unsigned int i=0; i < pidx; ++i)
         {
-        const unsigned int tag = m_first_tag + i;
-        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::SlitGeometryFiller, m_seed, tag, timestep);
-
         const unsigned int realidx = first_idx + i;
-        h_pos.data[realidx] = m_pos_loc.data[i];
-
-        hoomd::NormalDistribution<Scalar> gen(vel_factor, 0.0);
-        Scalar3 vel;
-        gen(vel.x, vel.y, rng);
-        vel.z = gen(rng);
-        h_vel.data[pidx] = make_scalar4(vel.x,
-                                        vel.y,
-                                        vel.z,
-                                        __int_as_scalar(mpcd::detail::NO_CELL));
-
-        h_tag.data[realidx] = tag;
+        // positions
+        h_pos.data[realidx] = h_tmp_pos.data[i];
+        // velocity
+        h_vel.data[realidx] = make_scalar4(h_tmp_velTag[i].x,
+                                           h_tmp_velTag[i].y,
+                                           h_tmp_velTag[i].z,
+                                           __int_as_scalar(mpcd::detail::NO_CELL));
+        // tags
+        h_tag.data[realidx] = (unsigned int)h_tmp_velTag[i].w
         }
     }
 
