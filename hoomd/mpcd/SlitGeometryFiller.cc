@@ -92,7 +92,7 @@ void mpcd::SlitGeometryFiller::drawParticles(unsigned int timestep)
     for (unsigned int i=0; i < m_N_fill; ++i)
         {
         const unsigned int tag = m_first_tag + i;
-        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::SlitGeometryFiller, m_seed, tag, timestep);
+        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::SlitGeometryFiller, m_seed, tag, timestep, m_filler_id);
         signed char sign = (i >= m_N_lo) - (i < m_N_lo);
         if (sign == -1) // bottom
             {

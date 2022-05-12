@@ -101,7 +101,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
 
     for (unsigned int i=0; i < NVirtMax; ++i)
         {
-        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::RejectionFiller, m_seed, timestep, tag);
+        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::RejectionFiller, m_seed, timestep, tag, m_filler_id);
 
         Scalar3 particle = make_scalar3(hoomd::UniformDistribution<Scalar>(lo.x, hi.x)(rng),
                                        hoomd::UniformDistribution<Scalar>(lo.y, hi.y)(rng),

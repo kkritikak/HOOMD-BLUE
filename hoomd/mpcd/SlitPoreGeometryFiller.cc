@@ -163,7 +163,7 @@ void mpcd::SlitPoreGeometryFiller::drawParticles(unsigned int timestep)
     for (unsigned int i=0; i < m_N_fill; ++i)
         {
         const unsigned int tag = m_first_tag + i;
-        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::SlitPoreGeometryFiller, m_seed, tag, timestep);
+        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::SlitPoreGeometryFiller, m_seed, tag, timestep, m_filler_id);
 
         // advanced past end of this box range, take the next
         if (i >= boxlast)
