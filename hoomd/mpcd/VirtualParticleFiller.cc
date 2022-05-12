@@ -32,7 +32,7 @@ mpcd::VirtualParticleFiller::VirtualParticleFiller(std::shared_ptr<mpcd::SystemD
     #endif // ENABLE_MPI
     }
 
-unsigned int VirtualParticleFiller::s_filler_count = 0;
+unsigned int mpcd::VirtualParticleFiller::s_filler_count = 0;
 
 void mpcd::VirtualParticleFiller::setDensity(Scalar density)
     {
