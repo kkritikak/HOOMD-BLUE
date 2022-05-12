@@ -20,6 +20,7 @@ mpcd::VirtualParticleFiller::VirtualParticleFiller(std::shared_ptr<mpcd::SystemD
       m_exec_conf(m_pdata->getExecConf()),
       m_mpcd_pdata(sysdata->getParticleData()),
       m_cl(sysdata->getCellList()),
+      m_filler_id(s_filler_count++),
       m_density(density), m_type(type), m_T(T), m_seed(seed)
     {
     #ifdef ENABLE_MPI
