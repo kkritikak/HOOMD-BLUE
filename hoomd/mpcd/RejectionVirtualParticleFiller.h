@@ -80,14 +80,14 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
     const BoxDim& box = m_pdata->getBox();
     const Scalar3 lo = box.getLo();
     const Scalar3 hi = box.getHi();
-    const unsigned int NVirtMax = round(m_density*box.getVolume());
+    const unsigned int N_virt_max = round(m_density*box.getVolume());
 
     // Step 1: Create temporary GPUArrays to draw Particles locally using the worst case estimate for number
     //         number of particles.
-    if (NVirtMax > m_tmp_pos.getNumElements())
+    if (N_virt_max > m_tmp_pos.getNumElements())
         {
-        GPUArray<Scalar4> tmp_pos(NVirtMax, m_exec_conf);
-        GPUArray<Scalar4> tmp_velTag(NVirtMax, m_exec_conf);
+        GPUArray<Scalar4> tmp_pos(N_virt_max, m_exec_conf);
+        GPUArray<Scalar4> tmp_velTag(N_virt_max, m_exec_conf);
         m_tmp_pos.swap(tmp_pos);
         m_tmp_velTag.swap(tmp_velTag);
         }
@@ -100,7 +100,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
 
     const Scalar vel_factor = fast::sqrt(m_T->getValue(timestep) / m_mpcd_pdata->getMass());
 
-    for (unsigned int i=0; i < NVirtMax; ++i)
+    for (unsigned int i=0; i < N_virt_max; ++i)
         {
         hoomd::RandomGenerator rng(hoomd::RNGIdentifier::RejectionFiller, m_seed, timestep, tag, m_filler_id);
 
