@@ -39,7 +39,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParti
                                        std::shared_ptr<::Variant> T,
                                        unsigned int seed,
                                        std::shared_ptr<const Geometry> geom)
-        : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed), m_geom(geom)
+        : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed), m_geom(geom), m_tmp_pos(0, m_exec_conf), m_tmp_vel_tag(0, m_exec_conf)
         {
         const std::string note = "constructing MPCD RejectionVirtualParticleFiller : " + Geometry::getName();
         m_exec_conf->msg->notice(5) << note << std::endl;
