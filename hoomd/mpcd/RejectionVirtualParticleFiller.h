@@ -127,6 +127,8 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
             }
         }
 
+    first_tag = computeFirstTag(pidx);
+
     // Allocate memory for the new virtual particles.
     const unsigned int first_idx = m_mpcd_pdata->addVirtualParticles(pidx);
 
