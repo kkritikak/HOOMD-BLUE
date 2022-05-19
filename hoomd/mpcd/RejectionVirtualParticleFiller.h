@@ -146,7 +146,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
         Scalar4 swp = h_tmp_velTag.data[i];
         h_vel.data[realidx] = h_tmp_velTag[i];
         // tags
-        h_tag.data[realidx] = (unsigned int)swp.w;
+        h_tag.data[realidx] = first_tag+i;
         }
     }
 
