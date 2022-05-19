@@ -54,14 +54,14 @@ void mpcd::VirtualParticleFiller::setType(unsigned int type)
     m_type = type;
     }
 
-unsigned int mpcd::VirtualParticleFiller::computeFirstTag(unsigned int *N_fill)
+unsigned int mpcd::VirtualParticleFiller::computeFirstTag(unsigned int N_fill)
     {
     unsigned int first_tag = 0;
     #ifdef ENABLE_MPI
     if (m_exec_conf->getNRanks() > 1)
         {
         // scan the number to fill to get the tag range I own
-        MPI_Exscan(N_fill, &first_tag, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
+        MPI_Exscan(&N_fill, &first_tag, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
         }
     #endif // ENABLE_MPI
     first_tag += m_mpcd_pdata->getNGlobal() + m_mpcd_pdata->getNVirtualGlobal();
