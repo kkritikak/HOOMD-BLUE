@@ -144,10 +144,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
         h_pos.data[realidx] = h_tmp_pos.data[i];
         // velocity
         Scalar4 swp = h_tmp_velTag.data[i];
-        h_vel.data[realidx] = make_scalar4(swp.x,
-                                           swp.y,
-                                           swp.z,
-                                           __int_as_scalar(mpcd::detail::NO_CELL));
+        h_vel.data[realidx] = h_tmp_velTag[i];
         // tags
         h_tag.data[realidx] = (unsigned int)swp.w;
         }
