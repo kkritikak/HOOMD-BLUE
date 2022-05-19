@@ -69,7 +69,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParti
     protected:
         std::shared_ptr<const Geometry> m_geom;
         GPUArray<Scalar4> m_tmp_pos;
-        GPUArray<Scalar4> m_tmp_velTag;
+        GPUArray<Scalar4> m_tmp_vel_tag;
     };
 
 
@@ -89,10 +89,10 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
         GPUArray<Scalar4> tmp_pos(N_virt_max, m_exec_conf);
         GPUArray<Scalar4> tmp_velTag(N_virt_max, m_exec_conf);
         m_tmp_pos.swap(tmp_pos);
-        m_tmp_velTag.swap(tmp_velTag);
+        m_tmp_vel_tag.swap(tmp_velTag);
         }
     ArrayHandle<Scalar4> h_tmp_pos(m_tmp_pos, access_location::host, access_mode::overwrite);
-    ArrayHandle<Scalar4> h_tmp_velTag(m_tmp_velTag, access_location::host, access_mode::overwrite);
+    ArrayHandle<Scalar4> h_tmp_velTag(m_tmp_vel_tag, access_location::host, access_mode::overwrite);
 
     // Step 2: Draw the particles and assign velocities simultaneously by using temporary memory
     unsigned int pidx = 0;
