@@ -15,7 +15,7 @@ mpcd::ManualVirtualParticleFiller::ManualVirtualParticleFiller(std::shared_ptr<m
                                                    unsigned int type,
                                                    std::shared_ptr<::Variant> T,
                                                    unsigned int seed)
-    : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed)
+    : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed), m_N_fill(0), m_first_tag(0)
     {}
 
 void mpcd::ManualVirtualParticleFiller::fill(unsigned int timestep)
