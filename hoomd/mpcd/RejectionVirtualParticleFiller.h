@@ -119,12 +119,11 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
             Scalar3 vel;
             gen(vel.x, vel.y, rng);
             vel.z = gen(rng);
-            h_tmp_velTag.data[pidx++] = make_scalar4(vel.x,
+            h_tmp_velTag.data[pidx] = make_scalar4(vel.x,
                                                      vel.y,
                                                      vel.z,
-                                                     __int_as_scalar(tag));
-
-            tag++;
+                                                     __int_as_scalar(mpcd::detail::NO_CELL));
+            ++pidx;
             }
         }
 
