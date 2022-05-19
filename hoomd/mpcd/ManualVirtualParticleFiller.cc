@@ -25,7 +25,7 @@ void mpcd::ManualVirtualParticleFiller::fill(unsigned int timestep)
 
     // in mpi, do a prefix scan on the tag offset in this range
     // then shift the first tag by the current number of particles, which ensures a compact tag array
-    m_first_tag = computeFirstTag(&m_N_fill);
+    m_first_tag = computeFirstTag(m_N_fill);
 
     // add the new virtual particles locally
     const unsigned int first_idx = m_mpcd_pdata->addVirtualParticles(m_N_fill);
