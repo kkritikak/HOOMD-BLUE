@@ -96,7 +96,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
 
     // Step 2: Draw the particles and assign velocities simultaneously by using temporary memory
     unsigned int pidx = 0;
-    unsigned int tag = computeFirstTag(&pidx);
+    unsigned int first_tag = computeFirstTag(N_virt_max);
 
     const Scalar vel_factor = fast::sqrt(m_T->getValue(timestep) / m_mpcd_pdata->getMass());
 
