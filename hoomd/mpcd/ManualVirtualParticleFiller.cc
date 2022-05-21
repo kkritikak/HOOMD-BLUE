@@ -15,7 +15,7 @@ mpcd::ManualVirtualParticleFiller::ManualVirtualParticleFiller(std::shared_ptr<m
                                                    unsigned int type,
                                                    std::shared_ptr<::Variant> T,
                                                    unsigned int seed)
-    : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed), m_N_fill(0), m_first_tag(0)
+    : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed), m_N_fill(0), m_first_tag(0), m_first_idx(0)
     {}
 
 void mpcd::ManualVirtualParticleFiller::fill(unsigned int timestep)
@@ -27,7 +27,7 @@ void mpcd::ManualVirtualParticleFiller::fill(unsigned int timestep)
     m_first_tag = computeFirstTag(m_N_fill);
 
     // add the new virtual particles locally
-    const unsigned int first_idx = m_mpcd_pdata->addVirtualParticles(m_N_fill);
+    m_first_idx = m_mpcd_pdata->addVirtualParticles(m_N_fill);
 
     // draw the particles consistent with those tags
     drawParticles(timestep);
