@@ -48,7 +48,8 @@ class PYBIND11_EXPORT ManualVirtualParticleFiller : public mpcd::VirtualParticle
 
     protected:
         unsigned int m_N_fill;      //!< Number of particles to fill locally
-        unsigned int m_first_tag;       //!< First tag of locally held particles
+        unsigned int m_first_tag;   //!< First tag of locally held particles
+        unsigned int m_first_idx;   //!< Particle index to start adding particles from
 
         //! Compute the total number of particles to fill
         virtual void computeNumFill() {}
