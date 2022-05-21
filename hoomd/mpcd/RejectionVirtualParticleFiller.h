@@ -39,7 +39,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParti
                                        std::shared_ptr<::Variant> T,
                                        unsigned int seed,
                                        std::shared_ptr<const Geometry> geom)
-        : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed), m_geom(geom), m_tmp_pos(0, m_exec_conf), m_tmp_vel_tag(0, m_exec_conf)
+        : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed), m_geom(geom), m_tmp_pos(m_exec_conf), m_tmp_vel(m_exec_conf)
         {
         const std::string note = "constructing MPCD RejectionVirtualParticleFiller : " + Geometry::getName();
         m_exec_conf->msg->notice(5) << note << std::endl;
@@ -69,7 +69,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFiller : public mpcd::VirtualParti
     protected:
         std::shared_ptr<const Geometry> m_geom;
         GPUArray<Scalar4> m_tmp_pos;
-        GPUArray<Scalar4> m_tmp_vel_tag;
+        GPUArray<Scalar4> m_tmp_vel;
     };
 
 
@@ -87,12 +87,12 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
     if (N_virt_max > m_tmp_pos.getNumElements())
         {
         GPUArray<Scalar4> tmp_pos(N_virt_max, m_exec_conf);
-        GPUArray<Scalar4> tmp_velTag(N_virt_max, m_exec_conf);
+        GPUArray<Scalar4> tmp_vel(N_virt_max, m_exec_conf);
         m_tmp_pos.swap(tmp_pos);
-        m_tmp_vel_tag.swap(tmp_velTag);
+        m_tmp_vel.swap(tmp_vel);
         }
     ArrayHandle<Scalar4> h_tmp_pos(m_tmp_pos, access_location::host, access_mode::overwrite);
-    ArrayHandle<Scalar4> h_tmp_velTag(m_tmp_vel_tag, access_location::host, access_mode::overwrite);
+    ArrayHandle<Scalar4> h_tmp_vel(m_tmp_vel, access_location::host, access_mode::overwrite);
 
     // Step 2: Draw the particles and assign velocities simultaneously by using temporary memory
     unsigned int pidx = 0;
@@ -119,7 +119,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
             Scalar3 vel;
             gen(vel.x, vel.y, rng);
             vel.z = gen(rng);
-            h_tmp_velTag.data[pidx] = make_scalar4(vel.x,
+            h_tmp_vel.data[pidx] = make_scalar4(vel.x,
                                                      vel.y,
                                                      vel.z,
                                                      __int_as_scalar(mpcd::detail::NO_CELL));
@@ -143,7 +143,7 @@ void RejectionVirtualParticleFiller<Geometry>::fill(unsigned int timestep)
         // positions
         h_pos.data[realidx] = h_tmp_pos.data[i];
         // velocity
-        h_vel.data[realidx] = h_tmp_velTag.data[i];
+        h_vel.data[realidx] = h_tmp_vel.data[i];
         // tags
         h_tag.data[realidx] = first_tag+i;
         }
