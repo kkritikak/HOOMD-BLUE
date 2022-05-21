@@ -88,7 +88,6 @@ void mpcd::SlitGeometryFiller::drawParticles(unsigned int timestep)
     const Scalar vel_factor = fast::sqrt(m_T->getValue(timestep) / m_mpcd_pdata->getMass());
 
     // index to start filling from
-    const unsigned int first_idx = m_mpcd_pdata->getN() + m_mpcd_pdata->getNVirtual() - m_N_fill;
     for (unsigned int i=0; i < m_N_fill; ++i)
         {
         const unsigned int tag = m_first_tag + i;
@@ -103,7 +102,7 @@ void mpcd::SlitGeometryFiller::drawParticles(unsigned int timestep)
             lo.z = m_geom->getH(); hi.z = m_z_max;
             }
 
-        const unsigned int pidx = first_idx + i;
+        const unsigned int pidx = m_first_idx + i;
         h_pos.data[pidx] = make_scalar4(hoomd::UniformDistribution<Scalar>(lo.x, hi.x)(rng),
                                         hoomd::UniformDistribution<Scalar>(lo.y, hi.y)(rng),
                                         hoomd::UniformDistribution<Scalar>(lo.z, hi.z)(rng),
