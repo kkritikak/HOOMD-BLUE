@@ -144,6 +144,9 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
 
     std::cout << "N_avg = " << N_avg/14952.0 << "\n";
     UP_ASSERT_CLOSE(N_avg/14952.0, 1.0, tol);
+    CHECK_SMALL(vel_avg.x, tol_small);
+    CHECK_SMALL(vel_avg.y, tol_small);
+    CHECK_SMALL(vel_avg.z, tol_small);
     CHECK_CLOSE(T_avg, 1.5, tol_small);
     }
 
