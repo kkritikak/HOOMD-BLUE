@@ -44,7 +44,6 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
      */
     unsigned int Nfill_0(0);
     filler->fill(0);
-    std::cout << "Number of virtual Particles after filling one time: " << pdata->getNVirtual() << "\n";
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
         ArrayHandle<Scalar4> h_vel(pdata->getVelocities(), access_location::host, access_mode::read);
@@ -81,7 +80,6 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
      * Fill the volume again, which should approximately double the number of virtual particles
      */
     filler->fill(1);
-    std::cout << "Number of virtual Particles after filling twice: " << pdata->getNVirtual() << "\n";
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
         ArrayHandle<Scalar4> h_vel(pdata->getVelocities(), access_location::host, access_mode::read);
@@ -156,7 +154,6 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
     * N_exptd = int(density*(L^3 - 4*pi*r^3/3))
     *         = 14952
     */
-    std::cout << "N_avg = " << N_avg << "\n";
     UP_ASSERT_CLOSE(N_avg, 14952.0, loose_tol);
 
     CHECK_SMALL(vel_avg_net.x, tol_small);
