@@ -59,7 +59,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
         UP_ASSERT_EQUAL(h_tag.data[0], 0);
 
         // check if the particles have been placed outside the confinement
-        unsigned int N_out(0);
+        unsigned int N_out0(0);
         for (unsigned int i=pdata->getN(); i < pdata->getN() + pdata->getNVirtual(); ++i)
             {
             // tag should equal index on one rank with one filler
@@ -72,7 +72,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
             if (r2 > r*r)
                 ++N_out0;
             }
-        UP_ASSERT_EQUAL(N_out, pdata->getNVirtual());
+        UP_ASSERT_EQUAL(N_out0, pdata->getNVirtual());
         }
 
     /*
@@ -86,7 +86,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
         ArrayHandle<unsigned int> h_tag(pdata->getTags(), access_location::host, access_mode::read);
 
         // check if the particles have been placed outside the confinement
-        unsigned int N_out(0);
+        unsigned int N_out1(0);
         for (unsigned int i=pdata->getN(); i < pdata->getN() + pdata->getNVirtual(); ++i)
             {
             // tag should equal index on one rank with one filler
@@ -99,7 +99,8 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
             if (r2 > r*r)
                 ++N_out1;
             }
-        UP_ASSERT_EQUAL(N_out, pdata->getNVirtual());
+        UP_ASSERT_EQUAL(N_out1, pdata->getNVirtual());
+        UP_ASSERT_GREATER(N_out1, N_out0);
         }
 
     /*
