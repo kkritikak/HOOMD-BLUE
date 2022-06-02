@@ -34,7 +34,8 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
     UP_ASSERT_EQUAL(pdata->getNVirtual(), 0);
 
     // create a spherical confinement of radius 5.0
-    auto sphere = std::make_shared<const mpcd::detail::SphereGeometry>(5.0, mpcd::detail::boundary::no_slip);
+    Scalar r=5.0;
+    auto sphere = std::make_shared<const mpcd::detail::SphereGeometry>(r, mpcd::detail::boundary::no_slip);
     std::shared_ptr<::Variant> kT = std::make_shared<::VariantConst>(1.5);
     std::shared_ptr<mpcd::RejectionVirtualParticleFiller<mpcd::detail::SphereGeometry>> filler = std::make_shared<F>(mpcd_sys, 2.0, 1, kT, 42, sphere);
 
@@ -68,8 +69,8 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
 
             Scalar3 pos = make_scalar3(h_pos.data[i].x, h_pos.data[i].y, h_pos.data[i].z);
             const Scalar r2 = dot(pos, pos);
-            if (r2 > Scalar(25))
-                ++N_out;
+            if (r2 > r*r)
+                ++N_out0;
             }
         UP_ASSERT_EQUAL(N_out, pdata->getNVirtual());
         }
@@ -95,8 +96,8 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
 
             Scalar3 pos = make_scalar3(h_pos.data[i].x, h_pos.data[i].y, h_pos.data[i].z);
             const Scalar r2 = dot(pos, pos);
-            if (r2 > Scalar(25))
-                ++N_out;
+            if (r2 > r*r)
+                ++N_out1;
             }
         UP_ASSERT_EQUAL(N_out, pdata->getNVirtual());
         }
@@ -126,7 +127,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
             const Scalar3 pos = make_scalar3(h_pos.data[i].x, h_pos.data[i].y, h_pos.data[i].z);
             const Scalar3 vel = make_scalar3(h_vel.data[i].x, h_vel.data[i].y, h_vel.data[i].z);
             const Scalar r2 = dot(pos, pos);
-            if (r2 > Scalar(25))
+            if (r2 > r*r)
                 ++N_out;
             temp += dot(vel, vel);
             vel_avg += vel;
