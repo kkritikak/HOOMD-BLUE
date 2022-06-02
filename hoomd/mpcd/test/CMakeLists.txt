@@ -13,9 +13,9 @@ set(TEST_LIST
     slit_geometry_filler
     slit_pore_geometry_filler
     sorter
+    sphere_geometry_rejection_filler
     srd_collision_method
     streaming_method
-    rejection_sphere_geometry_filler
     virtual_particle
     )
 endif()
