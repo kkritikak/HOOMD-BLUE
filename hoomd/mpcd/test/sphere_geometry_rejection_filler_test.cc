@@ -42,6 +42,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
     /*
      * Test basic filling up for this cell list
      */
+    unsigned int Nfill_0(0);
     filler->fill(0);
     std::cout << "Number of virtual Particles after filling one time: " << pdata->getNVirtual() << "\n";
         {
@@ -59,7 +60,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
         UP_ASSERT_EQUAL(h_tag.data[0], 0);
 
         // check if the particles have been placed outside the confinement
-        unsigned int N_out0(0);
+        unsigned int N_out(0);
         for (unsigned int i=pdata->getN(); i < pdata->getN() + pdata->getNVirtual(); ++i)
             {
             // tag should equal index on one rank with one filler
@@ -70,9 +71,10 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
             Scalar3 pos = make_scalar3(h_pos.data[i].x, h_pos.data[i].y, h_pos.data[i].z);
             const Scalar r2 = dot(pos, pos);
             if (r2 > r*r)
-                ++N_out0;
+                ++N_out;
             }
-        UP_ASSERT_EQUAL(N_out0, pdata->getNVirtual());
+        UP_ASSERT_EQUAL(N_out, pdata->getNVirtual());
+        Nfill_0 = N_out;
         }
 
     /*
@@ -86,7 +88,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
         ArrayHandle<unsigned int> h_tag(pdata->getTags(), access_location::host, access_mode::read);
 
         // check if the particles have been placed outside the confinement
-        unsigned int N_out1(0);
+        unsigned int N_out(0);
         for (unsigned int i=pdata->getN(); i < pdata->getN() + pdata->getNVirtual(); ++i)
             {
             // tag should equal index on one rank with one filler
@@ -97,10 +99,10 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
             Scalar3 pos = make_scalar3(h_pos.data[i].x, h_pos.data[i].y, h_pos.data[i].z);
             const Scalar r2 = dot(pos, pos);
             if (r2 > r*r)
-                ++N_out1;
+                ++N_out;
             }
-        UP_ASSERT_EQUAL(N_out1, pdata->getNVirtual());
-        UP_ASSERT_GREATER(N_out1, N_out0);
+        UP_ASSERT_EQUAL(N_out, pdata->getNVirtual());
+        UP_ASSERT_GREATER(N_out, Nfill_0);
         }
 
     /*
