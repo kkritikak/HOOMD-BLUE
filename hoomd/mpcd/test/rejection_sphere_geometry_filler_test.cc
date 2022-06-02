@@ -107,11 +107,12 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
      * Test the average properties of the virtual particles.
      */
     // initialize variables for storing avg data
-    unsigned int N_avg(0);
-    Scalar3 vel_avg = make_scalar3(0,0,0);
+    Scalar N_avg(0);
+    Scalar3 vel_avg_net = make_scalar3(0,0,0);
     Scalar T_avg(0);
     // repeat filling 100 times
-    for (unsigned int t=0; t<100; ++t)
+    unsigned int itr(100);
+    for (unsigned int t=0; t<itr; ++t)
         {
         pdata->removeVirtualParticles();
         filler->fill(2+t);
@@ -122,6 +123,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
         // local variables
         unsigned int N_out(0);
         Scalar temp(0);
+        Scalar3 vel_avg = make_scalar3(0,0,0);
 
         for (unsigned int i=pdata->getN(); i < pdata->getN() + pdata->getNVirtual(); ++i)
             {
@@ -135,17 +137,26 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
             }
 
         temp /= (3*(N_out-1));
+        vel_avg_net += vel_avg/N_out;
+        // Check whether all virtual particles are outside the sphere
         UP_ASSERT_EQUAL(N_out, pdata->getNVirtual());
         N_avg += N_out;
         T_avg += temp;
 
         }
-    vel_avg /= N_avg;
-    N_avg /= 100;
-    T_avg /= 100;
+    N_avg /= itr;
+    T_avg /= itr;
+    vel_avg_net /= itr;
 
-    std::cout << "N_avg = " << N_avg/14952.0 << "\n";
-    UP_ASSERT_CLOSE(N_avg/14952.0, 1.0, tol);
+    /*
+    * Expected number of virtual particles = int( density * volume outside sphere )
+    * volume outside sphere = sim-box volume - sphere volume
+    * N_exptd = int(density*(L^3 - 4*pi*r^3/3))
+    *         = 14952
+    */
+    std::cout << "N_avg = " << N_avg << "\n";
+    UP_ASSERT_CLOSE(N_avg, 14952.0, loose_tol);
+
     CHECK_SMALL(vel_avg.x, tol_small);
     CHECK_SMALL(vel_avg.y, tol_small);
     CHECK_SMALL(vel_avg.z, tol_small);
