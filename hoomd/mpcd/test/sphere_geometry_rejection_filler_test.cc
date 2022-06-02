@@ -154,7 +154,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
     * N_exptd = int(density*(L^3 - 4*pi*r^3/3))
     *         = 14952
     */
-    UP_ASSERT_CLOSE(N_avg, 14952.0, loose_tol);
+    UP_ASSERT_CLOSE(N_avg, 14952.0, 2);
 
     CHECK_SMALL(vel_avg_net.x, tol_small);
     CHECK_SMALL(vel_avg_net.y, tol_small);
