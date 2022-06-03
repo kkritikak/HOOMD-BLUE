@@ -1,5 +1,10 @@
+// Copyright (c) 2009-2019 The Regents of the University of Michigan
+// This file is part of the HOOMD-blue project, released under the BSD 3-Clause License.
+
+// Maintainer: mphoward
 
 #include "hoomd/mpcd/RejectionVirtualParticleFiller.h"
+#include "hoomd/mpcd/SphereGeometry.h"
 
 #include "hoomd/SnapshotSystemData.h"
 #include "hoomd/test/upp11_config.h"
@@ -35,43 +40,64 @@ void sphere_rejection_fill_mpi_test(std::shared_ptr<ExecutionConfiguration> exec
     Scalar r=5.0;
     auto sphere = std::make_shared<const mpcd::detail::SphereGeometry>(r, mpcd::detail::boundary::no_slip);
     std::shared_ptr<::Variant> kT = std::make_shared<::VariantConst>(1.5);
-    std::shared_ptr<mpcd::RejectionVirtualParticleFiller<mpcd::detail::SphereGeometry>> filler = std::make_shared<F>(mpcd_sys, 2.0, 1, kT, 42, sphere);
+    std::shared_ptr<mpcd::RejectionVirtualParticleFiller<mpcd::detail::SphereGeometry>> filler = std::make_shared<F>(mpcd_sys, 2.0, 1, kT, 63, sphere);
 
     /*
      * Test basic filling up for this cell list
      */
-    unsigned int Nfill_0(0);
     filler->fill(0);
+    std::cout << Scalar(pdata->getNVirtual()) << "\n";
+    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtual()), Scalar(1869), tol);
+    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtualGlobal()), Scalar(14952), tol);
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
         ArrayHandle<Scalar4> h_vel(pdata->getVelocities(), access_location::host, access_mode::read);
         ArrayHandle<unsigned int> h_tag(pdata->getTags(), access_location::host, access_mode::read);
-
-        // ensure first particle did not get overwritten
-        CHECK_CLOSE(h_pos.data[0].x, 1, tol_small);
-        CHECK_CLOSE(h_pos.data[0].y, -2, tol_small);
-        CHECK_CLOSE(h_pos.data[0].z,  3, tol_small);
-        CHECK_CLOSE(h_vel.data[0].x, 123, tol_small);
-        CHECK_CLOSE(h_vel.data[0].y, 456, tol_small);
-        CHECK_CLOSE(h_vel.data[0].z, 789, tol_small);
-        UP_ASSERT_EQUAL(h_tag.data[0], 0);
-
-        // check if the particles have been placed outside the confinement
-        unsigned int N_out(0);
-        for (unsigned int i=pdata->getN(); i < pdata->getN() + pdata->getNVirtual(); ++i)
+        const BoxDim& box = sysdef->getParticleData()->getBox();
+        for (unsigned int i = 0; i < pdata->getNVirtual(); ++i)
             {
-            // tag should equal index on one rank with one filler
-            UP_ASSERT_EQUAL(h_tag.data[i], i);
-            // type should be set
-            UP_ASSERT_EQUAL(__scalar_as_int(h_pos.data[i].w), 1);
-
-            Scalar3 pos = make_scalar3(h_pos.data[i].x, h_pos.data[i].y, h_pos.data[i].z);
-            const Scalar r2 = dot(pos, pos);
-            if (r2 > r*r)
-                ++N_out;
+            const unsigned int idx = pdata->getN() + i;
+            // check if the virtual particles are in the box
+            UP_ASSERT(h_pos.data[idx].x >= box.getLo().x && h_pos.data[idx].x < box.getHi().x);
+            UP_ASSERT(h_pos.data[idx].y >= box.getLo().y && h_pos.data[idx].y < box.getHi().y);
+            UP_ASSERT(h_pos.data[idx].z >= box.getLo().z && h_pos.data[idx].z < box.getHi().z);
             }
-        UP_ASSERT_EQUAL(N_out, pdata->getNVirtual());
-        Nfill_0 = N_out;
         }
 
+    /*
+    * Fill up a second time
+    */
+    filler->fill(1);
+    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtual()), Scalar(1869*2), tol_small);
+    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtualGlobal()), Scalar(14952*2), tol_small);
+
+    /*
+    * Test avg. number of virtual particles on each rank by filling up the system N_samples(=500) times
+    */
+    Scalar N_avg_rank(0);
+    Scalar N_avg_global(0);
+    unsigned int itr(500);
+    for (unsigned int t=0; t<itr; ++t)
+        {
+        std::cout << t << "\n";
+        pdata->removeVirtualParticles();
+        UP_ASSERT_EQUAL(pdata->getNVirtualGlobal(), 0);
+        filler->fill(2+t);
+
+        ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
+
+        N_avg_rank += pdata->getNVirtual();
+        N_avg_global += pdata->getNVirtualGlobal();
+        }
+    N_avg_rank /= itr;
+    N_avg_global /= itr;
+
+    // std::cout << "N_avg_rank = " << N_avg_rank << "\n";
+    UP_ASSERT_CLOSE(N_avg_rank, Scalar(1869), tol_small);
+    UP_ASSERT_CLOSE(N_avg_global, Scalar(14952), tol_small);
+    }
+
+UP_TEST( sphere_rejection_fill_mpi )
+    {
+    sphere_rejection_fill_mpi_test<mpcd::RejectionVirtualParticleFiller<mpcd::detail::SphereGeometry>>(std::make_shared<ExecutionConfiguration>(ExecutionConfiguration::CPU));
     }
