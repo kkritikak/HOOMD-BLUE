@@ -45,10 +45,10 @@ void sphere_rejection_fill_mpi_test(std::shared_ptr<ExecutionConfiguration> exec
     /*
      * Test basic filling up for this cell list
      */
+    const Scalar custom_tol = Scalar(1e-1);
     filler->fill(0);
-    std::cout << Scalar(pdata->getNVirtual()) << "\n";
-    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtual()), Scalar(1869), tol);
-    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtualGlobal()), Scalar(14952), tol);
+    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtual()), Scalar(1869), custom_tol);
+    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtualGlobal()), Scalar(14952), custom_tol);
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
         ArrayHandle<Scalar4> h_vel(pdata->getVelocities(), access_location::host, access_mode::read);
@@ -68,8 +68,8 @@ void sphere_rejection_fill_mpi_test(std::shared_ptr<ExecutionConfiguration> exec
     * Fill up a second time
     */
     filler->fill(1);
-    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtual()), Scalar(1869*2), tol_small);
-    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtualGlobal()), Scalar(14952*2), tol_small);
+    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtual()), Scalar(1869*2), custom_tol);
+    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtualGlobal()), Scalar(14952*2), custom_tol);
 
     /*
     * Test avg. number of virtual particles on each rank by filling up the system N_samples(=500) times
@@ -79,7 +79,6 @@ void sphere_rejection_fill_mpi_test(std::shared_ptr<ExecutionConfiguration> exec
     unsigned int itr(500);
     for (unsigned int t=0; t<itr; ++t)
         {
-        std::cout << t << "\n";
         pdata->removeVirtualParticles();
         UP_ASSERT_EQUAL(pdata->getNVirtualGlobal(), 0);
         filler->fill(2+t);
