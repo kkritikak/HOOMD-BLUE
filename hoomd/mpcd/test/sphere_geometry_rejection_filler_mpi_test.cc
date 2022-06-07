@@ -45,15 +45,14 @@ void sphere_rejection_fill_mpi_test(std::shared_ptr<ExecutionConfiguration> exec
     /*
      * Test basic filling up for this cell list
      */
-    const Scalar custom_tol = Scalar(1e-1);
     filler->fill(0);
-    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtual()), Scalar(1869), custom_tol);
-    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtualGlobal()), Scalar(14952), custom_tol);
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
         ArrayHandle<Scalar4> h_vel(pdata->getVelocities(), access_location::host, access_mode::read);
         ArrayHandle<unsigned int> h_tag(pdata->getTags(), access_location::host, access_mode::read);
         const BoxDim& box = sysdef->getParticleData()->getBox();
+        // check if the virtual particles are outside the sphere
+        unsigned int N_out(0);
         for (unsigned int i = 0; i < pdata->getNVirtual(); ++i)
             {
             const unsigned int idx = pdata->getN() + i;
@@ -61,15 +60,14 @@ void sphere_rejection_fill_mpi_test(std::shared_ptr<ExecutionConfiguration> exec
             UP_ASSERT(h_pos.data[idx].x >= box.getLo().x && h_pos.data[idx].x < box.getHi().x);
             UP_ASSERT(h_pos.data[idx].y >= box.getLo().y && h_pos.data[idx].y < box.getHi().y);
             UP_ASSERT(h_pos.data[idx].z >= box.getLo().z && h_pos.data[idx].z < box.getHi().z);
-            }
-        }
 
-    /*
-    * Fill up a second time
-    */
-    filler->fill(1);
-    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtual()), Scalar(1869*2), custom_tol);
-    UP_ASSERT_CLOSE(Scalar(pdata->getNVirtualGlobal()), Scalar(14952*2), custom_tol);
+            Scalar3 pos = make_scalar3(h_pos.data[idx].x, h_pos.data[idx].y, h_pos.data[idx].z);
+            const Scalar r2 = dot(pos, pos);
+            if (r2 > r*r)
+                ++N_out;
+            }
+        UP_ASSERT_EQUAL(N_out, pdata->getNVirtual());
+        }
 
     /*
     * Test avg. number of virtual particles on each rank by filling up the system N_samples(=500) times
@@ -81,7 +79,7 @@ void sphere_rejection_fill_mpi_test(std::shared_ptr<ExecutionConfiguration> exec
         {
         pdata->removeVirtualParticles();
         UP_ASSERT_EQUAL(pdata->getNVirtualGlobal(), 0);
-        filler->fill(2+t);
+        filler->fill(1+t);
 
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
 
