@@ -195,6 +195,38 @@ class mpcd_stream_sphere_test(unittest.TestCase):
         sphere.set_params(R=3.95)
         hoomd.run(1)
 
+    # test that virtual particle filler can be attached, removed and updated
+    def test_filler(self):
+        # initialization of a filler
+        sphere = mpcd.stream.sphere(R=4.0)
+        sphere.set_filler(density=5.0, kT=1.0, seed=79, type='A')
+        self.assertTrue(sphere._filler is not None)
+
+        # run should be able to setup the filler, although this all happens silently
+        hoomd.run(1)
+
+        # changing the geometry should still be OK with a run
+        sphere.set_params(R=3.5)
+        hoomd.run(1)
+
+        # changing filler should be allowed
+        sphere.set_filler(density=10.0, kT=1.5, seed=51)
+        self.assertTrue(sphere._filler is not None)
+        hoomd.run(1)
+
+        # assert an error is raised if we set a bad particle type
+        with self.assertRaises(RuntimeError):
+            sphere.set_filler(density=5., kT=1.0, seed=42, type='B')
+
+        # assert an error is raised if we set a bad density
+        with self.assertRaises(RuntimeError):
+            sphere.set_filler(density=-1.0, kT=1.0, seed=42)
+
+        # removing the filler should still allow a run
+        sphere.remove_filler()
+        self.assertTrue(sphere._filler is None)
+        hoomd.run(1)
+
     def tearDown(self):
         del self.s
 
