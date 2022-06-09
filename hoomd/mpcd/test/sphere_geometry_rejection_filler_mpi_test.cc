@@ -89,7 +89,14 @@ void sphere_rejection_fill_mpi_test(std::shared_ptr<ExecutionConfiguration> exec
     N_avg_rank /= itr;
     N_avg_global /= itr;
 
-    // std::cout << "N_avg_rank = " << N_avg_rank << "\n";
+    /*
+     * Expected number of virtual particles = int( density * volume outside sphere )
+     * volume outside sphere = sim-box volume - sphere volume
+     * N_exptd = int(density*(L^3 - 4*pi*r^3/3))
+     *         = 14952
+     * 8 CPUs -> each CPU has equal volume to fill with virtual particles
+     * Therefore, N_exptd_rank = 14952/8 = 1869
+    */
     UP_ASSERT_CLOSE(N_avg_rank, Scalar(1869), tol_small);
     UP_ASSERT_CLOSE(N_avg_global, Scalar(14952), tol_small);
     }
