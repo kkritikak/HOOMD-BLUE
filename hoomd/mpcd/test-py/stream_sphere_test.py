@@ -203,10 +203,10 @@ class mpcd_stream_sphere_test(unittest.TestCase):
         self.assertTrue(sphere._filler is not None)
 
         # run should be able to setup the filler, although this all happens silently
-        hoomd.run(1)
+        hoomd.run(2)
 
         # changing the geometry should still be OK with a run
-        sphere.set_params(R=3.5)
+        sphere.set_params(R=3.99)
         hoomd.run(1)
 
         # changing filler should be allowed
