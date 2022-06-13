@@ -630,8 +630,6 @@ class sphere(_streaming_method):
 
             sphere.set_filler(density=5.0, kT=1.0, seed=73)
 
-        .. versionadded:: 2.9.7
-
         """
         hoomd.util.print_status_line()
 
@@ -661,8 +659,6 @@ class sphere(_streaming_method):
         Example::
 
             sphere.remove_filler()
-
-        .. versionadded:: 2.9.7
 
         """
         hoomd.util.print_status_line()
