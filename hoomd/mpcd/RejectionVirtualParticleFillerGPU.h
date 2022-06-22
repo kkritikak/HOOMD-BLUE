@@ -16,6 +16,8 @@
 #endif
 
 #include "RejectionVirtualParticlefiller.h"
+#include "RejectionVirtualParticleFillerGPU.cuh"
+
 #include "hoomd/Autotuner.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
 
@@ -55,9 +57,11 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
         //! Fill the volume outside the confinement
         void fill(unsigned int timestep);
         GPUArray<bool> m_track_bounded_particles;
+        GPUArray<Scalar4> m_compact_pos;
+        GPUArray<Scalar4> m_compact_vel;
 
     private:
-        std::unique_ptr<::Autotuner> m_tuner;   //!< Autotuner for drawing particles
+        std::unique_ptr<::Autotuner> m_tuner;   //!< Autotuner for drawing particles\
     };
 
 
@@ -76,14 +80,20 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
         GPUArray<Scalar4> tmp_pos(N_virt_max, this->m_exec_conf);
         GPUArray<Scalar4> tmp_vel(N_virt_max, this->m_exec_conf);
         GPUArray<bool> track_bounded_particles(N_virt_max, this->m_exec_conf);
-        this->m_tmp_pos.swap(tmp_pos);
-        this->m_tmp_vel.swap(tmp_vel);
-        this->m_track_bounded_particles.swap(track_bounded_particles);
+        GPUArray<Scalar4> compact_pos(N_virt_max, this->m_exec_conf);
+        GPUArray<Scalar4> compact_vel(N_virt_max, this->m_exec_conf);
+        m_tmp_pos.swap(tmp_pos);
+        m_tmp_vel.swap(tmp_vel);
+        m_track_bounded_particles.swap(track_bounded_particles);
+        m_compact_pos.swap(compact_pos);
+        m_compact_vel.swap(compact_vel);
         }
-    ArrayHandle<Scalar4> d_tmp_pos(this->m_tmp_pos, access_location::host, access_mode::overwrite);
-    ArrayHandle<Scalar4> d_tmp_vel(this->m_tmp_vel, access_location::host, access_mode::overwrite);
-    ArrayHandle<bool> d_track_bounded_particles(this->m_track_bounded_particles, access_location::host, access_mode::overwrite);
-    
+    ArrayHandle<Scalar4> d_tmp_pos(m_tmp_pos, access_location::host, access_mode::overwrite);
+    ArrayHandle<Scalar4> d_tmp_vel(m_tmp_vel, access_location::host, access_mode::overwrite);
+    ArrayHandle<bool> d_track_bounded_particles(m_track_bounded_particles, access_location::host, access_mode::overwrite);
+    ArrayHandle<Scalar4> d_compact_pos(m_compact_pos. access_location::host, access_mode::overwrite);
+    ArrayHandle<Scalar4> d_compact_vel(m_compact_vel. access_location::host, access_mode::overwrite);
+
     // Step 2: Draw particle positions and velocities in parallel on GPU
     unsigned int first_tag = computeFirstTag(N_virt_max);
 

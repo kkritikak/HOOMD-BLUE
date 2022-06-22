@@ -12,6 +12,7 @@
  */
 
 #include <cuda_runtime.h>
+#include <cub/cub.cuh>
 
 #include "hoomd/HOOMDMath.h"
 #include "hoomd/BoxDim.h"
@@ -21,17 +22,134 @@ namespace mpcd
 namespace gpu
 {
 
-//! Fill virtual particles using rejection counting method for a given geometry (spherical)
+//! Common arguments passed to all geometry filling kernels
+struct draw_virtual_particles_args_t
+    {
+    //! Constructor
+    draw_virtual_particles_args_t(Scalar4 *_d_tmp_pos,
+                                  Scalar4 *_d_tmp_vel,
+                                  bool *_d_track_bounded_particles,
+                                  const Scalar3 _lo,
+                                  const Scalar3 _hi,
+                                  const unsigned int _first_tag,
+                                  const Scalar _vel_factor,
+                                  const unsigned int _filler_id,
+                                  const unsigned int _type,
+                                  const unsigned int _N_virt_max,
+                                  const unsigned int _timestep,
+                                  const unsigned int _seed,
+                                  const unsigned int _block_size)
+        : d_tmp_pos(_d_tmp_pos), d_tmp_vel(_d_tmp_vel), d_track_bounded_particles(_d_track_bounded_particles),
+        lo(_lo), hi(_hi), first_tag(_first_tag), vel_factor(_vel_factor), filler_id(_filler_id), type(_type),
+        N_virt_max(_N_virt_max), timestep(_timestep), seed(_seed), block_size(_block_size)
+        { }
+
+    Scalar4 d_tmp_pos;
+    Scalar4 d_tmp_vel;
+    bool d_track_bounded_particles;
+    const Scalar3 lo;
+    const Scalar3 hi;
+    const unsigned int first_tag;
+    const Scalar vel_factor;
+    const unsigned int filler_id;
+    const unsigned int type;
+    const unsigned int N_virt_max;
+    const unsigned int timestep;
+    const unsigned int seed;
+    const unsigned int block_size;
+    };
+
 template<class Geometry>
-cudaError_t draw_virtual_particles(const BoxDim& box,
-                                   const Scalar mass,
-                                   const unsigned int type,
-                                   const unsigned int N_virt_max,
-                                   const Scalar kT,
-                                   const unsigned int timestep,
-                                   const unsigned int seed,
-                                   const unsigned int block_size,
-                                   const unsigned int first_tag);
+cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, const Geometry& geom);
+
+#ifdef NVCC
+namespace kernel
+{
+
+//! Kernel to draw virtual particles outside any given geometry
+/*!
+ * \param d_tmp_pos Temporary positions
+ * \param d_tmp_vel Temporary velocities
+ * \param d_track_bounded_particles Particle tracking - in/out of given geometry
+ * \param lo Left extrema of the sim-box
+ * \param hi Right extrema of the sim-box
+ * \param first_tag First tag (rng argument)
+ * \param vel_factor Scale factor for uniform normal velocities consistent with particle mass / temperature
+ * \param filler_id Identifier for the filler (rng argument)
+ * \param type Particle type for filling
+ * \param N_virt_max Maximum no. of virtual particles that can exist
+ * \param timestep Current timestep
+ * \param seed User seed for RNG
+ *
+ * \tparam Geometry type of the confined geometry \a geom
+ *
+ * \b implementation
+ * TODO: Add documentation here after the script is done
+ */
+template<class Geometry>
+__global__ void draw_virtual_particles(Scalar4 d_tmp_pos,
+                                       Scalar4 d_tmp_vel,
+                                       bool d_track_bounded_particles,
+                                       const Scalar3 lo,
+                                       const Scalar3 hi,
+                                       const unsigned int first_tag,
+                                       const Scalar vel_factor,
+                                       const unsigned int filler_id,
+                                       const unsigned int type,
+                                       const unsigned int N_virt_max,
+                                       const unsigned int timestep,
+                                       const unsigned int seed,
+                                       const unsigned int block_size,
+                                       const Geometry geom)
+    {
+    // one thread per particle
+    const unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= N_virt_max)
+        return;
+
+    // initialize random number generator for positions and velocity
+    hoomd::RandomGenerator rng(hoomd::RNGIdentifier::RejectionFiller, seed, timestep, first_tag+idx, filler_id);
+    d_tmp_pos[pidx] = make_scalar4(hoomd::UniformDistribution<Scalar>(lo.x, hi.x)(rng),
+                                   hoomd::UniformDistribution<Scalar>(lo.y, hi.y)(rng),
+                                   hoomd::UniformDistribution<Scalar>(lo.z, hi.z)(rng),
+                                   __int_as_scalar(type));
+
+    hoomd::NormalDistribution<Scalar> gen(vel_factor, 0.0);
+    Scalar3 vel;
+    gen(vel.x, vel.y, rng);
+    vel.z = gen(rng);
+    d_tmp_vel[pidx] = make_scalar4(vel.x,
+                                   vel.y,
+                                   vel.z,
+                                   __int_as_scalar(mpcd::detail::NO_CELL));
+
+    // check if particle is inside/outside the confining geometry
+    d_track_bounded_particles = geom->isOutside(make_scalar3(d_tmp_pos[idx].x,
+                                                             d_tmp_pos[idx].y,
+                                                             d_tmp_pos[idx].z));
+    }
+
+template<class Geometry>
+__global__ void compact_data_arrays(Scalar4 *d_in,
+                                    bool *d_flags,
+                                    const unsigned int num_items,
+                                    Scalar4 *d_out,
+                                    unsigned int *d_num_selected_out)
+    {
+    // Determine temporary device storage requirements
+    void *d_temp_storage = NULL;
+    size_t temp_storage_bytes = 0;
+    cub::DeviceSelect::Flagged(d_temp_storage, temp_storage_bytes, d_in, d_flags, d_out, d_num_selected_out, num_items);
+    // Allocate temporary storage
+    cudaMalloc(&d_temp_storage, temp_storage_bytes);
+    // Run selection
+    cub::DeviceSelect::Flagged(d_temp_storage, temp_storage_bytes, d_in, d_flags, d_out, d_num_selected_out, num_items);
+    }
+
+} // end namespace kernel
+
+
+
 
 } // end namespace gpu
 } // end namespace mpcd
