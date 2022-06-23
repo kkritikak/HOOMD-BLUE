@@ -87,9 +87,9 @@ namespace kernel
  * TODO: Add documentation here after the script is done
  */
 template<class Geometry>
-__global__ void draw_virtual_particles(Scalar4 d_tmp_pos,
-                                       Scalar4 d_tmp_vel,
-                                       bool d_track_bounded_particles,
+__global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
+                                       Scalar4 *d_tmp_vel,
+                                       bool *d_track_bounded_particles,
                                        const Scalar3 lo,
                                        const Scalar3 hi,
                                        const unsigned int first_tag,
@@ -128,28 +128,54 @@ __global__ void draw_virtual_particles(Scalar4 d_tmp_pos,
                                                              d_tmp_pos[idx].y,
                                                              d_tmp_pos[idx].z));
     }
+} // end namespace kernel
 
+/*!
+ * \param args Common arguments for all geometries
+ * \param geom Confined geometry
+ *
+ * \tparam Geometry type of the confined geometry \a geom
+ *
+ * \sa mpcd::gpu::kernel::draw_virtual_particles
+ */
 template<class Geometry>
-__global__ void compact_data_arrays(Scalar4 *d_in,
-                                    bool *d_flags,
-                                    const unsigned int num_items,
-                                    Scalar4 *d_out,
-                                    unsigned int *d_num_selected_out)
+cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, const Geometry& geom)
+    {
+    static unsigned int max_block_size = UINT_MAX;
+    if (max_block_size == UINT_MAX)
+        {
+        cudaFuncAttributes attr;
+        cudaFuncGetAttributes(&attr, (const void*)mpcd::gpu::kernel::draw_virtual_particles<Geometry>);
+        max_block_size = attr.maxThreadsPerBlock;
+        }
+
+    unsigned int run_block_size = min(args.block_size, max_block_size);
+    dim3 grid(args.N_virt_max / run_block_size + 1);
+    mpcd::gpu::kernel::draw_virtual_particles<Geometry><<<grid, run_block_size>>>(args.d_tmp_pos, args.d_tmp_vel, args.d_track_bounded_particles,
+    args.lo, args.hi, args.first_tag, args.vel_factor, args.filler_id, args.type, args.N_virt_max, args.timestep, args.seed, args.block_size, geom);
+
+    return cudaSuccess;
+    }
+
+cudaError_t compact_data_arrays(Scalar4 *d_in,
+                                bool *d_flags,
+                                const unsigned int num_items,
+                                Scalar4 *d_out,
+                                unsigned int *d_num_selected_out)
     {
     // Determine temporary device storage requirements
     void *d_temp_storage = NULL;
     size_t temp_storage_bytes = 0;
-    cub::DeviceSelect::Flagged(d_temp_storage, temp_storage_bytes, d_in, d_flags, d_out, d_num_selected_out, num_items);
+    cub::DeviceSelect::Flagged(d_temp_storage, temp_storage_bytes, d_in, d_flags,
+                               d_out, d_num_selected_out, num_items);
     // Allocate temporary storage
     cudaMalloc(&d_temp_storage, temp_storage_bytes);
     // Run selection
-    cub::DeviceSelect::Flagged(d_temp_storage, temp_storage_bytes, d_in, d_flags, d_out, d_num_selected_out, num_items);
+    cub::DeviceSelect::Flagged(d_temp_storage, temp_storage_bytes, d_in, d_flags,
+                               d_out, d_num_selected_out, num_items);
     }
 
-} // end namespace kernel
-
-
-
+#endif // NVCC
 
 } // end namespace gpu
 } // end namespace mpcd

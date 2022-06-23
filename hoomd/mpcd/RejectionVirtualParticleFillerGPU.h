@@ -36,7 +36,8 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
                                           std::shared_ptr<::Variant> T,
                                           unsigned int seed,
                                           std::shared_ptr<const Geometry> geom)
-        : mpcd::RejectionVirtualParticleFiller<Geometry>(sysdata, density, type, T, seed, geom), m_track_bounded_particles(this->m_exec_conf)
+        : mpcd::RejectionVirtualParticleFiller<Geometry>(sysdata, density, type, T, seed, geom),
+        m_track_bounded_particles(this->m_exec_conf), m_compact_pos(this->m_exec_conf), m_compact_vel(this->m_exec_conf)
         {
         m_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_rejection_filler" + Geometry::getName(), this->m_exec_conf));
         }
@@ -97,8 +98,30 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     // Step 2: Draw particle positions and velocities in parallel on GPU
     unsigned int first_tag = computeFirstTag(N_virt_max);
 
-    m_tuner->begin();
+    mpcd::gpu::draw_virtual_particles_args_t args(d_tmp_pos.data,
+                                                  d_tmp_vel.data,
+                                                  d_track_bounded_particles,
+                                                  lo, hi,
+                                                  first_tag,
+                                                  m_filler_id,
+                                                  m_type,
+                                                  N_virt_max,
+                                                  timestep,
+                                                  m_seed,
+                                                  m_tuner->getParam());
 
+    m_tuner->begin();
+    mpcd::gpu::draw_virtual_particles<Geometry>(args, *(this->m_geom));
+    if (this->m_exec_conf->isCUDAErrorCheckingEnabled()) CHECK_CUDA_ERROR();
+
+    unsigned int n_pos_selected(0);
+    mpcd::gpu::compact_data_arrays(d_tmp_pos.data,
+                                   d_track_bounded_particles,
+                                   N_virt_max,
+                                   d_compact_pos,
+                                   n_pos_selected)
+
+    m_tuner->end();
 
 
     }
