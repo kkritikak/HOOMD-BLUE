@@ -173,6 +173,15 @@ cudaError_t compact_data_arrays(Scalar4 *d_in,
     // Run selection
     cub::DeviceSelect::Flagged(d_temp_storage, temp_storage_bytes, d_in, d_flags,
                                d_out, d_num_selected_out, num_items);
+
+    return cudaSuccess;
+    }
+
+cudaError_t copy_data(Scalar4 *d_permanent,
+                      Scalar4 *d_temp)
+    {
+    size_t count = sizeof(d_temp);
+    cudaMemcpy(&d_permanent, &d_temp, count, );
     }
 
 #endif // NVCC

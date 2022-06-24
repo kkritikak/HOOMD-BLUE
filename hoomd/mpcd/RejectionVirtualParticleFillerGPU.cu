@@ -18,7 +18,17 @@ namespace mpcd
 namespace gpu
 {
 
+//! Template instantiation of slit geometry
+template cudaError_t draw_virtual_particles<mpcd::detail::SlitGeometry>
+    (const draw_virtual_particles_args_t& args, const mpcd::detail::SlitGeometry& geom);
 
+//! Template instantiation of slit-pore geometry
+template cudaError_t draw_virtual_particles<mpcd::detail::SlitPoreGeometry>
+    (const draw_virtual_particles_args_t& args, const mpcd::detail::SlitPoreGeometry& geom);
+
+//! Template instantiation of sphere geometry
+template cudaError_t draw_virtual_particles<mpcd::detail::SphereGeometry>
+    (const draw_virtual_particles_args_t& args, const mpcd::detail::SphereGeometry& geom);
 
 } // end namespace gpu
 } // end namespace mpcd

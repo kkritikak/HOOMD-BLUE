@@ -83,17 +83,17 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
         GPUArray<bool> track_bounded_particles(N_virt_max, this->m_exec_conf);
         GPUArray<Scalar4> compact_pos(N_virt_max, this->m_exec_conf);
         GPUArray<Scalar4> compact_vel(N_virt_max, this->m_exec_conf);
-        m_tmp_pos.swap(tmp_pos);
-        m_tmp_vel.swap(tmp_vel);
+        this->m_tmp_pos.swap(tmp_pos);
+        this->m_tmp_vel.swap(tmp_vel);
         m_track_bounded_particles.swap(track_bounded_particles);
         m_compact_pos.swap(compact_pos);
         m_compact_vel.swap(compact_vel);
         }
-    ArrayHandle<Scalar4> d_tmp_pos(m_tmp_pos, access_location::host, access_mode::overwrite);
-    ArrayHandle<Scalar4> d_tmp_vel(m_tmp_vel, access_location::host, access_mode::overwrite);
-    ArrayHandle<bool> d_track_bounded_particles(m_track_bounded_particles, access_location::host, access_mode::overwrite);
-    ArrayHandle<Scalar4> d_compact_pos(m_compact_pos. access_location::host, access_mode::overwrite);
-    ArrayHandle<Scalar4> d_compact_vel(m_compact_vel. access_location::host, access_mode::overwrite);
+    ArrayHandle<Scalar4> d_tmp_pos(m_tmp_pos, access_location::device, access_mode::overwrite);
+    ArrayHandle<Scalar4> d_tmp_vel(m_tmp_vel, access_location::device, access_mode::overwrite);
+    ArrayHandle<bool> d_track_bounded_particles(m_track_bounded_particles, access_location::device, access_mode::overwrite);
+    ArrayHandle<Scalar4> d_compact_pos(m_compact_pos. access_location::device, access_mode::overwrite);
+    ArrayHandle<Scalar4> d_compact_vel(m_compact_vel. access_location::device, access_mode::overwrite);
 
     // Step 2: Draw particle positions and velocities in parallel on GPU
     unsigned int first_tag = computeFirstTag(N_virt_max);
@@ -121,10 +121,10 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
                                    d_compact_pos.data,
                                    n_pos_selected);
     unsigned int n_vel_selected(0);
-    mpcd::gpu::compact_data_arrays(d_tmp_pos.data,
+    mpcd::gpu::compact_data_arrays(d_tmp_vel.data,
                                    d_track_bounded_particles,
                                    N_virt_max,
-                                   d_compact_vel,
+                                   d_compact_vel.data,
                                    n_vel_selected);
     m_tuner->end();
 
@@ -134,10 +134,11 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     // Allocate memory for the new virtual particles.
     const unsigned int first_idx = m_mpcd_pdata->addVirtualParticles(n_pos_selected);
 
-    ArrayHandle<Scalar4> d_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::readwrite);
-    ArrayHandle<Scalar4> d_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::readwrite);
-    ArrayHandle<unsigned int> d_tag(m_mpcd_pdata->getTags(), access_location::host, access_mode::readwrite);
+    ArrayHandle<Scalar4> d_pos(m_mpcd_pdata->getPositions(), access_location::device, access_mode::readwrite);
+    ArrayHandle<Scalar4> d_vel(m_mpcd_pdata->getVelocities(), access_location::device, access_mode::readwrite);
+    ArrayHandle<unsigned int> d_tag(m_mpcd_pdata->getTags(), access_location::device, access_mode::readwrite);
 
+    // Copy data from temporary arrays to permanent arrays
 
     }
 
@@ -149,7 +150,16 @@ namespace detail
 template<class Geometry>
 void export_RejectionVirtualParticleFiller(pybind11::module& m)
     {
-
+    namespace py = pybind11;
+    const std::string name = Geometry::getName() + "RejectionFillerGPU";
+    py::class_<mpcd::RejectionVirtualParticleFillerGPU<Geometry>, std::shared_ptr<mpcd::RejectionVirtualParticleFillerGPU<Geometry>>>
+        (m, name.c_str(), py::base<mpcd::RejectionVirtualParticleFiller>())
+        .def(py::init<std::shared_ptr<mpcd::SystemData>,
+             Scalar,
+             unsigned int,
+             std::shared_ptr<::Variant>,
+             unsigned int,
+             std::shared_ptr<const Geometry>>())
     }
 } // end namespace detail
 } // end namespace mpcd
