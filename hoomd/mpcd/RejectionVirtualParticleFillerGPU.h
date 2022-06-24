@@ -118,10 +118,25 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     mpcd::gpu::compact_data_arrays(d_tmp_pos.data,
                                    d_track_bounded_particles,
                                    N_virt_max,
-                                   d_compact_pos,
-                                   n_pos_selected)
-
+                                   d_compact_pos.data,
+                                   n_pos_selected);
+    unsigned int n_vel_selected(0);
+    mpcd::gpu::compact_data_arrays(d_tmp_pos.data,
+                                   d_track_bounded_particles,
+                                   N_virt_max,
+                                   d_compact_vel,
+                                   n_vel_selected);
     m_tuner->end();
+
+    // Compute the correct tags
+    first_tag = computeFirstTag(N_virt_max);
+
+    // Allocate memory for the new virtual particles.
+    const unsigned int first_idx = m_mpcd_pdata->addVirtualParticles(n_pos_selected);
+
+    ArrayHandle<Scalar4> d_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::readwrite);
+    ArrayHandle<Scalar4> d_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::readwrite);
+    ArrayHandle<unsigned int> d_tag(m_mpcd_pdata->getTags(), access_location::host, access_mode::readwrite);
 
 
     }
