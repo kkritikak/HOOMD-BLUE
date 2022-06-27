@@ -39,7 +39,8 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
         : mpcd::RejectionVirtualParticleFiller<Geometry>(sysdata, density, type, T, seed, geom),
         m_track_bounded_particles(this->m_exec_conf), m_compact_pos(this->m_exec_conf), m_compact_vel(this->m_exec_conf)
         {
-        m_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_rejection_filler" + Geometry::getName(), this->m_exec_conf));
+        m_tuner1.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_rejection_filler_draw_particles" + Geometry::getName(), this->m_exec_conf));
+        m_tuner2.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_rejection_filler_tag_particles" + Geometry::getName(), this->m_exec_conf));
         }
 
         //! Set autotuner parameters
@@ -62,7 +63,8 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
         GPUArray<Scalar4> m_compact_vel;
 
     private:
-        std::unique_ptr<::Autotuner> m_tuner;   //!< Autotuner for drawing particles\
+        std::unique_ptr<::Autotuner> m_tuner1;   //!< Autotuner for drawing particles
+        std::unique_ptr<::Autotuner> m_tuner2;   //!< Autotuner for particle tagging
     };
 
 
@@ -110,7 +112,7 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
                                                   m_seed,
                                                   m_tuner->getParam());
 
-    m_tuner->begin();
+    m_tuner1->begin();
     mpcd::gpu::draw_virtual_particles<Geometry>(args, *(this->m_geom));
     if (this->m_exec_conf->isCUDAErrorCheckingEnabled()) CHECK_CUDA_ERROR();
 
@@ -126,7 +128,7 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
                                    N_virt_max,
                                    d_compact_vel.data,
                                    n_vel_selected);
-    m_tuner->end();
+    m_tuner1->end();
 
     // Compute the correct tags
     first_tag = computeFirstTag(N_virt_max);
@@ -139,10 +141,12 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     ArrayHandle<unsigned int> d_tag(m_mpcd_pdata->getTags(), access_location::device, access_mode::readwrite);
 
     // Copy data from temporary arrays to permanent arrays
-
+    m_tuner2->begin();
+    mpcd::gpu::copy_data(d_pos, d_compact_pos, first_idx);
+    mpcd::gpu::copy_data(d_vel, d_compact_vel, first_idx);
+    mpcd::gpu::parallel_tagging(d_tag.data, first_tag, first_idx, n_pos_selected, m_tuner->getParam());
+    m_tuner2->end();
     }
-
-
 
 namespace detail
 {

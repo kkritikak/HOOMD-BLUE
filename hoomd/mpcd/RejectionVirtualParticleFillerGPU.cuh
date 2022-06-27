@@ -62,6 +62,11 @@ struct draw_virtual_particles_args_t
 template<class Geometry>
 cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, const Geometry& geom);
 
+cudaError_t parallel_tagging(unsigned int *d_tag,
+                             const unsigned int first_tag,
+                             const unsigned int first_idx,
+                             const unsigned int block_size);
+
 #ifdef NVCC
 namespace kernel
 {
@@ -128,6 +133,23 @@ __global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
                                                              d_tmp_pos[idx].y,
                                                              d_tmp_pos[idx].z));
     }
+
+__global__ void parallel_tagging(unsigned int *d_tag,
+                                 const unsigned int first_tag,
+                                 const unsigned int first_idx,
+                                 const unsigned int nVirt,
+                                 const unsigned int block_size)
+    {
+    // one thread per virtual particle
+    const unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= nVirt)
+        return;
+
+    // otherwise
+    const unsigned int real_idx = first_idx + idx;
+    d_tag[real_idx] = first_tag + idx;
+    }
+
 } // end namespace kernel
 
 /*!
@@ -157,6 +179,26 @@ cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, co
     return cudaSuccess;
     }
 
+cudaError_t parallel_tagging(unsigned int *d_tag,
+                             const unsigned int first_tag,
+                             const unsigned int first_idx,
+                             const unsigned int nVirt,
+                             const unsigned int block_size)
+    {
+    static unsigned int max_block_size = UINT_MAX;
+    if (max_block_size == UINT_MAX)
+        {
+        cudaFuncAttributes attr;
+        cudaFuncGetAttributes(&attr, (const void*)mpcd::gpu::kernel::parallel_tagging);
+        max_block_size = attr.maxThreadsPerBlock;
+        }
+
+    unsigned int run_block_size = min(block_size, max_block_size);
+    dim3 grid(nVirt / run_block_size + 1);
+    mpcd::gpu::kernel::parallel_tagging<<<grid, run_block_size>>>(d_tag, first_tag, first_idx, nVirt, block_size)
+    }
+
+
 cudaError_t compact_data_arrays(Scalar4 *d_in,
                                 bool *d_flags,
                                 const unsigned int num_items,
@@ -178,10 +220,12 @@ cudaError_t compact_data_arrays(Scalar4 *d_in,
     }
 
 cudaError_t copy_data(Scalar4 *d_permanent,
-                      Scalar4 *d_temp)
+                      Scalar4 *d_temp,
+                      const unsigned int first_idx)
     {
     size_t count = sizeof(d_temp);
-    cudaMemcpy(&d_permanent, &d_temp, count, );
+    size_t offset = first_idx*sizeof(Scalar4)
+    cudaMemcpy(&d_permanent[offset], &d_temp, count, cudaMemcpyDeviceToDevice);
     }
 
 #endif // NVCC
