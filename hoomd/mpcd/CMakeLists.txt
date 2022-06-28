@@ -86,6 +86,8 @@ list(APPEND _mpcd_headers
     ConfinedStreamingMethodGPU.cuh
     ConfinedStreamingMethodGPU.h
     ParticleData.cuh
+    RejectionVirtualParticleFillerGPU.cuh
+    RejectionVirtualParticleFillerGPU.h
     SlitGeometryFillerGPU.cuh
     SlitGeometryFillerGPU.h
     SlitPoreGeometryFillerGPU.cuh
@@ -106,6 +108,7 @@ set(_mpcd_cu_sources
     CommunicatorGPU.cu
     ExternalField.cu
     ParticleData.cu
+    RejectionVirtualParticleFillerGPU.cu
     SlitGeometryFillerGPU.cu
     SlitPoreGeometryFillerGPU.cu
     SorterGPU.cu
