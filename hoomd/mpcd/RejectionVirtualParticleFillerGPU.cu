@@ -9,9 +9,7 @@
  */
 
 #include "RejectionVirtualParticleFillerGPU.cuh"
-#include "ParticleDataUtilities.h"
-#include "hoomd/RandomNumbers.h"
-#include "hoomd/RNGIdentifiers.h"
+#include "StreamingGeometry.h"
 
 namespace mpcd
 {

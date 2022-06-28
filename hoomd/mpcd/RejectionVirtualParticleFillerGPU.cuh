@@ -16,6 +16,10 @@
 
 #include "hoomd/HOOMDMath.h"
 #include "hoomd/BoxDim.h"
+#include "ParticleDataUtilities.h"
+
+#include "hoomd/RandomNumbers.h"
+#include "hoomd/RNGIdentifiers.h"
 
 namespace mpcd
 {
