@@ -52,7 +52,8 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
             {
             mpcd::RejectionVirtualParticleFiller::setAutotunerParams(enable, period);
 
-            m_tuner->setEnabled(enable); m_tuner->setPeriod(period);
+            m_tuner1->setEnabled(enable); m_tuner1->setPeriod(period);
+            m_tuner2->setEnabled(enable); m_tuner2->setPeriod(period);
             }
 
     protected:
@@ -91,8 +92,8 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
         m_compact_pos.swap(compact_pos);
         m_compact_vel.swap(compact_vel);
         }
-    ArrayHandle<Scalar4> d_tmp_pos(m_tmp_pos, access_location::device, access_mode::overwrite);
-    ArrayHandle<Scalar4> d_tmp_vel(m_tmp_vel, access_location::device, access_mode::overwrite);
+    ArrayHandle<Scalar4> d_tmp_pos(this->m_tmp_pos, access_location::device, access_mode::overwrite);
+    ArrayHandle<Scalar4> d_tmp_vel(this->m_tmp_vel, access_location::device, access_mode::overwrite);
     ArrayHandle<bool> d_track_bounded_particles(m_track_bounded_particles, access_location::device, access_mode::overwrite);
     ArrayHandle<Scalar4> d_compact_pos(m_compact_pos. access_location::device, access_mode::overwrite);
     ArrayHandle<Scalar4> d_compact_vel(m_compact_vel. access_location::device, access_mode::overwrite);
@@ -102,15 +103,15 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
 
     mpcd::gpu::draw_virtual_particles_args_t args(d_tmp_pos.data,
                                                   d_tmp_vel.data,
-                                                  d_track_bounded_particles,
+                                                  d_track_bounded_particles.data,
                                                   lo, hi,
                                                   first_tag,
-                                                  m_filler_id,
-                                                  m_type,
+                                                  this->m_filler_id,
+                                                  this->m_type,
                                                   N_virt_max,
                                                   timestep,
-                                                  m_seed,
-                                                  m_tuner->getParam());
+                                                  this->m_seed,
+                                                  m_tuner1->getParam());
 
     m_tuner1->begin();
     mpcd::gpu::draw_virtual_particles<Geometry>(args, *(this->m_geom));
@@ -134,17 +135,17 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     first_tag = computeFirstTag(N_virt_max);
 
     // Allocate memory for the new virtual particles.
-    const unsigned int first_idx = m_mpcd_pdata->addVirtualParticles(n_pos_selected);
+    const unsigned int first_idx = this->m_mpcd_pdata->addVirtualParticles(n_pos_selected);
 
-    ArrayHandle<Scalar4> d_pos(m_mpcd_pdata->getPositions(), access_location::device, access_mode::readwrite);
-    ArrayHandle<Scalar4> d_vel(m_mpcd_pdata->getVelocities(), access_location::device, access_mode::readwrite);
-    ArrayHandle<unsigned int> d_tag(m_mpcd_pdata->getTags(), access_location::device, access_mode::readwrite);
+    ArrayHandle<Scalar4> d_pos(this->m_mpcd_pdata->getPositions(), access_location::device, access_mode::readwrite);
+    ArrayHandle<Scalar4> d_vel(this->m_mpcd_pdata->getVelocities(), access_location::device, access_mode::readwrite);
+    ArrayHandle<unsigned int> d_tag(this->m_mpcd_pdata->getTags(), access_location::device, access_mode::readwrite);
 
     // Copy data from temporary arrays to permanent arrays
     m_tuner2->begin();
-    mpcd::gpu::copy_data(d_pos, d_compact_pos, first_idx);
-    mpcd::gpu::copy_data(d_vel, d_compact_vel, first_idx);
-    mpcd::gpu::parallel_tagging(d_tag.data, first_tag, first_idx, n_pos_selected, m_tuner->getParam());
+    mpcd::gpu::copy_data(d_pos.data, d_compact_pos.data, first_idx);
+    mpcd::gpu::copy_data(d_vel.data, d_compact_vel.data, first_idx);
+    mpcd::gpu::parallel_tagging(d_tag.data, first_tag, first_idx, n_pos_selected, m_tuner2->getParam());
     m_tuner2->end();
     }
 
