@@ -48,9 +48,9 @@ struct draw_virtual_particles_args_t
         N_virt_max(_N_virt_max), timestep(_timestep), seed(_seed), block_size(_block_size)
         { }
 
-    Scalar4 d_tmp_pos;
-    Scalar4 d_tmp_vel;
-    bool d_track_bounded_particles;
+    Scalar4 *d_tmp_pos;
+    Scalar4 *d_tmp_vel;
+    bool *d_track_bounded_particles;
     const Scalar3 lo;
     const Scalar3 hi;
     const unsigned int first_tag;
@@ -63,6 +63,7 @@ struct draw_virtual_particles_args_t
     const unsigned int block_size;
     };
 
+// Function declarations
 template<class Geometry>
 cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, const Geometry& geom);
 
@@ -70,6 +71,15 @@ cudaError_t parallel_tagging(unsigned int *d_tag,
                              const unsigned int first_tag,
                              const unsigned int first_idx,
                              const unsigned int block_size);
+
+cudaError_t compact_data_arrays(Scalar4 *d_in,
+                                bool *d_flags,
+                                const unsigned int num_items,
+                                Scalar4 *d_out,
+                                unsigned int *d_num_selected_out);
+
+cudaError_t copy_data(Scalar4 *d_permanent, Scalar4 *d_temp, const unsigned int first_idx);
+
 
 #ifdef NVCC
 namespace kernel
@@ -118,24 +128,24 @@ __global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
 
     // initialize random number generator for positions and velocity
     hoomd::RandomGenerator rng(hoomd::RNGIdentifier::RejectionFiller, seed, timestep, first_tag+idx, filler_id);
-    d_tmp_pos[pidx] = make_scalar4(hoomd::UniformDistribution<Scalar>(lo.x, hi.x)(rng),
-                                   hoomd::UniformDistribution<Scalar>(lo.y, hi.y)(rng),
-                                   hoomd::UniformDistribution<Scalar>(lo.z, hi.z)(rng),
-                                   __int_as_scalar(type));
+    d_tmp_pos[idx] = make_scalar4(hoomd::UniformDistribution<Scalar>(lo.x, hi.x)(rng),
+                                  hoomd::UniformDistribution<Scalar>(lo.y, hi.y)(rng),
+                                  hoomd::UniformDistribution<Scalar>(lo.z, hi.z)(rng),
+                                  __int_as_scalar(type));
 
     hoomd::NormalDistribution<Scalar> gen(vel_factor, 0.0);
     Scalar3 vel;
     gen(vel.x, vel.y, rng);
     vel.z = gen(rng);
-    d_tmp_vel[pidx] = make_scalar4(vel.x,
-                                   vel.y,
-                                   vel.z,
-                                   __int_as_scalar(mpcd::detail::NO_CELL));
+    d_tmp_vel[idx] = make_scalar4(vel.x,
+                                  vel.y,
+                                  vel.z,
+                                  __int_as_scalar(mpcd::detail::NO_CELL));
 
     // check if particle is inside/outside the confining geometry
-    d_track_bounded_particles = geom->isOutside(make_scalar3(d_tmp_pos[idx].x,
-                                                             d_tmp_pos[idx].y,
-                                                             d_tmp_pos[idx].z));
+    d_track_bounded_particles[idx] = geom.isOutside(make_scalar3(d_tmp_pos[idx].x,
+                                                                  d_tmp_pos[idx].y,
+                                                                  d_tmp_pos[idx].z));
     }
 
 __global__ void parallel_tagging(unsigned int *d_tag,
@@ -199,9 +209,10 @@ cudaError_t parallel_tagging(unsigned int *d_tag,
 
     unsigned int run_block_size = min(block_size, max_block_size);
     dim3 grid(nVirt / run_block_size + 1);
-    mpcd::gpu::kernel::parallel_tagging<<<grid, run_block_size>>>(d_tag, first_tag, first_idx, nVirt, block_size)
-    }
+    mpcd::gpu::kernel::parallel_tagging<<<grid, run_block_size>>>(d_tag, first_tag, first_idx, nVirt, block_size);
 
+    return cudaSuccess;
+    }
 
 cudaError_t compact_data_arrays(Scalar4 *d_in,
                                 bool *d_flags,
@@ -228,8 +239,9 @@ cudaError_t copy_data(Scalar4 *d_permanent,
                       const unsigned int first_idx)
     {
     size_t count = sizeof(d_temp);
-    size_t offset = first_idx*sizeof(Scalar4)
-    cudaMemcpy(&d_permanent[offset], &d_temp, count, cudaMemcpyDeviceToDevice);
+    cudaMemcpy(&d_permanent[first_idx], &d_temp, count, cudaMemcpyDeviceToDevice);
+
+    return cudaSuccess;
     }
 
 #endif // NVCC
