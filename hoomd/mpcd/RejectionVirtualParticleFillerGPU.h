@@ -40,7 +40,6 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
         m_track_bounded_particles(this->m_exec_conf), m_compact_idxs(this->m_exec_conf),
         m_temp_storage(this->m_exec_conf), m_temp_storage_bytes(0)
         {
-        m_temp_storage = NULL;
         m_tuner1.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_rejection_filler_draw_particles" + Geometry::getName(), this->m_exec_conf));
         m_tuner2.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_rejection_filler_tag_particles" + Geometry::getName(), this->m_exec_conf));
         }
@@ -63,7 +62,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
         void fill(unsigned int timestep);
         GPUArray<bool> m_track_bounded_particles;
         GPUArray<unsigned int> m_compact_idxs;
-        GPUArray<unsigned int> m_temp_storage;
+        void m_temp_storage;
         unsigned int m_temp_storage_bytes;
 
     private:
@@ -97,7 +96,6 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     ArrayHandle<Scalar4> d_tmp_vel(this->m_tmp_vel, access_location::device, access_mode::overwrite);
     ArrayHandle<bool> d_track_bounded_particles(m_track_bounded_particles, access_location::device, access_mode::overwrite);
     ArrayHandle<unsigned int> d_compact_idxs(m_compact_idxs, access_location::device, access_mode::overwrite);
-    ArrayHandle<unsigned int> d_temp_storage(m_temp_storage, access_location::device, access_mode::overwrite);
 
     // Step 2: Draw particle positions and velocities in parallel on GPU
     unsigned int first_tag = computeFirstTag(N_virt_max);
@@ -124,14 +122,14 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
                                N_virt_max,
                                d_compact_idxs,
                                n_selected,
-                               d_temp_storage,
+                               m_temp_storage,
                                m_temp_storage_bytes);
 
     // Compute the correct tags
     first_tag = computeFirstTag(N_virt_max);
 
     // Allocate memory for the new virtual particles.
-    const unsigned int first_idx = this->m_mpcd_pdata->addVirtualParticles(n_pos_selected);
+    const unsigned int first_idx = this->m_mpcd_pdata->addVirtualParticles(n_selected);
 
     ArrayHandle<Scalar4> d_pos(this->m_mpcd_pdata->getPositions(), access_location::device, access_mode::readwrite);
     ArrayHandle<Scalar4> d_vel(this->m_mpcd_pdata->getVelocities(), access_location::device, access_mode::readwrite);
@@ -139,7 +137,7 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
 
     // Copy data from temporary arrays to permanent arrays
     m_tuner2->begin();
-    mpcd::gpu::parallel_copy(d_compact_idxs.data, d_pos.data, d_vel.data, d_tag.data, d_tmp_pos, d_tmp_vel,
+    mpcd::gpu::parallel_copy(d_compact_idxs.data, d_pos.data, d_vel.data, d_tag.data, d_tmp_pos.data, d_tmp_vel.data,
                              first_idx, first_tag, n_selected, m_tuner2->getParam());
     m_tuner2->end();
     }
