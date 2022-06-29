@@ -54,6 +54,7 @@
 #include "SlitGeometryFiller.h"
 #include "SlitPoreGeometryFiller.h"
 #ifdef ENABLE_CUDA
+#include "RejectionVirtualParticleFillerGPU.h"
 #include "SlitGeometryFillerGPU.h"
 #include "SlitPoreGeometryFillerGPU.h"
 #endif // ENABLE_CUDA
@@ -173,6 +174,9 @@ PYBIND11_MODULE(_mpcd, m)
     #ifdef ENABLE_CUDA
     mpcd::detail::export_SlitGeometryFillerGPU(m);
     mpcd::detail::export_SlitPoreGeometryFillerGPU(m);
+    mpcd::detail::export_RejectionVirtualParticleFillerGPU<mpcd::detail::SlitGeometry>(m);
+    mpcd::detail::export_RejectionVirtualParticleFillerGPU<mpcd::detail::SlitPoreGeometry>(m);
+    mpcd::detail::export_RejectionVirtualParticleFillerGPU<mpcd::detail::SphereGeometry>(m);
     #endif // ENABLE_CUDA
 
     #ifdef ENABLE_MPI
