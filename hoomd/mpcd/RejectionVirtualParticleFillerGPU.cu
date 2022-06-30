@@ -8,6 +8,12 @@
  * \brief Defines GPU functions and kernels used by mpcd::RejectionVirtualParticleFillerGPU
  */
 
+#if __CUDACC_VER_MAJOR__ >= 11
+#include <cub/cub.cuh>
+#else
+#include "hoomd/extern/cub/cub/cub.cuh"
+#endif
+
 #include "RejectionVirtualParticleFillerGPU.cuh"
 #include "StreamingGeometry.h"
 
