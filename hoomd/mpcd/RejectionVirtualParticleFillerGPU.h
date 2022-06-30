@@ -15,7 +15,7 @@
 #error This header cannot be compiled by nvcc
 #endif
 
-#include "RejectionVirtualParticlefiller.h"
+#include "RejectionVirtualParticleFiller.h"
 #include "RejectionVirtualParticleFillerGPU.cuh"
 
 #include "hoomd/Autotuner.h"
@@ -26,7 +26,7 @@ namespace mpcd
 
 //! Adds virtual particles to the MPCD particle data for SphereGeometry using the GPU
 template<class Geometry>
-class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::RejectionVirtualParticleFiller
+class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::RejectionVirtualParticleFiller<Geometry>
     {
     public:
         //! Constructor
@@ -38,7 +38,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
                                           std::shared_ptr<const Geometry> geom)
         : mpcd::RejectionVirtualParticleFiller<Geometry>(sysdata, density, type, T, seed, geom),
         m_track_bounded_particles(this->m_exec_conf), m_compact_idxs(this->m_exec_conf),
-        m_temp_storage(this->m_exec_conf), m_temp_storage_bytes(0)
+        m_temp_storage(this->m_exec_conf), m_temp_storage_bytes(sizeof(unsigned int))
         {
         m_tuner1.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_rejection_filler_draw_particles" + Geometry::getName(), this->m_exec_conf));
         m_tuner2.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_rejection_filler_tag_particles" + Geometry::getName(), this->m_exec_conf));
@@ -51,7 +51,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
          */
         virtual void setAutotunerParams(bool enable, unsigned int period)
             {
-            mpcd::RejectionVirtualParticleFiller::setAutotunerParams(enable, period);
+            mpcd::RejectionVirtualParticleFiller<Geometry>::setAutotunerParams(enable, period);
 
             m_tuner1->setEnabled(enable); m_tuner1->setPeriod(period);
             m_tuner2->setEnabled(enable); m_tuner2->setPeriod(period);
@@ -62,8 +62,8 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
         void fill(unsigned int timestep);
         GPUArray<bool> m_track_bounded_particles;
         GPUArray<unsigned int> m_compact_idxs;
-        void m_temp_storage;
-        unsigned int m_temp_storage_bytes;
+        unsigned int m_temp_storage;
+        size_t m_temp_storage_bytes;
 
     private:
         std::unique_ptr<::Autotuner> m_tuner1;   //!< Autotuner for drawing particles
@@ -86,7 +86,7 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
         GPUArray<Scalar4> tmp_pos(N_virt_max, this->m_exec_conf);
         GPUArray<Scalar4> tmp_vel(N_virt_max, this->m_exec_conf);
         GPUArray<bool> track_bounded_particles(N_virt_max, this->m_exec_conf);
-        GPUArray<Scalar4> compact_idxs(N_virt_max, this->m_exec_conf);
+        GPUArray<unsigned int> compact_idxs(N_virt_max, this->m_exec_conf);
         this->m_tmp_pos.swap(tmp_pos);
         this->m_tmp_vel.swap(tmp_vel);
         m_track_bounded_particles.swap(track_bounded_particles);
@@ -98,7 +98,7 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     ArrayHandle<unsigned int> d_compact_idxs(m_compact_idxs, access_location::device, access_mode::overwrite);
 
     // Step 2: Draw particle positions and velocities in parallel on GPU
-    unsigned int first_tag = computeFirstTag(N_virt_max);
+    unsigned int first_tag = this->computeFirstTag(N_virt_max);
 
     mpcd::gpu::draw_virtual_particles_args_t args(d_tmp_pos.data,
                                                   d_tmp_vel.data,
@@ -117,16 +117,16 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     if (this->m_exec_conf->isCUDAErrorCheckingEnabled()) CHECK_CUDA_ERROR();
     m_tuner1->end();
 
-    usigned int n_selected(0);
-    mpcd::gpu::compact_indices(d_track_bounded_particles,
+    unsigned int n_selected(0);
+    mpcd::gpu::compact_indices(d_track_bounded_particles.data,
                                N_virt_max,
-                               d_compact_idxs,
+                               d_compact_idxs.data,
                                n_selected,
                                m_temp_storage,
                                m_temp_storage_bytes);
 
     // Compute the correct tags
-    first_tag = computeFirstTag(N_virt_max);
+    first_tag = this->computeFirstTag(N_virt_max);
 
     // Allocate memory for the new virtual particles.
     const unsigned int first_idx = this->m_mpcd_pdata->addVirtualParticles(n_selected);
@@ -151,13 +151,13 @@ void export_RejectionVirtualParticleFillerGPU(pybind11::module& m)
     namespace py = pybind11;
     const std::string name = Geometry::getName() + "RejectionFillerGPU";
     py::class_<mpcd::RejectionVirtualParticleFillerGPU<Geometry>, std::shared_ptr<mpcd::RejectionVirtualParticleFillerGPU<Geometry>>>
-        (m, name.c_str(), py::base<mpcd::RejectionVirtualParticleFiller>())
+        (m, name.c_str(), py::base<mpcd::RejectionVirtualParticleFiller<Geometry>>())
         .def(py::init<std::shared_ptr<mpcd::SystemData>,
              Scalar,
              unsigned int,
              std::shared_ptr<::Variant>,
              unsigned int,
-             std::shared_ptr<const Geometry>>())
+             std::shared_ptr<const Geometry>>());
     }
 } // end namespace detail
 } // end namespace mpcd

@@ -67,19 +67,19 @@ struct draw_virtual_particles_args_t
 template<class Geometry>
 cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, const Geometry& geom);
 
-cudaError_t check_storage(void *d_storage, size_t req_size);
+cudaError_t check_storage(unsigned int *storage, size_t storage_bytes, const size_t req_size);
 
-cudaError_t compact_indices(bool *d_flags,
+cudaError_t compact_indices(const bool *d_flags,
                             const unsigned int num_items,
                             unsigned int *d_out,
                             unsigned int d_num_selected_out,
-                            void *d_temp_storage,
+                            unsigned int temp_storage,
                             size_t temp_storage_bytes);
 
 cudaError_t parallel_copy(unsigned int *d_compact_indices,
                           Scalar4 *d_permanent_positions,
                           Scalar4 *d_permanent_velocities,
-                          Scalar4 *d_permanent_tags,
+                          unsigned int *d_permanent_tags,
                           Scalar4 *d_temporary_positions,
                           Scalar4 *d_temporary_velocities,
                           const unsigned int first_idx,
@@ -157,7 +157,7 @@ __global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
 __global__ void parallel_copy(unsigned int *d_compact_indices,
                               Scalar4 *d_permanent_positions,
                               Scalar4 *d_permanent_velocities,
-                              Scalar4 *d_tag,
+                              unsigned int *d_permanent_tags,
                               Scalar4 *d_temporary_positions,
                               Scalar4 *d_temporary_velocities,
                               const unsigned int first_idx,
@@ -175,7 +175,7 @@ __global__ void parallel_copy(unsigned int *d_compact_indices,
     const unsigned int real_idx = first_idx + particleIdx;
     d_permanent_positions[real_idx] = d_temporary_positions[particleIdx];
     d_permanent_velocities[real_idx] = d_temporary_velocities[particleIdx];
-    d_tag[real_idx] = first_tag + idx;
+    d_permanent_tags[real_idx] = first_tag + idx;
     }
 
 } // end namespace kernel
@@ -208,16 +208,16 @@ cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, co
     return cudaSuccess;
     }
 
-cudaError_t check_storage(void storage, size_t *storage_bytes, const size_t *req_size)
+cudaError_t check_storage(unsigned int *storage, size_t storage_bytes, const size_t req_size)
     {
     const static float resize_factor = 1.1;
-    if (req_size <= storage_bytes)
-        return;
-    else if (req_size > storage_bytes)
+//     if (req_size <= storage_bytes)
+//         return;
+    if (req_size > storage_bytes)
         {
         while (req_size > storage_bytes)
             {
-            storage_bytes = ((size_t) (((double) storage_bytes) * resize_factor)) + 1;
+            storage_bytes = ((size_t) (((float) storage_bytes) * resize_factor)) + 1;
             }
         cudaFree(&storage);
         cudaMalloc(&storage, storage_bytes);
@@ -229,17 +229,18 @@ cudaError_t compact_indices(const bool *d_flags,
                             const unsigned int num_items,
                             unsigned int *d_out,
                             unsigned int d_num_selected_out,
-                            void *temp_storage,
+                            unsigned int temp_storage,
                             size_t temp_storage_bytes)
     {
     // Determine temporary device storage requirements
     void *dummyPtr = NULL;
-    cub::DeviceSelect::Flagged(dummyPtr, temp_storage_bytes, cub::CountingInputIterator<int> itr, d_flags, d_out, d_num_selected_out, num_items);
+    cub::CountingInputIterator<int> itr(0);
+    cub::DeviceSelect::Flagged(dummyPtr, temp_storage_bytes, itr, d_flags, d_out, d_num_selected_out, num_items);
     // Check if temporary storage is enough
-    size_t req_size = num_items * sizeof(unsigned int);
+    const size_t req_size = num_items * sizeof(unsigned int);
     check_storage(temp_storage, temp_storage_bytes, req_size);
     // Run selection
-    cub::DeviceSelect::Flagged(temp_storage, temp_storage_bytes, cub::CountingInputIterator<int> itr, d_flags, d_out, d_num_selected_out, num_items);
+    cub::DeviceSelect::Flagged(temp_storage, temp_storage_bytes, itr, d_flags, d_out, d_num_selected_out, num_items);
     return cudaSuccess;
     }
 
@@ -247,7 +248,7 @@ cudaError_t compact_indices(const bool *d_flags,
 cudaError_t parallel_copy(unsigned int *d_compact_indices,
                           Scalar4 *d_permanent_positions,
                           Scalar4 *d_permanent_velocities,
-                          Scalar4 *d_permanent_tags,
+                          unsigned int *d_permanent_tags,
                           Scalar4 *d_temporary_positions,
                           Scalar4 *d_temporary_velocities,
                           const unsigned int first_idx,
