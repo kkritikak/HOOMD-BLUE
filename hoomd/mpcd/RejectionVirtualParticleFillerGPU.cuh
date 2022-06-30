@@ -13,7 +13,6 @@
 
 #include <cuda_runtime.h>
 
-
 #include "hoomd/HOOMDMath.h"
 #include "hoomd/BoxDim.h"
 #include "ParticleDataUtilities.h"
@@ -107,7 +106,9 @@ namespace kernel
  * \tparam Geometry type of the confined geometry \a geom
  *
  * \b implementation
- * TODO: Add documentation here after the script is done
+ * We assign one thread per particle to draw random particle positions within the box and velocities consistent
+ * with system temperature. Along with this a boolean array tracks if the particles are in/out of bounds of the
+ * given geometry.
  */
 template<class Geometry>
 __global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
@@ -152,6 +153,11 @@ __global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
                                                                  d_tmp_pos[idx].z));
     }
 
+/*!
+ * \b implementation
+ * Using one thread per particle, we assign the particle position, velocity and tags using the compacted indices
+ * array as an input.
+ */
 __global__ void parallel_copy(unsigned int *d_compact_indices,
                               Scalar4 *d_permanent_positions,
                               Scalar4 *d_permanent_velocities,

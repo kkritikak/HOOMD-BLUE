@@ -60,9 +60,9 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
     protected:
         //! Fill the volume outside the confinement
         void fill(unsigned int timestep);
-        GPUArray<bool> m_track_bounded_particles;
-        GPUArray<unsigned int> m_compact_idxs;
-        GPUArray<unsigned int> m_temp_storage;
+        GPUArray<bool> m_track_bounded_particles; // Track if the particles are in/out of bounds for geometry
+        GPUArray<unsigned int> m_compact_idxs; // Indices for particles out of bound for geometry
+        GPUArray<unsigned int> m_temp_storage; // Temporary storage buffer for extracting compact indices array
 
     private:
         std::unique_ptr<::Autotuner> m_tuner1;   //!< Autotuner for drawing particles
@@ -118,11 +118,13 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
                                                   this->m_seed,
                                                   m_tuner1->getParam());
 
+    // Pick (N=box_vol*solvPartDensity) particles and velocities randomly in the box
     m_tuner1->begin();
     mpcd::gpu::draw_virtual_particles<Geometry>(args, *(this->m_geom));
     if (this->m_exec_conf->isCUDAErrorCheckingEnabled()) CHECK_CUDA_ERROR();
     m_tuner1->end();
 
+    // compact particle indices
     unsigned int n_selected(0);
     mpcd::gpu::compact_indices(d_track_bounded_particles.data,
                                N_virt_max,
