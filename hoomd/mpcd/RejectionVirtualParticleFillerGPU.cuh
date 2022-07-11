@@ -73,12 +73,12 @@ cudaError_t compact_virtual_particle_indices(const bool *d_flags,
                             unsigned int *d_num_selected_out,
                             unsigned int *temp_storage);
 
-cudaError_t parallel_copy(unsigned int *d_compact_indices,
-                          Scalar4 *d_permanent_positions,
-                          Scalar4 *d_permanent_velocities,
-                          unsigned int *d_permanent_tags,
-                          Scalar4 *d_temporary_positions,
-                          Scalar4 *d_temporary_velocities,
+cudaError_t copy_virtual_particles(unsigned int *d_compact_indices,
+                          Scalar4 *d_positions,
+                          Scalar4 *d_velocities,
+                          unsigned int *d_tags,
+                          const Scalar4 *d_temporary_positions,
+                          const Scalar4 *d_temporary_velocities,
                           const unsigned int first_idx,
                           const unsigned int first_tag,
                           const unsigned int n_virtual,
@@ -158,12 +158,12 @@ __global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
  * Using one thread per particle, we assign the particle position, velocity and tags using the compacted indices
  * array as an input.
  */
-__global__ void parallel_copy(unsigned int *d_compact_indices,
-                              Scalar4 *d_permanent_positions,
-                              Scalar4 *d_permanent_velocities,
-                              unsigned int *d_permanent_tags,
-                              Scalar4 *d_temporary_positions,
-                              Scalar4 *d_temporary_velocities,
+__global__ void copy_virtual_particles(unsigned int *d_compact_indices,
+                              Scalar4 *d_positions,
+                              Scalar4 *d_velocities,
+                              unsigned int *d_tags,
+                              const Scalar4 *d_temporary_positions,
+                              const Scalar4 *d_temporary_velocities,
                               const unsigned int first_idx,
                               const unsigned int first_tag,
                               const unsigned int n_virtual,
@@ -175,11 +175,11 @@ __global__ void parallel_copy(unsigned int *d_compact_indices,
         return;
 
     // d_compact_indices holds accepted particle indices from the temporary arrays
-    unsigned int particleIdx = d_compact_indices[idx];
-    const unsigned int real_idx = first_idx + particleIdx;
-    d_permanent_positions[real_idx] = d_temporary_positions[particleIdx];
-    d_permanent_velocities[real_idx] = d_temporary_velocities[particleIdx];
-    d_permanent_tags[real_idx] = first_tag + idx;
+    const unsigned int pidx = d_compact_indices[idx];
+    const unsigned int real_idx = first_idx + pidx;
+    d_positions[real_idx] = d_temporary_positions[pidx];
+    d_velocities[real_idx] = d_temporary_velocities[pidx];
+    d_tags[real_idx] = first_tag + idx;
     }
 
 } // end namespace kernel
@@ -227,12 +227,12 @@ cudaError_t compact_virtual_particle_indices(const bool *d_flags,
     }
 
 
-cudaError_t parallel_copy(unsigned int *d_compact_indices,
-                          Scalar4 *d_permanent_positions,
-                          Scalar4 *d_permanent_velocities,
-                          unsigned int *d_permanent_tags,
-                          Scalar4 *d_temporary_positions,
-                          Scalar4 *d_temporary_velocities,
+cudaError_t copy_virtual_particles(unsigned int *d_compact_indices,
+                          Scalar4 *d_positions,
+                          Scalar4 *d_velocities,
+                          unsigned int *d_tags,
+                          const Scalar4 *d_temporary_positions,
+                          const Scalar4 *d_temporary_velocities,
                           const unsigned int first_idx,
                           const unsigned int first_tag,
                           const unsigned int n_virtual,
@@ -248,8 +248,8 @@ cudaError_t parallel_copy(unsigned int *d_compact_indices,
 
     unsigned int run_block_size = min(block_size, max_block_size);
     dim3 grid(n_virtual / run_block_size + 1);
-    mpcd::gpu::kernel::parallel_copy<<<grid, run_block_size>>>(d_compact_indices, d_permanent_positions,
-                                                               d_permanent_velocities, d_permanent_tags,
+    mpcd::gpu::kernel::parallel_copy<<<grid, run_block_size>>>(d_compact_indices, d_positions,
+                                                               d_velocities, d_tags,
                                                                d_temporary_positions, d_temporary_velocities,
                                                                first_idx, first_tag, n_virtual, block_size);
 
