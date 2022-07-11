@@ -133,10 +133,16 @@ __global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
 
     // initialize random number generator for positions and velocity
     hoomd::RandomGenerator rng(hoomd::RNGIdentifier::RejectionFiller, seed, timestep, first_tag+idx, filler_id);
-    d_tmp_pos[idx] = make_scalar4(hoomd::UniformDistribution<Scalar>(lo.x, hi.x)(rng),
-                                  hoomd::UniformDistribution<Scalar>(lo.y, hi.y)(rng),
-                                  hoomd::UniformDistribution<Scalar>(lo.z, hi.z)(rng),
+    Scalar3 pos = make_scalar3(hoomd::UniformDistribution<Scalar>(lo.x, hi.x)(rng),
+                               hoomd::UniformDistribution<Scalar>(lo.y, hi.y)(rng),
+                               hoomd::UniformDistribution<Scalar>(lo.z, hi.z)(rng))
+    d_tmp_pos[idx] = make_scalar4(pos.x,
+                                  pos.y,
+                                  pos.z,
                                   __int_as_scalar(type));
+
+    // check if particle is inside/outside the confining geometry
+    d_track_bounded_particles[idx] = geom.isOutside(pos);
 
     hoomd::NormalDistribution<Scalar> gen(vel_factor, 0.0);
     Scalar3 vel;
@@ -146,11 +152,6 @@ __global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
                                   vel.y,
                                   vel.z,
                                   __int_as_scalar(mpcd::detail::NO_CELL));
-
-    // check if particle is inside/outside the confining geometry
-    d_track_bounded_particles[idx] = geom.isOutside(make_scalar3(d_tmp_pos[idx].x,
-                                                                 d_tmp_pos[idx].y,
-                                                                 d_tmp_pos[idx].z));
     }
 
 /*!
