@@ -67,7 +67,7 @@ struct draw_virtual_particles_args_t
 template<class Geometry>
 cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, const Geometry& geom);
 
-cudaError_t compact_indices(const bool *d_flags,
+cudaError_t compact_virtual_particle_indices(const bool *d_flags,
                             const unsigned int num_items,
                             unsigned int *d_out,
                             unsigned int *d_num_selected_out,
@@ -213,7 +213,7 @@ cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, co
     }
 
 
-cudaError_t compact_indices(const bool *d_flags,
+cudaError_t compact_virtual_particle_indices(const bool *d_flags,
                             const unsigned int num_items,
                             unsigned int *d_out,
                             unsigned int *d_num_selected_out,
