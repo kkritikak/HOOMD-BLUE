@@ -126,7 +126,7 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
 
     // compact particle indices
     unsigned int n_selected(0);
-    mpcd::gpu::compact_indices(d_track_bounded_particles.data,
+    mpcd::gpu::compact_virtual_particle_indices(d_track_bounded_particles.data,
                                N_virt_max,
                                d_compact_idxs.data,
                                &n_selected,
@@ -144,7 +144,7 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
 
     // Copy data from temporary arrays to permanent arrays
     m_tuner2->begin();
-    mpcd::gpu::parallel_copy(d_compact_idxs.data, d_pos.data, d_vel.data, d_tag.data, d_tmp_pos.data, d_tmp_vel.data,
+    mpcd::gpu::copy_virtual_particles(d_compact_idxs.data, d_pos.data, d_vel.data, d_tag.data, d_tmp_pos.data, d_tmp_vel.data,
                              first_idx, first_tag, n_selected, m_tuner2->getParam());
     m_tuner2->end();
     }
