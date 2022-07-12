@@ -16,7 +16,7 @@
 #include "hoomd/HOOMDMath.h"
 #include "hoomd/BoxDim.h"
 #include "ParticleDataUtilities.h"
-
+#include "hoomd/CachedAllocator.h"
 #include "hoomd/RandomNumbers.h"
 #include "hoomd/RNGIdentifiers.h"
 
@@ -70,8 +70,7 @@ cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, co
 cudaError_t compact_virtual_particle_indices(const bool *d_flags,
                             const unsigned int num_items,
                             unsigned int *d_out,
-                            unsigned int *d_num_selected_out,
-                            unsigned int *temp_storage);
+                            unsigned int *d_num_selected_out);
 
 cudaError_t copy_virtual_particles(unsigned int *d_compact_indices,
                           Scalar4 *d_positions,
@@ -135,7 +134,7 @@ __global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
     hoomd::RandomGenerator rng(hoomd::RNGIdentifier::RejectionFiller, seed, timestep, first_tag+idx, filler_id);
     Scalar3 pos = make_scalar3(hoomd::UniformDistribution<Scalar>(lo.x, hi.x)(rng),
                                hoomd::UniformDistribution<Scalar>(lo.y, hi.y)(rng),
-                               hoomd::UniformDistribution<Scalar>(lo.z, hi.z)(rng))
+                               hoomd::UniformDistribution<Scalar>(lo.z, hi.z)(rng));
     d_tmp_pos[idx] = make_scalar4(pos.x,
                                   pos.y,
                                   pos.z,
@@ -217,13 +216,19 @@ cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, co
 cudaError_t compact_virtual_particle_indices(const bool *d_flags,
                             const unsigned int num_items,
                             unsigned int *d_out,
-                            unsigned int *d_num_selected_out,
-                            unsigned int *temp_storage)
+                            unsigned int *d_num_selected_out)
     {
+    void* d_tmp = NULL;
+    size_t tmp_bytes = 0;
     cub::CountingInputIterator<int> itr(0);
-    size_t temp_storage_bytes = sizeof(temp_storage);
+    // Determine storage requirements
+    cub::DeviceSelect::Flagged(d_tmp, tmp_bytes, itr, d_flags, d_out, d_num_selected_out, num_items);
+    // virtual particles to keep
+    ScopedAllocation<unsigned char> d_tmp_alloc(this->m_exec_conf->getCachedAllocator(),
+                                                (tmp_bytes > 0) ? tmp_bytes : 1);
+    d_tmp = (void*)d_tmp_alloc();
     // Run selection
-    cub::DeviceSelect::Flagged(temp_storage, temp_storage_bytes, itr, d_flags, d_out, d_num_selected_out, num_items);
+    cub::DeviceSelect::Flagged(d_tmp, tmp_bytes, itr, d_flags, d_out, d_num_selected_out, num_items);
     return cudaSuccess;
     }
 
@@ -243,16 +248,16 @@ cudaError_t copy_virtual_particles(unsigned int *d_compact_indices,
     if (max_block_size == UINT_MAX)
         {
         cudaFuncAttributes attr;
-        cudaFuncGetAttributes(&attr, (const void*)mpcd::gpu::kernel::parallel_copy);
+        cudaFuncGetAttributes(&attr, (const void*)mpcd::gpu::kernel::copy_virtual_particles);
         max_block_size = attr.maxThreadsPerBlock;
         }
 
     unsigned int run_block_size = min(block_size, max_block_size);
     dim3 grid(n_virtual / run_block_size + 1);
-    mpcd::gpu::kernel::parallel_copy<<<grid, run_block_size>>>(d_compact_indices, d_positions,
-                                                               d_velocities, d_tags,
-                                                               d_temporary_positions, d_temporary_velocities,
-                                                               first_idx, first_tag, n_virtual, block_size);
+    mpcd::gpu::kernel::copy_virtual_particles<<<grid, run_block_size>>>(d_compact_indices, d_positions,
+                                                                        d_velocities, d_tags,
+                                                                        d_temporary_positions, d_temporary_velocities,
+                                                                        first_idx, first_tag, n_virtual, block_size);
 
     return cudaSuccess;
     }
