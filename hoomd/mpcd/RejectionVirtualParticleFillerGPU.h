@@ -62,7 +62,6 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
         void fill(unsigned int timestep);
         GPUArray<bool> m_track_bounded_particles; // Track if the particles are in/out of bounds for geometry
         GPUArray<unsigned int> m_compact_idxs; // Indices for particles out of bound for geometry
-        GPUArray<unsigned int> m_temp_storage; // Temporary storage buffer for extracting compact indices array
 
     private:
         std::unique_ptr<::Autotuner> m_tuner1;   //!< Autotuner for drawing particles
@@ -86,18 +85,15 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
         GPUArray<Scalar4> tmp_vel(N_virt_max, this->m_exec_conf);
         GPUArray<bool> track_bounded_particles(N_virt_max, this->m_exec_conf);
         GPUArray<unsigned int> compact_idxs(N_virt_max, this->m_exec_conf);
-        GPUArray<unsigned int> temp_storage(N_virt_max, this->m_exec_conf);
         this->m_tmp_pos.swap(tmp_pos);
         this->m_tmp_vel.swap(tmp_vel);
         m_track_bounded_particles.swap(track_bounded_particles);
         m_compact_idxs.swap(compact_idxs);
-        m_temp_storage.swap(temp_storage);
         }
     ArrayHandle<Scalar4> d_tmp_pos(this->m_tmp_pos, access_location::device, access_mode::overwrite);
     ArrayHandle<Scalar4> d_tmp_vel(this->m_tmp_vel, access_location::device, access_mode::overwrite);
     ArrayHandle<bool> d_track_bounded_particles(m_track_bounded_particles, access_location::device, access_mode::overwrite);
     ArrayHandle<unsigned int> d_compact_idxs(m_compact_idxs, access_location::device, access_mode::overwrite);
-    ArrayHandle<unsigned int> d_temp_storage(m_temp_storage, access_location::device, access_mode::overwrite);
 
     // Step 2: Draw particle positions and velocities in parallel on GPU
     unsigned int first_tag = this->computeFirstTag(N_virt_max);
@@ -129,8 +125,7 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     mpcd::gpu::compact_virtual_particle_indices(d_track_bounded_particles.data,
                                N_virt_max,
                                d_compact_idxs.data,
-                               &n_selected,
-                               d_temp_storage.data);
+                               &n_selected);
 
     // Compute the correct tags
     first_tag = this->computeFirstTag(N_virt_max);
