@@ -9,9 +9,11 @@
  */
 
 #if __CUDACC_VER_MAJOR__ >= 11
-#include <cub/cub.cuh>
+#include <cub/device/device_select.cuh>
+#include <cub/iterator/counting_input_iterator.cuh>
 #else
-#include "hoomd/extern/cub/cub/cub.cuh"
+#include "hoomd/extern/cub/cub/device/device_select.cuh"
+#include "hoomd/extern/cub/cub/iterator/counting_input_iterator.cuh"
 #endif
 
 #include "RejectionVirtualParticleFillerGPU.cuh"
