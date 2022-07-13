@@ -16,7 +16,7 @@
 #include "hoomd/HOOMDMath.h"
 #include "hoomd/BoxDim.h"
 #include "ParticleDataUtilities.h"
-#include "hoomd/CachedAllocator.h"
+
 #include "hoomd/RandomNumbers.h"
 #include "hoomd/RNGIdentifiers.h"
 
@@ -67,10 +67,12 @@ struct draw_virtual_particles_args_t
 template<class Geometry>
 cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, const Geometry& geom);
 
-cudaError_t compact_virtual_particle_indices(const bool *d_flags,
-                            const unsigned int num_items,
-                            unsigned int *d_out,
-                            unsigned int *d_num_selected_out);
+cudaError_t compact_virtual_particle_indices(void *d_tmp,
+                                            size_t& tmp_bytes,
+                                            const bool *d_flags,
+                                            const unsigned int num_items,
+                                            unsigned int *d_out,
+                                            unsigned int *d_num_selected_out);
 
 cudaError_t copy_virtual_particles(unsigned int *d_compact_indices,
                           Scalar4 *d_positions,
@@ -213,22 +215,15 @@ cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, co
     }
 
 
-cudaError_t compact_virtual_particle_indices(const bool *d_flags,
-                            const unsigned int num_items,
-                            unsigned int *d_out,
-                            unsigned int *d_num_selected_out)
+cudaError_t compact_virtual_particle_indices(void *d_tmp,
+                                            size_t& tmp_bytes,
+                                            const bool *d_flags,
+                                            const unsigned int num_items,
+                                            unsigned int *d_out,
+                                            unsigned int *d_num_selected_out)
     {
-    void* d_tmp = NULL;
-    size_t tmp_bytes = 0;
-    cub::CountingInputIterator<int> itr(0);
-    // Determine storage requirements
-    cub::DeviceSelect::Flagged(d_tmp, tmp_bytes, itr, d_flags, d_out, d_num_selected_out, num_items);
-    // virtual particles to keep
-    ScopedAllocation<unsigned char> d_tmp_alloc(this->m_exec_conf->getCachedAllocator(),
-                                                (tmp_bytes > 0) ? tmp_bytes : 1);
-    d_tmp = (void*)d_tmp_alloc();
-    // Run selection
-    cub::DeviceSelect::Flagged(d_tmp, tmp_bytes, itr, d_flags, d_out, d_num_selected_out, num_items);
+    HOOMD_CUB::CountingInputIterator<int> itr(0);
+    HOOMD_CUB::DeviceSelect::Flagged(d_tmp, tmp_bytes, itr, d_flags, d_out, d_num_selected_out, num_items);
     return cudaSuccess;
     }
 
