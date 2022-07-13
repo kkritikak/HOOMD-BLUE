@@ -18,6 +18,7 @@
 #include "RejectionVirtualParticleFiller.h"
 #include "RejectionVirtualParticleFillerGPU.cuh"
 
+#include "hoomd/CachedAllocator.h"
 #include "hoomd/Autotuner.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
 
@@ -37,8 +38,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
                                           unsigned int seed,
                                           std::shared_ptr<const Geometry> geom)
         : mpcd::RejectionVirtualParticleFiller<Geometry>(sysdata, density, type, T, seed, geom),
-        m_track_bounded_particles(this->m_exec_conf), m_compact_idxs(this->m_exec_conf),
-        m_temp_storage(this->m_exec_conf)
+        m_track_bounded_particles(this->m_exec_conf), m_compact_idxs(this->m_exec_conf)
         {
         m_tuner1.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_rejection_filler_draw_particles" + Geometry::getName(), this->m_exec_conf));
         m_tuner2.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_rejection_filler_tag_particles" + Geometry::getName(), this->m_exec_conf));
@@ -122,10 +122,26 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
 
     // compact particle indices
     unsigned int n_selected(0);
-    mpcd::gpu::compact_virtual_particle_indices(d_track_bounded_particles.data,
-                               N_virt_max,
-                               d_compact_idxs.data,
-                               &n_selected);
+    // 1. Determine storage requirement by using a NULL ptr as input to cub function
+    void* d_tmp = NULL;
+    size_t tmp_bytes = 0;
+    mpcd::gpu::compact_virtual_particle_indices(d_tmp,
+                                                tmp_bytes,
+                                                d_track_bounded_particles.data,
+                                                N_virt_max,
+                                                d_compact_idxs.data,
+                                                &n_selected);
+    // 2. Check temporary storage availability
+    ScopedAllocation<unsigned char> d_tmp_alloc(this->m_exec_conf->getCachedAllocator(),
+                                                (tmp_bytes > 0) ? tmp_bytes : 1);
+    d_tmp = (void*)d_tmp_alloc();
+    // 3. Run selection
+    mpcd::gpu::compact_virtual_particle_indices(d_tmp,
+                                                tmp_bytes,
+                                                d_track_bounded_particles.data,
+                                                N_virt_max,
+                                                d_compact_idxs.data,
+                                                &n_selected);
 
     // Compute the correct tags
     first_tag = this->computeFirstTag(N_virt_max);
