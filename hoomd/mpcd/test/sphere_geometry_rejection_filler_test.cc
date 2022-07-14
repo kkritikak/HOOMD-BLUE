@@ -46,7 +46,6 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
      * Test basic filling up for this cell list
      */
     unsigned int Nfill_0(0);
-    std::cout << "RUNNING THE FILLER FOR THE FIRST TIME" << "\n";
     filler->fill(0);
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
@@ -76,7 +75,6 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
             if (r2 > r*r)
                 ++N_out;
             }
-        std::cout << "Number of virtual particles outside confinement after first time filling = "<< N_out << "\n";
         UP_ASSERT_EQUAL(N_out, pdata->getNVirtual());
         Nfill_0 = N_out;
         }
@@ -84,7 +82,6 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
     /*
      * Fill the volume again, which should approximately double the number of virtual particles
      */
-    std::cout << "RUNNING THE FILLER FOR THE SECOND TIME" << "\n";
     filler->fill(1);
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
@@ -117,7 +114,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
     Scalar3 vel_avg_net = make_scalar3(0,0,0);
     Scalar T_avg(0);
     // repeat filling 100 times
-    unsigned int itr(100);
+    unsigned int itr(1000);
     for (unsigned int t=0; t<itr; ++t)
         {
         pdata->removeVirtualParticles();

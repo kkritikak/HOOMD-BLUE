@@ -178,7 +178,7 @@ __global__ void copy_virtual_particles(unsigned int *d_compact_indices,
 
     // d_compact_indices holds accepted particle indices from the temporary arrays
     const unsigned int pidx = d_compact_indices[idx];
-    const unsigned int real_idx = first_idx + pidx;
+    const unsigned int real_idx = first_idx + idx;
     d_positions[real_idx] = d_temporary_positions[pidx];
     d_velocities[real_idx] = d_temporary_velocities[pidx];
     d_tags[real_idx] = first_tag + idx;
@@ -248,10 +248,7 @@ cudaError_t copy_virtual_particles(unsigned int *d_compact_indices,
         }
 
     unsigned int run_block_size = min(block_size, max_block_size);
-    // std::cout << run_block_size << "\n";
-    // std::cout << n_virtual << "\n";
     dim3 grid(n_virtual / run_block_size + 1);
-    //std::cout << grid << "\n";
     mpcd::gpu::kernel::copy_virtual_particles<<<grid, run_block_size>>>(d_compact_indices, d_positions,
                                                                         d_velocities, d_tags,
                                                                         d_temporary_positions, d_temporary_velocities,

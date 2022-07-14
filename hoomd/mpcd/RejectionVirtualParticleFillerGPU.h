@@ -64,6 +64,7 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
         void fill(unsigned int timestep);
         GPUArray<bool> m_track_bounded_particles; // Track if the particles are in/out of bounds for geometry
         GPUArray<unsigned int> m_compact_idxs; // Indices for particles out of bound for geometry
+        GPUFlags<unsigned int> m_num_selected;
 
     private:
         std::unique_ptr<::Autotuner> m_tuner1;   //!< Autotuner for drawing particles
@@ -84,13 +85,15 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     if (N_virt_max > this->m_tmp_pos.getNumElements())
         {
         GPUArray<Scalar4> tmp_pos(N_virt_max, this->m_exec_conf);
-        GPUArray<Scalar4> tmp_vel(N_virt_max, this->m_exec_conf);
-        GPUArray<bool> track_bounded_particles(N_virt_max, this->m_exec_conf);
-        GPUArray<unsigned int> compact_idxs(N_virt_max, this->m_exec_conf);
         this->m_tmp_pos.swap(tmp_pos);
+        GPUArray<Scalar4> tmp_vel(N_virt_max, this->m_exec_conf);
         this->m_tmp_vel.swap(tmp_vel);
+        GPUArray<bool> track_bounded_particles(N_virt_max, this->m_exec_conf);
         m_track_bounded_particles.swap(track_bounded_particles);
+        GPUArray<unsigned int> compact_idxs(N_virt_max, this->m_exec_conf);
         m_compact_idxs.swap(compact_idxs);
+        GPUFlags<unsigned int> num_selected(this->m_exec_conf);
+        m_num_selected.swap(num_selected);
         }
     ArrayHandle<Scalar4> d_tmp_pos(this->m_tmp_pos, access_location::device, access_mode::overwrite);
     ArrayHandle<Scalar4> d_tmp_vel(this->m_tmp_vel, access_location::device, access_mode::overwrite);
@@ -124,7 +127,6 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
 
 
     // compact particle indices
-    unsigned int n_selected(0);
     // 1. Determine storage requirement by using a NULL ptr as input to cub function
     void* d_tmp_storage = NULL;
     size_t tmp_storage_bytes = 0;
@@ -133,38 +135,23 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
                                                 d_track_bounded_particles.data,
                                                 N_virt_max,
                                                 d_compact_idxs.data,
-                                                &n_selected);
-
-//    ArrayHandle<bool> tem_bounded(m_track_bounded_particles, access_location::host, access_mode::read);
-//    for (unsigned int aaa=0; aaa<N_virt_max; ++aaa)
-//        {
-//        std::cout << tem_bounded.data[aaa] << "\n";
-//        }
-
+                                                m_num_selected.getDeviceFlags());
     // 2. Check temporary storage availability
     ScopedAllocation<unsigned char> d_tmp_alloc(this->m_exec_conf->getCachedAllocator(),
                                                 (tmp_storage_bytes > 0) ? tmp_storage_bytes : 1);
     d_tmp_storage = (void*)d_tmp_alloc();
-//    std::cout << sizeof(d_tmp) << "\n";
     // 3. Run selection
     mpcd::gpu::compact_virtual_particle_indices(d_tmp_storage,
                                                 tmp_storage_bytes,
                                                 d_track_bounded_particles.data,
                                                 N_virt_max,
                                                 d_compact_idxs.data,
-                                                &n_selected);
+                                                m_num_selected.getDeviceFlags());
 
-//    ArrayHandle<unsigned int> tem_compact(m_compact_idxs, access_location::host, access_mode::read);
-//    for (unsigned int aaa=0; aaa<N_virt_max; ++aaa)
-//        {
-//        std::cout << tem_compact.data[aaa] << "\n";
-//        }
-
-    std::cout << n_selected << "\n";
-
+    unsigned int n_selected = m_num_selected.readFlags();
 
     // Compute the correct tags
-    first_tag = this->computeFirstTag(N_virt_max);
+    first_tag = this->computeFirstTag(n_selected);
 
     // Allocate memory for the new virtual particles.
     const unsigned int first_idx = this->m_mpcd_pdata->addVirtualParticles(n_selected);
