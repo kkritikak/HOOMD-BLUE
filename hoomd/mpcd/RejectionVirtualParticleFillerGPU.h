@@ -22,6 +22,8 @@
 #include "hoomd/Autotuner.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
 
+#include <iterator>
+
 namespace mpcd
 {
 
@@ -120,28 +122,46 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     if (this->m_exec_conf->isCUDAErrorCheckingEnabled()) CHECK_CUDA_ERROR();
     m_tuner1->end();
 
+
     // compact particle indices
     unsigned int n_selected(0);
     // 1. Determine storage requirement by using a NULL ptr as input to cub function
-    void* d_tmp = NULL;
-    size_t tmp_bytes = 0;
-    mpcd::gpu::compact_virtual_particle_indices(d_tmp,
-                                                tmp_bytes,
+    void* d_tmp_storage = NULL;
+    size_t tmp_storage_bytes = 0;
+    mpcd::gpu::compact_virtual_particle_indices(d_tmp_storage,
+                                                tmp_storage_bytes,
                                                 d_track_bounded_particles.data,
                                                 N_virt_max,
                                                 d_compact_idxs.data,
                                                 &n_selected);
+
+//    ArrayHandle<bool> tem_bounded(m_track_bounded_particles, access_location::host, access_mode::read);
+//    for (unsigned int aaa=0; aaa<N_virt_max; ++aaa)
+//        {
+//        std::cout << tem_bounded.data[aaa] << "\n";
+//        }
+
     // 2. Check temporary storage availability
     ScopedAllocation<unsigned char> d_tmp_alloc(this->m_exec_conf->getCachedAllocator(),
-                                                (tmp_bytes > 0) ? tmp_bytes : 1);
-    d_tmp = (void*)d_tmp_alloc();
+                                                (tmp_storage_bytes > 0) ? tmp_storage_bytes : 1);
+    d_tmp_storage = (void*)d_tmp_alloc();
+//    std::cout << sizeof(d_tmp) << "\n";
     // 3. Run selection
-    mpcd::gpu::compact_virtual_particle_indices(d_tmp,
-                                                tmp_bytes,
+    mpcd::gpu::compact_virtual_particle_indices(d_tmp_storage,
+                                                tmp_storage_bytes,
                                                 d_track_bounded_particles.data,
                                                 N_virt_max,
                                                 d_compact_idxs.data,
                                                 &n_selected);
+
+//    ArrayHandle<unsigned int> tem_compact(m_compact_idxs, access_location::host, access_mode::read);
+//    for (unsigned int aaa=0; aaa<N_virt_max; ++aaa)
+//        {
+//        std::cout << tem_compact.data[aaa] << "\n";
+//        }
+
+    std::cout << n_selected << "\n";
+
 
     // Compute the correct tags
     first_tag = this->computeFirstTag(N_virt_max);

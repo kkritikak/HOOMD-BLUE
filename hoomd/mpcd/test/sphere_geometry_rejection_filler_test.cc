@@ -4,6 +4,9 @@
 // Maintainer: mphoward
 
 #include "hoomd/mpcd/RejectionVirtualParticleFiller.h"
+#ifdef ENABLE_CUDA
+#include "hoomd/mpcd/RejectionVirtualParticleFillerGPU.h"
+#endif // ENABLE_CUDA
 #include "hoomd/mpcd/SphereGeometry.h"
 
 #include "hoomd/SnapshotSystemData.h"
@@ -43,6 +46,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
      * Test basic filling up for this cell list
      */
     unsigned int Nfill_0(0);
+    std::cout << "RUNNING THE FILLER FOR THE FIRST TIME" << "\n";
     filler->fill(0);
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
@@ -72,6 +76,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
             if (r2 > r*r)
                 ++N_out;
             }
+        std::cout << "Number of virtual particles outside confinement after first time filling = "<< N_out << "\n";
         UP_ASSERT_EQUAL(N_out, pdata->getNVirtual());
         Nfill_0 = N_out;
         }
@@ -79,6 +84,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
     /*
      * Fill the volume again, which should approximately double the number of virtual particles
      */
+    std::cout << "RUNNING THE FILLER FOR THE SECOND TIME" << "\n";
     filler->fill(1);
         {
         ArrayHandle<Scalar4> h_pos(pdata->getPositions(), access_location::host, access_mode::read);
@@ -166,3 +172,9 @@ UP_TEST( sphere_rejection_fill_basic )
     {
     sphere_rejection_fill_basic_test<mpcd::RejectionVirtualParticleFiller<mpcd::detail::SphereGeometry>>(std::make_shared<ExecutionConfiguration>(ExecutionConfiguration::CPU));
     }
+#ifdef ENABLE_CUDA
+UP_TEST( sphere_rejection_fill_basic_gpu )
+    {
+    sphere_rejection_fill_basic_test<mpcd::RejectionVirtualParticleFillerGPU<mpcd::detail::SphereGeometry>>(std::make_shared<ExecutionConfiguration>(ExecutionConfiguration::GPU));
+    }
+#endif // ENABLE_CUDA

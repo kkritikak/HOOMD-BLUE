@@ -4,6 +4,9 @@
 // Maintainer: mphoward
 
 #include "hoomd/mpcd/RejectionVirtualParticleFiller.h"
+#ifdef ENABLE_CUDA
+#include "hoomd/mpcd/RejectionVirtualParticleFillerGPU.h"
+#endif // ENABLE_CUDA
 #include "hoomd/mpcd/SphereGeometry.h"
 
 #include "hoomd/SnapshotSystemData.h"
@@ -105,3 +108,9 @@ UP_TEST( sphere_rejection_fill_mpi )
     {
     sphere_rejection_fill_mpi_test<mpcd::RejectionVirtualParticleFiller<mpcd::detail::SphereGeometry>>(std::make_shared<ExecutionConfiguration>(ExecutionConfiguration::CPU));
     }
+#ifdef ENABLE_CUDA
+UP_TEST( sphere_rejection_fill_mpi_gpu )
+    {
+    sphere_rejection_fill_mpi_test<mpcd::RejectionVirtualParticleFillerGPU<mpcd::detail::SphereGeometry>>(std::make_shared<ExecutionConfiguration>(ExecutionConfiguration::GPU));
+    }
+#endif // ENABLE_CUDA

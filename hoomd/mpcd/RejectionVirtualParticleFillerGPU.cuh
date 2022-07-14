@@ -248,7 +248,10 @@ cudaError_t copy_virtual_particles(unsigned int *d_compact_indices,
         }
 
     unsigned int run_block_size = min(block_size, max_block_size);
+    // std::cout << run_block_size << "\n";
+    // std::cout << n_virtual << "\n";
     dim3 grid(n_virtual / run_block_size + 1);
+    //std::cout << grid << "\n";
     mpcd::gpu::kernel::copy_virtual_particles<<<grid, run_block_size>>>(d_compact_indices, d_positions,
                                                                         d_velocities, d_tags,
                                                                         d_temporary_positions, d_temporary_velocities,
