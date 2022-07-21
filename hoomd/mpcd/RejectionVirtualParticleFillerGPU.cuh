@@ -32,7 +32,7 @@ struct draw_virtual_particles_args_t
     //! Constructor
     draw_virtual_particles_args_t(Scalar4 *_d_tmp_pos,
                                   Scalar4 *_d_tmp_vel,
-                                  bool *_d_track_bounded_particles,
+                                  bool *_d_keep_particles,
                                   const Scalar3 _lo,
                                   const Scalar3 _hi,
                                   const unsigned int _first_tag,
@@ -43,14 +43,14 @@ struct draw_virtual_particles_args_t
                                   const unsigned int _timestep,
                                   const unsigned int _seed,
                                   const unsigned int _block_size)
-        : d_tmp_pos(_d_tmp_pos), d_tmp_vel(_d_tmp_vel), d_track_bounded_particles(_d_track_bounded_particles),
+        : d_tmp_pos(_d_tmp_pos), d_tmp_vel(_d_tmp_vel), d_keep_particles(_d_keep_particles),
         lo(_lo), hi(_hi), first_tag(_first_tag), vel_factor(_vel_factor), filler_id(_filler_id), type(_type),
         N_virt_max(_N_virt_max), timestep(_timestep), seed(_seed), block_size(_block_size)
         { }
 
     Scalar4 *d_tmp_pos;
     Scalar4 *d_tmp_vel;
-    bool *d_track_bounded_particles;
+    bool *d_keep_particles;
     const Scalar3 lo;
     const Scalar3 hi;
     const unsigned int first_tag;
@@ -69,17 +69,17 @@ cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, co
 
 cudaError_t compact_virtual_particle_indices(void *d_tmp,
                                             size_t& tmp_bytes,
-                                            const bool *d_flags,
-                                            const unsigned int num_items,
-                                            unsigned int *d_out,
-                                            unsigned int *d_num_selected_out);
+                                            const bool *d_keep_particles,
+                                            const unsigned int num_particles,
+                                            unsigned int *d_keep_indices,
+                                            unsigned int *d_num_keep);
 
-cudaError_t copy_virtual_particles(unsigned int *d_compact_indices,
-                          Scalar4 *d_positions,
-                          Scalar4 *d_velocities,
+cudaError_t copy_virtual_particles(unsigned int *d_keep_indices,
+                          Scalar4 *d_pos,
+                          Scalar4 *d_vel,
                           unsigned int *d_tags,
-                          const Scalar4 *d_temporary_positions,
-                          const Scalar4 *d_temporary_velocities,
+                          const Scalar4 *d_tmp_pos,
+                          const Scalar4 *d_tmp_vel,
                           const unsigned int first_idx,
                           const unsigned int first_tag,
                           const unsigned int n_virtual,
@@ -93,7 +93,7 @@ namespace kernel
 /*!
  * \param d_tmp_pos Temporary positions
  * \param d_tmp_vel Temporary velocities
- * \param d_track_bounded_particles Particle tracking - in/out of given geometry
+ * \param d_keep_particles Particle tracking - in/out of given geometry
  * \param lo Left extrema of the sim-box
  * \param hi Right extrema of the sim-box
  * \param first_tag First tag (rng argument)
@@ -114,7 +114,7 @@ namespace kernel
 template<class Geometry>
 __global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
                                        Scalar4 *d_tmp_vel,
-                                       bool *d_track_bounded_particles,
+                                       bool *d_keep_particles,
                                        const Scalar3 lo,
                                        const Scalar3 hi,
                                        const unsigned int first_tag,
@@ -143,7 +143,7 @@ __global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
                                   __int_as_scalar(type));
 
     // check if particle is inside/outside the confining geometry
-    d_track_bounded_particles[idx] = geom.isOutside(pos);
+    d_keep_particles[idx] = geom.isOutside(pos);
 
     hoomd::NormalDistribution<Scalar> gen(vel_factor, 0.0);
     Scalar3 vel;
@@ -160,12 +160,12 @@ __global__ void draw_virtual_particles(Scalar4 *d_tmp_pos,
  * Using one thread per particle, we assign the particle position, velocity and tags using the compacted indices
  * array as an input.
  */
-__global__ void copy_virtual_particles(unsigned int *d_compact_indices,
-                              Scalar4 *d_positions,
-                              Scalar4 *d_velocities,
+__global__ void copy_virtual_particles(unsigned int *d_keep_indices,
+                              Scalar4 *d_pos,
+                              Scalar4 *d_vel,
                               unsigned int *d_tags,
-                              const Scalar4 *d_temporary_positions,
-                              const Scalar4 *d_temporary_velocities,
+                              const Scalar4 *d_tmp_pos,
+                              const Scalar4 *d_tmp_vel,
                               const unsigned int first_idx,
                               const unsigned int first_tag,
                               const unsigned int n_virtual,
@@ -176,12 +176,12 @@ __global__ void copy_virtual_particles(unsigned int *d_compact_indices,
     if (idx >= n_virtual)
         return;
 
-    // d_compact_indices holds accepted particle indices from the temporary arrays
-    const unsigned int pidx = d_compact_indices[idx];
-    const unsigned int real_idx = first_idx + idx;
-    d_positions[real_idx] = d_temporary_positions[pidx];
-    d_velocities[real_idx] = d_temporary_velocities[pidx];
-    d_tags[real_idx] = first_tag + idx;
+    // d_keep_indices holds accepted particle indices from the temporary arrays
+    const unsigned int tmp_pidx = d_keep_indices[idx];
+    const unsigned int pidx = first_idx + idx;
+    d_pos[pidx] = d_tmp_pos[tmp_pidx];
+    d_vel[pidx] = d_tmp_vel[tmp_pidx];
+    d_tags[pidx] = first_tag + idx;
     }
 
 } // end namespace kernel
@@ -208,7 +208,7 @@ cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, co
     unsigned int run_block_size = min(args.block_size, max_block_size);
     dim3 grid(args.N_virt_max / run_block_size + 1);
     mpcd::gpu::kernel::draw_virtual_particles<Geometry><<<grid, run_block_size>>>(args.d_tmp_pos, args.d_tmp_vel,
-    args.d_track_bounded_particles, args.lo, args.hi, args.first_tag, args.vel_factor, args.filler_id, args.type,
+    args.d_keep_particles, args.lo, args.hi, args.first_tag, args.vel_factor, args.filler_id, args.type,
     args.N_virt_max, args.timestep, args.seed, args.block_size, geom);
 
     return cudaSuccess;
@@ -217,23 +217,23 @@ cudaError_t draw_virtual_particles(const draw_virtual_particles_args_t& args, co
 
 cudaError_t compact_virtual_particle_indices(void *d_tmp,
                                             size_t& tmp_bytes,
-                                            const bool *d_flags,
-                                            const unsigned int num_items,
-                                            unsigned int *d_out,
-                                            unsigned int *d_num_selected_out)
+                                            const bool *d_keep_particles,
+                                            const unsigned int num_particles,
+                                            unsigned int *d_keep_indices,
+                                            unsigned int *d_num_keep)
     {
     HOOMD_CUB::CountingInputIterator<int> itr(0);
-    HOOMD_CUB::DeviceSelect::Flagged(d_tmp, tmp_bytes, itr, d_flags, d_out, d_num_selected_out, num_items);
+    HOOMD_CUB::DeviceSelect::Flagged(d_tmp, tmp_bytes, itr, d_keep_particles, d_keep_indices, d_num_keep, num_particles);
     return cudaSuccess;
     }
 
 
-cudaError_t copy_virtual_particles(unsigned int *d_compact_indices,
-                          Scalar4 *d_positions,
-                          Scalar4 *d_velocities,
+cudaError_t copy_virtual_particles(unsigned int *d_keep_indices,
+                          Scalar4 *d_pos,
+                          Scalar4 *d_vel,
                           unsigned int *d_tags,
-                          const Scalar4 *d_temporary_positions,
-                          const Scalar4 *d_temporary_velocities,
+                          const Scalar4 *d_tmp_pos,
+                          const Scalar4 *d_tmp_vel,
                           const unsigned int first_idx,
                           const unsigned int first_tag,
                           const unsigned int n_virtual,
@@ -249,9 +249,9 @@ cudaError_t copy_virtual_particles(unsigned int *d_compact_indices,
 
     unsigned int run_block_size = min(block_size, max_block_size);
     dim3 grid(n_virtual / run_block_size + 1);
-    mpcd::gpu::kernel::copy_virtual_particles<<<grid, run_block_size>>>(d_compact_indices, d_positions,
-                                                                        d_velocities, d_tags,
-                                                                        d_temporary_positions, d_temporary_velocities,
+    mpcd::gpu::kernel::copy_virtual_particles<<<grid, run_block_size>>>(d_keep_indices, d_pos,
+                                                                        d_vel, d_tags,
+                                                                        d_tmp_pos, d_tmp_vel,
                                                                         first_idx, first_tag, n_virtual, block_size);
 
     return cudaSuccess;
