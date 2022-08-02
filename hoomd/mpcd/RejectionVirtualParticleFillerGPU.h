@@ -5,7 +5,10 @@
 
 /*!
  * \file mpcd/RejectionVirtualParticleFillerGPU.h
- * \brief Definition of virtual particle filler for mpcd::detail::SphereGeometry on the GPU. (for now)
+ * \brief Definition of virtual particle filler for all geometries on the GPU.
+ * mpcd::detail::SphereGeometry
+ * mpcd::detail::SlitGeometry
+ * mpcd::detail::SlitPoreGeometry
  */
 
 #ifndef MPCD_REJECTION_VIRTUAL_PARTICLE_FILLER_GPU_H_
@@ -27,7 +30,7 @@
 namespace mpcd
 {
 
-//! Adds virtual particles to the MPCD particle data for SphereGeometry using the GPU
+//! Adds virtual particles to the MPCD particle data for various confining geometries using the GPU
 template<class Geometry>
 class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::RejectionVirtualParticleFiller<Geometry>
     {
@@ -64,9 +67,9 @@ class PYBIND11_EXPORT RejectionVirtualParticleFillerGPU : public mpcd::Rejection
         void fill(unsigned int timestep);
 
     private:
-        GPUArray<bool> m_keep_particles; // Track if the particles are in/out of bounds for geometry
+        GPUArray<bool> m_keep_particles; // Track whether particles are in/out of bounds for geometry
         GPUArray<unsigned int> m_keep_indices; // Indices for particles out of bound for geometry
-        GPUFlags<unsigned int> m_num_keep;
+        GPUFlags<unsigned int> m_num_keep; // Number of particles to keep
         std::unique_ptr<::Autotuner> m_tuner1;   //!< Autotuner for drawing particles
         std::unique_ptr<::Autotuner> m_tuner2;   //!< Autotuner for particle tagging
     };
@@ -81,7 +84,7 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     const Scalar3 hi = box.getHi();
     const unsigned int N_virt_max = round(this->m_density*box.getVolume());
 
-    // Step 1: Create temporary arrays
+    // Step 1: Create temporary arrays and array-handles for storing and accessing temporary data
     if (N_virt_max > this->m_tmp_pos.getNumElements())
         {
         GPUArray<Scalar4> tmp_pos(N_virt_max, this->m_exec_conf);
@@ -124,7 +127,7 @@ void RejectionVirtualParticleFillerGPU<Geometry>::fill(unsigned int timestep)
     m_tuner1->end();
 
 
-    // compact particle indices
+    // compact particle indices - to keep
     {
     // 1. Determine storage requirement by using a NULL ptr as input to cub function
     void* d_tmp_storage = NULL;

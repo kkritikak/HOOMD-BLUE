@@ -581,11 +581,10 @@ class sphere(_streaming_method):
         period (int): Number of integration steps between collisions
 
     The sphere geometry models a fluid confined inside a sphere, centered at the
-    origin and with radius R. The solvent particles are reflected from the spherical
+    origin and with radius R. Solvent particles are reflected from the spherical
     walls using appropriate boundary conditions.
 
     Examples::
-
         stream.sphere(period=10, R=30.)
 
     """
@@ -594,7 +593,7 @@ class sphere(_streaming_method):
 
         _streaming_method.__init__(self, period)
 
-        self.metadata_fields += ['R','boundary']
+        self.metadata_fields += ['R', 'boundary']
         self.R = R
         self.boundary = boundary
 
@@ -609,7 +608,7 @@ class sphere(_streaming_method):
                                  hoomd.context.current.system.getCurrentTimeStep(),
                                  self.period,
                                  0,
-                                 _mpcd.SphereGeometry(R,bc))
+                                 _mpcd.SphereGeometry(R, bc))
 
     def set_filler(self, density, kT, seed, type='A'):
         r""" Add virtual particles outside the spherical confinement
@@ -620,15 +619,19 @@ class sphere(_streaming_method):
             seed (int): Seed to pseudo-random number generator for virtual particles.
             type (str): Type of the MPCD particles to fill with.
 
-        The virtual particle filler draws particles in *all space outside* the spherical wall
-        since it would be very tricky to determine the number of virtual particles to add
-        close to the wall (individual ranks) due to the curvature of the geometry. The particle
-        positions are drawn from an uniform distribution and the velocities from distribution
-        consistent with *kT* and with the given *density*. Typically, the virtual particle
-        density and temperature are set to the same conditions as the solvent.
+        The virtual particle filler draws particles in *all space outside* the spherical wall since
+        it would be very tricky to determine the number of virtual particles to add close to the wall
+        (individual ranks) due to the curvature of the geometry. The particle positions are drawn
+        from an uniform distribution and the velocities from distribution consistent with *kT* and
+        with the given *density*. Typically, the virtual particle density and temperature are set to
+        the same conditions as the solvent.
 
-        The virtual particles will act as a weak thermostat on the fluid, and so energy
-        is no longer conserved. Momentum will also be sunk into the walls.
+        The virtual particles will act as a weak thermostat on the fluid, and so energy is no longer
+        conserved. Momentum will also be sunk into the walls.
+
+        *NOTE*: Simulation box-size should be chosen carefully. The box should be just large enough to
+        hold the sphere+padding layer of mpcd cells (best case single padding layer). Performance of the
+        filler degrades with increasing box-size, since we are using rejection sampling method.
 
         Example:
 

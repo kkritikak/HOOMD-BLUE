@@ -167,7 +167,9 @@ PYBIND11_MODULE(_mpcd, m)
     mpcd::detail::export_VirtualParticleFiller(m);
     mpcd::detail::export_SlitGeometryFiller(m);
     mpcd::detail::export_SlitPoreGeometryFiller(m);
-    // TODO: We need to decide later if we want to have the rejection filler for slit and slit-pore geometry
+    // For slit and slit-pore geometries, manual fillers work better. Therefore we keep them.
+    // However, for the sake of generality of operation, we also keep the option for switching to rejection filler
+    // available.
     mpcd::detail::export_RejectionVirtualParticleFiller<mpcd::detail::SlitGeometry>(m);
     mpcd::detail::export_RejectionVirtualParticleFiller<mpcd::detail::SlitPoreGeometry>(m);
     mpcd::detail::export_RejectionVirtualParticleFiller<mpcd::detail::SphereGeometry>(m);
