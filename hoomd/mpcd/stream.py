@@ -358,8 +358,10 @@ class slit(_streaming_method):
         if self._filler is None:
             if not hoomd.context.exec_conf.isCUDAEnabled():
                 fill_class = _mpcd.SlitGeometryFiller
+                # fill_class = _mpcd.SlitRejectionFiller
             else:
                 fill_class = _mpcd.SlitGeometryFillerGPU
+                # fill_class = _mpcd.SlitRejectionFillerGPU
             self._filler = fill_class(hoomd.context.current.mpcd.data,
                                       density,
                                       type_id,
@@ -509,8 +511,10 @@ class slit_pore(_streaming_method):
         if self._filler is None:
             if not hoomd.context.exec_conf.isCUDAEnabled():
                 fill_class = _mpcd.SlitPoreGeometryFiller
+                # fill_class = _mpcd.SlitPoreRejectionFiller
             else:
                 fill_class = _mpcd.SlitPoreGeometryFillerGPU
+                # fill_class = _mpcd.SlitPoreRejectionFillerGPU
             self._filler = fill_class(hoomd.context.current.mpcd.data,
                                       density,
                                       type_id,
