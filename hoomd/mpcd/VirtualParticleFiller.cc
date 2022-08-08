@@ -20,7 +20,8 @@ mpcd::VirtualParticleFiller::VirtualParticleFiller(std::shared_ptr<mpcd::SystemD
       m_exec_conf(m_pdata->getExecConf()),
       m_mpcd_pdata(sysdata->getParticleData()),
       m_cl(sysdata->getCellList()),
-      m_density(density), m_type(type), m_T(T), m_seed(seed), m_N_fill(0), m_first_tag(0)
+      m_filler_id(s_filler_count++),
+      m_density(density), m_type(type), m_T(T), m_seed(seed)
     {
     #ifdef ENABLE_MPI
     // synchronize seed from root across all ranks in MPI in case users has seeded from system time or entropy
@@ -31,31 +32,7 @@ mpcd::VirtualParticleFiller::VirtualParticleFiller(std::shared_ptr<mpcd::SystemD
     #endif // ENABLE_MPI
     }
 
-void mpcd::VirtualParticleFiller::fill(unsigned int timestep)
-    {
-    // update the fill volume
-    computeNumFill();
-
-    // in mpi, do a prefix scan on the tag offset in this range
-    // then shift the first tag by the current number of particles, which ensures a compact tag array
-    m_first_tag = 0;
-    #ifdef ENABLE_MPI
-    if (m_exec_conf->getNRanks() > 1)
-        {
-        // scan the number to fill to get the tag range I own
-        MPI_Exscan(&m_N_fill, &m_first_tag, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
-        }
-    #endif // ENABLE_MPI
-    m_first_tag += m_mpcd_pdata->getNGlobal() + m_mpcd_pdata->getNVirtualGlobal();
-
-    // add the new virtual particles locally
-    m_mpcd_pdata->addVirtualParticles(m_N_fill);
-
-    // draw the particles consistent with those tags
-    drawParticles(timestep);
-
-    m_mpcd_pdata->invalidateCellCache();
-    }
+unsigned int mpcd::VirtualParticleFiller::s_filler_count = 0;
 
 void mpcd::VirtualParticleFiller::setDensity(Scalar density)
     {
@@ -75,6 +52,20 @@ void mpcd::VirtualParticleFiller::setType(unsigned int type)
         throw std::runtime_error("Invalid type id");
         }
     m_type = type;
+    }
+
+unsigned int mpcd::VirtualParticleFiller::computeFirstTag(unsigned int N_fill)
+    {
+    unsigned int first_tag = 0;
+    #ifdef ENABLE_MPI
+    if (m_exec_conf->getNRanks() > 1)
+        {
+        // scan the number to fill to get the tag range I own
+        MPI_Exscan(&N_fill, &first_tag, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
+        }
+    #endif // ENABLE_MPI
+    first_tag += m_mpcd_pdata->getNGlobal() + m_mpcd_pdata->getNVirtualGlobal();
+    return first_tag;
     }
 
 /*!

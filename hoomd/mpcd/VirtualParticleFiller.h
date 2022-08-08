@@ -43,7 +43,7 @@ class PYBIND11_EXPORT VirtualParticleFiller
         virtual ~VirtualParticleFiller() {}
 
         //! Fill up virtual particles
-        void fill(unsigned int timestep);
+        virtual void fill(unsigned int timestep) {}
 
         //! Sets the profiler for the integration method to use
         virtual void setProfiler(std::shared_ptr<Profiler> prof)
@@ -79,6 +79,9 @@ class PYBIND11_EXPORT VirtualParticleFiller
             m_seed = seed;
             }
 
+        //! Compute first fill particle tag owned by each rank
+        unsigned int computeFirstTag(unsigned int N_fill);
+
     protected:
         std::shared_ptr<::SystemDefinition> m_sysdef;                   //!< HOOMD system definition
         std::shared_ptr<::ParticleData> m_pdata;                        //!< HOOMD particle data
@@ -91,15 +94,10 @@ class PYBIND11_EXPORT VirtualParticleFiller
         unsigned int m_type;            //!< Fill type
         std::shared_ptr<::Variant> m_T; //!< Temperature for filled particles
         unsigned int m_seed;            //!< Seed for PRNG
+        unsigned int m_filler_id;       //!< Filler unique id
 
-        unsigned int m_N_fill;      //!< Number of particles to fill locally
-        unsigned int m_first_tag;   //!< First tag of locally held particles
-
-        //! Compute the total number of particles to fill
-        virtual void computeNumFill() {}
-
-        //! Draw particles within the fill volume
-        virtual void drawParticles(unsigned int timestep) {}
+    private:
+        static unsigned int s_filler_count; //!< Number of fillers attached
     };
 
 namespace detail

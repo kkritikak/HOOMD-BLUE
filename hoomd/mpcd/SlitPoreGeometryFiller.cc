@@ -20,7 +20,7 @@ mpcd::SlitPoreGeometryFiller::SlitPoreGeometryFiller(std::shared_ptr<mpcd::Syste
                                              std::shared_ptr<::Variant> T,
                                              unsigned int seed,
                                              std::shared_ptr<const mpcd::detail::SlitPoreGeometry> geom)
-    : mpcd::VirtualParticleFiller(sysdata, density, type, T, seed),
+    : mpcd::ManualVirtualParticleFiller(sysdata, density, type, T, seed),
       m_num_boxes(0), m_boxes(MAX_BOXES, m_exec_conf), m_ranges(MAX_BOXES, m_exec_conf)
     {
     m_exec_conf->msg->notice(5) << "Constructing MPCD SlitPoreGeometryFiller" << std::endl;
@@ -159,11 +159,10 @@ void mpcd::SlitPoreGeometryFiller::drawParticles(unsigned int timestep)
     unsigned int boxlast = 0;
 
     // index to start filling from
-    const unsigned int first_idx = m_mpcd_pdata->getN() + m_mpcd_pdata->getNVirtual() - m_N_fill;
     for (unsigned int i=0; i < m_N_fill; ++i)
         {
         const unsigned int tag = m_first_tag + i;
-        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::SlitPoreGeometryFiller, m_seed, tag, timestep);
+        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::SlitPoreGeometryFiller, m_seed, tag, timestep, m_filler_id);
 
         // advanced past end of this box range, take the next
         if (i >= boxlast)
@@ -177,7 +176,7 @@ void mpcd::SlitPoreGeometryFiller::drawParticles(unsigned int timestep)
             hi.z = fillbox.w;
             }
 
-        const unsigned int pidx = first_idx + i;
+        const unsigned int pidx = m_first_idx + i;
         h_pos.data[pidx] = make_scalar4(hoomd::UniformDistribution<Scalar>(lo.x,hi.x)(rng),
                                         hoomd::UniformDistribution<Scalar>(lo.y,hi.y)(rng),
                                         hoomd::UniformDistribution<Scalar>(lo.z,hi.z)(rng),

@@ -13,6 +13,7 @@ set(_mpcd_sources
     Communicator.cc
     ExternalField.cc
     Integrator.cc
+    ManualVirtualParticleFiller.cc
     ParticleData.cc
     ParticleDataSnapshot.cc
     SlitGeometryFiller.cc
@@ -40,9 +41,11 @@ set(_mpcd_headers
     CommunicatorUtilities.h
     ExternalField.h
     Integrator.h
+    ManualVirtualParticleFiller.h
     ParticleData.h
     ParticleDataSnapshot.h
     ParticleDataUtilities.h
+    RejectionVirtualParticleFiller.h
     SlitGeometry.h
     SlitGeometryFiller.h
     SlitPoreGeometry.h
@@ -83,6 +86,8 @@ list(APPEND _mpcd_headers
     ConfinedStreamingMethodGPU.cuh
     ConfinedStreamingMethodGPU.h
     ParticleData.cuh
+    RejectionVirtualParticleFillerGPU.cuh
+    RejectionVirtualParticleFillerGPU.h
     SlitGeometryFillerGPU.cuh
     SlitGeometryFillerGPU.h
     SlitPoreGeometryFillerGPU.cuh
@@ -103,6 +108,7 @@ set(_mpcd_cu_sources
     CommunicatorGPU.cu
     ExternalField.cu
     ParticleData.cu
+    RejectionVirtualParticleFillerGPU.cu
     SlitGeometryFillerGPU.cu
     SlitPoreGeometryFillerGPU.cu
     SorterGPU.cu

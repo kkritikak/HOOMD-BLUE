@@ -13,6 +13,7 @@ set(TEST_LIST
     slit_geometry_filler
     slit_pore_geometry_filler
     sorter
+    sphere_geometry_rejection_filler
     srd_collision_method
     streaming_method
     virtual_particle
@@ -37,6 +38,7 @@ if(ENABLE_MPI)
     ADD_TO_MPI_TESTS(cell_thermo_compute 8)
     ADD_TO_MPI_TESTS(slit_geometry_filler 8)
     ADD_TO_MPI_TESTS(slit_pore_geometry_filler 8)
+    ADD_TO_MPI_TESTS(sphere_geometry_rejection_filler 8)
     endif()
 endif()
 
