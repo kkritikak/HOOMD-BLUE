@@ -358,10 +358,8 @@ class slit(_streaming_method):
         if self._filler is None:
             if not hoomd.context.exec_conf.isCUDAEnabled():
                 fill_class = _mpcd.SlitGeometryFiller
-                # fill_class = _mpcd.SlitRejectionFiller
             else:
                 fill_class = _mpcd.SlitGeometryFillerGPU
-                # fill_class = _mpcd.SlitRejectionFillerGPU
             self._filler = fill_class(hoomd.context.current.mpcd.data,
                                       density,
                                       type_id,
@@ -511,10 +509,8 @@ class slit_pore(_streaming_method):
         if self._filler is None:
             if not hoomd.context.exec_conf.isCUDAEnabled():
                 fill_class = _mpcd.SlitPoreGeometryFiller
-                # fill_class = _mpcd.SlitPoreRejectionFiller
             else:
                 fill_class = _mpcd.SlitPoreGeometryFillerGPU
-                # fill_class = _mpcd.SlitPoreRejectionFillerGPU
             self._filler = fill_class(hoomd.context.current.mpcd.data,
                                       density,
                                       type_id,
@@ -622,16 +618,16 @@ class sphere(_streaming_method):
         The virtual particle filler draws particles in *all space outside* the spherical wall since
         it would be very tricky to determine the number of virtual particles to add close to the wall
         (individual ranks) due to the curvature of the geometry. The particle positions are drawn
-        from an uniform distribution and the velocities from distribution consistent with *kT* and
-        with the given *density*. Typically, the virtual particle density and temperature are set to
+        from an uniform distribution and the velocities from distribution consistent with ``kT`` and
+        with the given ``density``. Typically, the virtual particle density and temperature are set to
         the same conditions as the solvent.
 
         The virtual particles will act as a weak thermostat on the fluid, and so energy is no longer
         conserved. Momentum will also be sunk into the walls.
 
-        *NOTE*: Simulation box-size should be chosen carefully. The box should be just large enough to
-        hold the sphere+padding layer of mpcd cells (best case single padding layer). Performance of the
-        filler degrades with increasing box-size, since we are using rejection sampling method.
+        NOTE: The simulation box-size should be chosen carefully. The box should be just large enough to
+        hold the sphere+padding layer of cells (best case single padding layer). Performance of the
+        filler degrades with increasing box size, since we are using rejection sampling method.
 
         Example:
 
