@@ -15,9 +15,13 @@
 namespace mpcd
 {
 
-//! Adds virtual particles to MPCD particle data for "sphere" geometry
+//! Adds virtual particles to MPCD particle data for various geometries (sphere, slit, slit-pore)
 /*!
- * <detailed description needed>
+ * Here we implement virtual particle filler using rejection sampling method. It is a simple method
+ * where we draw positions in 3 dimensions from an uniform distribution and accept particles that
+ * lie outside the confinement defined by template geometry.
+ * A merit of this method comes from the fact that it works on any geometry that is being used.
+ * However, this method degrades in performance as simulation box size increases in size.
 */
 
 template<class Geometry>
