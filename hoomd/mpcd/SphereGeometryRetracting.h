@@ -32,16 +32,16 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
     public:
         //! Constructor
         /*!
-         * \param R confinement radius initially
+         * \param R confinement radius initially, which is defined as m_R0
          * \param bc Boundary condition at the wall (slip or no-slip)
 	 * \param V Velocity of spherical container
 	 * \param t is time
-	 * \\m_R0 is the radius(R0) of container at time t, R = R0 - V*(t-t'), t' is the initial time(taking it as zero)
-	 * \so R = R0 -V*t and R0 = R + V*t
-	 * \m_R02 is R0*R0
+	 * \\m_R is the radius of container at time t, m_R0( intial radius) = m_R( radius at that time step) - V*(t-t'), t' is the initial time(taking it as zero)
+	 * \so m_R0 = m_R -V*t and m_R = m_R0(initial R) + V*t
+	 * \m_R2 is m_R*m_R
          */
         HOSTDEVICE SphereGeometry(Scalar R, Scalar V, Scalar t, boundary bc)
-            : m_R0(R+V*t), m_R02((R+V*t)*(R+V*t)), m_bc(bc), m_V(V), m_V2(V*V), m_R(R)
+            : m_R(R+V*t), m_R2((R+V*t)*(R+V*t)), m_bc(bc), m_V(V), m_V2(V*V), m_R0(R)
             { }
 
         //! Detect collision between the particle and the boundary
@@ -65,7 +65,7 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
              */
             const Scalar r2 = dot(pos,pos);
             const Scalar v2 = dot(vel,vel);
-            if (r2 <= m_R02 || v2 == Scalar(0))
+            if (r2 <= m_R2 || v2 == Scalar(0))
                {
                dt = Scalar(0);
                return false;
@@ -73,16 +73,16 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
 
             /*
              * Find the time(dt) particle spent outside after collision with the sphere . This time is
-             * found by backtracking the position, r* = r-dt*v, and solving for dt when dot(r*,r*) = R^2.
-	     * R here in the formula is the radius of container when collision occured(R = R0 - V*dt), 
-	     * where R0 is the radius of sphere at time when it already travelled outside(position r*)
+             * found by backtracking the position, r* = r-dt*v, and solving for dt when dot(r*,r*) = R0^2.
+	     * R0 here in the formula is the radius of container when collision occured(R0 = R - V*dt), 
+	     * where R is the radius of sphere at time when it already travelled outside(position r*)
              * This gives a quadratic equation in dt; the smaller root is the solution.
              */
 
             const Scalar rv = dot(pos,vel);
-	    const Scalar RV = m_R0*m_V;   //RV is R0*V
+	    const Scalar RV = m_R*m_V;   //RV is R*V
 	    const Scalar rv_RV = rv - RV;  //rv_RV is rv - RV
-            dt = (rv_RV – fast::sqrt(rv_RV*rv_RV-(v2-m_V2)*(r2-m_R02)))/(v2-m_V2);
+            dt = (rv_RV – fast::sqrt(rv_RV*rv_RV-(v2-m_V2)*(r2-m_R2)))/(v2-m_V2);
 
             // backtrack the particle for time dt to get to point of contact
             pos -= vel*dt;
@@ -114,7 +114,7 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
                  * v' = -v_perp + v_para + V_interface = v - 2*v_perp + V_interface
                 */
 		const Scalar3 V_v = (m_V*pos/(fast::sqrt(r2)));
-                const Scalar3 vperp = (dot(vel,pos)/m_R02)*pos;
+                const Scalar3 vperp = (dot(vel,pos)/m_R2)*pos;
                 vel -= Scalar(2)*vperp - V_v;
                 }
             return true;
@@ -127,7 +127,7 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
          */
         HOSTDEVICE bool isOutside(const Scalar3& pos) const
             {
-            return dot(pos,pos) > m_R02;
+            return dot(pos,pos) > m_R2;
             }
 
         //! Validate that the simulation box is large enough for the geometry
@@ -148,9 +148,9 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
             hi.x = box.getHi().x; hi.y = box.getHi().y; hi.z = box.getHi().z;
             lo.x = box.getLo().x; lo.y = box.getLo().y; lo.z = box.getLo().z;
 
-            return ((hi.x-m_R) >= cell_size && (-lo.x-m_R) >= cell_size &&
-                    (hi.y-m_R) >= cell_size && (-lo.y-m_R) >= cell_size &&
-                    (hi.y-m_R) >= cell_size && (-lo.y-m_R) >= cell_size );
+            return ((hi.x-m_R0) >= cell_size && (-lo.x-m_R0) >= cell_size &&
+                    (hi.y-m_R0) >= cell_size && (-lo.y-m_R0) >= cell_size &&
+                    (hi.y-m_R0) >= cell_size && (-lo.y-m_R0) >= cell_size );
             }
 
         //! Get Sphere radius
@@ -159,7 +159,7 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
          */
         HOSTDEVICE Scalar getR() const
             {
-            return m_R0;
+            return m_R;
             }
 
         //! Get the wall boundary condition
@@ -180,12 +180,12 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
         #endif // NVCC
 
     private:
-        const Scalar m_R0;       //!< Sphere radius
-        const Scalar m_R02;      //!< Square of sphere radius
+        const Scalar m_R;       //!< Sphere radius
+        const Scalar m_R2;      //!< Square of sphere radius
         const boundary m_bc;    //!< Boundary condition
 	const Scalar m_V;       //!<Velocity of container
 	const Scalar m_V2;      //!<square of velocity of spherical container
-	const Scalar m_R;      //!initial radius of spherical container
+	const Scalar m_R0;      //!initial radius of spherical container
     };
 
 } // end namespace detail
