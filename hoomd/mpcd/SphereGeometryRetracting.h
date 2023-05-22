@@ -40,7 +40,7 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
 	 * \so m_R0 = m_R -V*t and m_R = m_R0(initial R) + V*t
 	 * \m_R2 is m_R*m_R
          */
-        HOSTDEVICE SphereGeometry(Scalar R, Scalar V, Scalar t, boundary bc)
+        HOSTDEVICE SphereGeometryRetracting(Scalar R, Scalar V, Scalar t, boundary bc)
             : m_R(R+V*t), m_R2((R+V*t)*(R+V*t)), m_bc(bc), m_V(V), m_V2(V*V), m_R0(R)
             { }
 
