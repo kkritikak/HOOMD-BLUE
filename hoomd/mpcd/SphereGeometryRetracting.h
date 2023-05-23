@@ -22,7 +22,7 @@ namespace detail
 {
 //! Sphere geometry Retracting
 /*!
- * This models a fluid confined inside a sphere which is moving with velocity V, centered at the origin and have radius R at mpcd collision time.
+ * This models a fluid confined inside a sphere(retracting with velocity V), centered at the origin and have radius R at mpcd collision time.
  *
  * If a particle leaves the sphere in a single simulation step, the particle is backtracked to the point on the
  * surface from which it exited the surface and then reflected according to appropriate boundary condition.
