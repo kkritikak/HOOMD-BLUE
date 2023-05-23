@@ -20,9 +20,9 @@ namespace mpcd
 {
 namespace detail
 {
-//! Sphere geometry
+//! Sphere geometry Retracting
 /*!
- * This models a fluid confined inside a sphere, centered at the origin and with radius R.
+ * This models a fluid confined inside a sphere which is moving with velocity V, centered at the origin and have radius R at mpcd collision time.
  *
  * If a particle leaves the sphere in a single simulation step, the particle is backtracked to the point on the
  * surface from which it exited the surface and then reflected according to appropriate boundary condition.
@@ -70,7 +70,7 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
             /*
              * Find the time remaining when the particle collided with the sphere of radius R. This time is
              * found by backtracking the position, r* = r-dt*v, and solving for dt when dot(r*,r*) = R'^2.
-	     * where R' is the radius of container when particle collided with container.
+	     * where R' is the radius of container when particle collided with container,which will be R' =  R - V*dt
              * This gives a quadratic equation in dt; the smaller root is the solution.
              */
 
@@ -89,7 +89,7 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
              * The perpendicular and parallel components of the velocity are:
              * v_perp = (v.n)n = (v.r/R^2)r
              * v_para = v-v_perp
-	     * The velocity of interface vector component is defined by:
+	     * The vector component of  velocity of interface is:
 	     * V_vec(interface)=V*(unit vector perpendicular to surface which is calculated by pos)
 	     * V_vec(interface)=V*pos/mod(pos)=V*pos/R  
              */
