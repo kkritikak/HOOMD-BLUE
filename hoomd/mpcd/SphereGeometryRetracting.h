@@ -22,7 +22,7 @@ namespace detail
 {
 //! Sphere geometry Retracting
 /*!
- * This models a fluid confined inside a sphere(retracting with velocity V), centered at the origin and have radius R at mpcd collision time.
+ * This models a fluid confined inside a sphere(moving with velocity V), centered at the origin and have radius R at mpcd collision time.
  *
  * If a particle leaves the sphere in a single simulation step, the particle is backtracked to the point on the
  * surface from which it exited the surface and then reflected according to appropriate boundary condition.
@@ -89,9 +89,7 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
              * The perpendicular and parallel components of the velocity are:
              * v_perp = (v.n)n = (v.r/R^2)r
              * v_para = v-v_perp
-	     * The vector component of  velocity of interface is:
-	     * V_vec(interface)=V*(unit vector perpendicular to surface which is calculated by pos)
-	     * V_vec(interface)=V*pos/mod(pos)=V*pos/R  
+	     * V_vec is the vector component of V(velocity of interface)
              */
             if (m_bc == boundary::no_slip)
                 {
