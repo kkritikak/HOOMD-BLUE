@@ -27,16 +27,17 @@ namespace detail
  * If a particle leaves the sphere in a single simulation step, the particle is backtracked to the point on the
  * surface from which it exited the surface and then reflected according to appropriate boundary condition.
  */
-class __attribute__((visibility("default"))) SphereGeometry
+class __attribute__((visibility("default"))) SphereGeometryRetracting
     {
     public:
         //! Constructor
         /*!
-         * \param R confinement radius
+         * \param R confinement radius at that time
          * \param bc Boundary condition at the wall (slip or no-slip)
+	 * \param V is the velocity of interface
          */
-        HOSTDEVICE SphereGeometry(Scalar R, boundary bc)
-            : m_R(R), m_R2(R*R), m_bc(bc)
+        HOSTDEVICE SphereGeometryRetracting(Scalar R, Scalar V, boundary bc)
+            : m_R(R), m_R2(R*R), m_bc(bc), m_V(V), m_V2(V*V)
             { }
 
         //! Detect collision between the particle and the boundary
@@ -73,7 +74,9 @@ class __attribute__((visibility("default"))) SphereGeometry
              */
 
             const Scalar rv = dot(pos,vel);
-            dt = (rv - fast::sqrt(rv*rv-v2*(r2-m_R2)))/v2;
+	    const Scalar RV = m_R*m_V;
+	    const Scalar rv_RV = rv - RV;
+            dt = (rv_RV - fast::sqrt(rv_RV*rv_RV-(v2-m_V2)*(r2-m_R2)))/(v2-m_V2);
 
             // backtrack the particle for time dt to get to point of contact
             pos -= vel*dt;
@@ -91,7 +94,8 @@ class __attribute__((visibility("default"))) SphereGeometry
                 /* No-slip and no penetration requires reflection of both parallel and perpendicular components.
                  * This results in just flipping of all the velocity components.
                  */
-                vel = -vel;
+		const Scalar3 V_v = V*pos/(fast::sqrt(r2));
+                vel = -vel + Scalar(2)*V_v;
                 }
             else if (m_bc == boundary::slip)
                 {
@@ -100,8 +104,9 @@ class __attribute__((visibility("default"))) SphereGeometry
                  * The new velocity v' is:
                  * v' = -v_perp + v_para = v - 2*v_perp
                 */
+		const Scalar3 V_v = V*pos/(fast::sqrt(r2);
                 const Scalar3 vperp = (dot(vel,pos)/m_R2)*pos;
-                vel -= Scalar(2)*vperp;
+                vel -= Scalar(2)*vperp - Scalar(2)*V_v;
                 }
             return true;
             }
@@ -161,7 +166,7 @@ class __attribute__((visibility("default"))) SphereGeometry
         //! Get the unique name of this geometry
         static std::string getName()
             {
-            return std::string("Sphere");
+            return std::string("SphereRetracting");
             }
         #endif // NVCC
 
@@ -169,6 +174,8 @@ class __attribute__((visibility("default"))) SphereGeometry
         const Scalar m_R;       //!< Sphere radius
         const Scalar m_R2;      //!< Square of sphere radius
         const boundary m_bc;    //!< Boundary condition
+	const Scalar m_V;       //!<velocity of interface
+	const Scalar m_V2;      //square of interface velocity
     };
 
 } // end namespace detail
