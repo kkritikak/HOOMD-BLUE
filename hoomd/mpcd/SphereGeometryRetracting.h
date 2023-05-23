@@ -91,8 +91,10 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
              */
             if (m_bc == boundary::no_slip)
                 {
-                /* No-slip and no penetration requires reflection of both parallel and perpendicular components.
-                 * This results in just flipping of all the velocity components.
+                /* No-slip and no penetration requires reflection of parallel component and perpendicular component relative to interface .
+		 * V_perp(new) = -(V_perp(old)-V_interface)+V_interface 
+		 * V_para(new) = -V_para(old)
+                 * This results in just V_new = - v_old + 2*V_interface.
                  */
 		const Scalar3 V_v = V*pos/(fast::sqrt(r2));
                 vel = -vel + Scalar(2)*V_v;
@@ -102,7 +104,9 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
                 /*
                  * Only no-penetration condition is enforced, so only v_perp is reflected.
                  * The new velocity v' is:
-                 * v' = -v_perp + v_para = v - 2*v_perp
+                 * v' = v_perp(new) + v_para = -v_perp(old) + 2*V_interface + V_para(old)
+		 * v' = -v_perp(old) + 2*V_interface + v_old-v_perp(old)
+		 * v' = v_old - 2*v_perp +2*V_interface
                 */
 		const Scalar3 V_v = V*pos/(fast::sqrt(r2);
                 const Scalar3 vperp = (dot(vel,pos)/m_R2)*pos;
@@ -175,7 +179,7 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
         const Scalar m_R2;      //!< Square of sphere radius
         const boundary m_bc;    //!< Boundary condition
 	const Scalar m_V;       //!<velocity of interface
-	const Scalar m_V2;      //square of interface velocity
+	const Scalar m_V2;      //!<square of interface velocity
     };
 
 } // end namespace detail
