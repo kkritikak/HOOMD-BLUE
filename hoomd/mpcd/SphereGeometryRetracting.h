@@ -32,7 +32,7 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
     public:
         //! Constructor
         /*!
-         * \param R confinement radius at that time
+         * \param R confinement radius at mpcd collision time
          * \param bc Boundary condition at the wall (slip or no-slip)
 	 * \param V is the velocity of interface
          */
@@ -69,7 +69,8 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
 
             /*
              * Find the time remaining when the particle collided with the sphere of radius R. This time is
-             * found by backtracking the position, r* = r-dt*v, and solving for dt when dot(r*,r*) = R^2.
+             * found by backtracking the position, r* = r-dt*v, and solving for dt when dot(r*,r*) = R'^2.
+	     * where R' is the radius of container when particle collided with container.
              * This gives a quadratic equation in dt; the smaller root is the solution.
              */
 
@@ -88,6 +89,9 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
              * The perpendicular and parallel components of the velocity are:
              * v_perp = (v.n)n = (v.r/R^2)r
              * v_para = v-v_perp
+	     * The velocity of interface vector component is defined by:
+	     * V_vec(interface)=V*(unit vector perpendicular to surface which is calculated by pos)
+	     * V_vec(interface)=V*pos/mod(pos)=V*pos/R  
              */
             if (m_bc == boundary::no_slip)
                 {
@@ -96,8 +100,8 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
 		 * V_para(new) = -V_para(old)
                  * This results in just V_new = - v_old + 2*V_interface.
                  */
-		const Scalar3 V_v = V*pos/(fast::sqrt(r2));
-                vel = -vel + Scalar(2)*V_v;
+		const Scalar3 V_vec = m_V*pos/m_R;
+                vel = -vel + Scalar(2)*V_vec;
                 }
             else if (m_bc == boundary::slip)
                 {
@@ -108,9 +112,9 @@ class __attribute__((visibility("default"))) SphereGeometryRetracting
 		 * v' = -v_perp(old) + 2*V_interface + v_old-v_perp(old)
 		 * v' = v_old - 2*v_perp +2*V_interface
                 */
-		const Scalar3 V_v = V*pos/(fast::sqrt(r2);
+		const Scalar3 V_vec = m_V*pos/m_R;
                 const Scalar3 vperp = (dot(vel,pos)/m_R2)*pos;
-                vel -= Scalar(2)*vperp - Scalar(2)*V_v;
+                vel = vel - Scalar(2)*vperp + Scalar(2)*V_vec;
                 }
             return true;
             }
