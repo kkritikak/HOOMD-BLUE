@@ -22,7 +22,7 @@ namespace detail
 {
 //! Sphere geometry
 /*!
- * This models a fluid confined inside a sphere(moving with velocity V), centered at the origin and has radius R at mpcd collision time.
+ * This models a fluid confined inside a sphere(moving with velocity V), centered at the origin and has radius R at end of streaming step.
  *
  * If a particle leaves the sphere in a single simulation step, the particle is backtracked to the point on the
  * surface from which it exited the surface and then reflected according to appropriate boundary condition.
@@ -32,7 +32,7 @@ class __attribute__((visibility("default"))) SphereGeometry
     public:
         //! Constructor
         /*!
-         * \param R confinement radius at mpcd collision time
+         * \param R confinement radius at end of streaming step.
          * \param bc Boundary condition at the wall (slip or no-slip)
 	 * \param V is the velocity of interface
          */
@@ -56,12 +56,13 @@ class __attribute__((visibility("default"))) SphereGeometry
             {
 
             /*
-             * If particle is still inside the sphere or has zero speed, no collision could have occurred and therefore
+             * If particle is still inside the sphere or has zero velocity relative to velocity of interface, no collision could have occurred and therefore
              * exit immediately.
              */
             const Scalar r2 = dot(pos,pos);
             const Scalar v2 = dot(vel,vel);
-            if (r2 <= m_R2 || v2 == Scalar(0))
+	    const Scalar v2_minus_V2 = v2 - m_V2;
+            if (r2 <= m_R2 || v2_minus_V2 == Scalar(0))
                {
                dt = Scalar(0);
                return false;
@@ -77,7 +78,7 @@ class __attribute__((visibility("default"))) SphereGeometry
             const Scalar rv = dot(pos,vel);
 	    const Scalar RV = m_R*m_V;
 	    const Scalar rv_RV = rv - RV;
-            dt = (rv_RV - fast::sqrt(rv_RV*rv_RV-(v2-m_V2)*(r2-m_R2)))/(v2-m_V2);
+            dt = (rv_RV - fast::sqrt(rv_RV*rv_RV-(v2_minus_V2)*(r2-m_R2)))/(v2_minus_V2);
 
             // backtrack the particle for time dt to get to point of contact
             pos -= vel*dt;
@@ -91,6 +92,10 @@ class __attribute__((visibility("default"))) SphereGeometry
              * v_para = v-v_perp
 	     * V_vec is vector component of V(interface velocity)
              */
+	    
+	    const Scalar3 V_vec = m_V*pos/m_R;
+
+
             if (m_bc == boundary::no_slip)
                 {
                 /* No-slip and no penetration requires reflection of both parallel component and perpendicular(relative to interface) component
@@ -98,7 +103,6 @@ class __attribute__((visibility("default"))) SphereGeometry
                  * V_para(new) = -V_para(old)
                  * This results in just V_new = - v_old + 2*V_interface. 
                  */
-		const Scalar3 V_vec = m_V*pos/m_R;
                 vel = -vel + Scalar(2)*V_vec;
                 }
             else if (m_bc == boundary::slip)
@@ -109,8 +113,7 @@ class __attribute__((visibility("default"))) SphereGeometry
                  * v' = v_old - 2*v_perp + 2*V_interface
                 */
                 const Scalar3 vperp = (dot(vel,pos)/m_R2)*pos;
-		const Scalar3 V_vec = m_V*pos/m_R;
-                vel = vel - Scalar(2)*vperp + Scalar(2)*V_vec;
+                vel -= Scalar(2)*(vperp - V_vec);
                 }
             return true;
             }
