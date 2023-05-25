@@ -78,7 +78,7 @@ class __attribute__((visibility("default"))) SphereGeometry
             const Scalar rv = dot(pos,vel);
 	    const Scalar RV = m_R*m_V;
 	    const Scalar rv_RV = rv - RV;
-            dt = (rv_RV - fast::sqrt(rv_RV*rv_RV-(v2_minus_V2)*(r2-m_R2)))/(v2_minus_V2);
+            dt = (rv_RV - fast::sqrt(rv_RV*rv_RV-v2_minus_V2*(r2-m_R2)))/v2_minus_V2;
 
             // backtrack the particle for time dt to get to point of contact
             pos -= vel*dt;
@@ -93,7 +93,7 @@ class __attribute__((visibility("default"))) SphereGeometry
 	     * V_vec is vector component of V(interface velocity)
              */
 	    
-	    const Scalar3 V_vec = m_V*pos/m_R;
+	    const Scalar3 V_vec = m_V*pos/(m_R-m_V*dt);
 
 
             if (m_bc == boundary::no_slip)
