@@ -62,7 +62,8 @@ class __attribute__((visibility("default"))) SphereGeometry
             const Scalar r2 = dot(pos,pos);
             const Scalar v2 = dot(vel,vel);
 	    const Scalar v2_minus_V2 = v2 - m_V2;
-            if (r2 <= m_R2 || v2_minus_V2 == Scalar(0))
+
+            if (r2 < m_R2)
                {
                dt = Scalar(0);
                return false;
@@ -76,10 +77,26 @@ class __attribute__((visibility("default"))) SphereGeometry
              */
 
             const Scalar rv = dot(pos,vel);
+	    const Scalar rvcap = rv/(fast::sqrt(v2));
 	    const Scalar RV = m_R*m_V;
 	    const Scalar rv_RV = rv - RV;
-            dt = (rv_RV - fast::sqrt(rv_RV*rv_RV-v2_minus_V2*(r2-m_R2)))/v2_minus_V2;
+	    if(m_V == 0 && v2 == 0)
+	    {
+		    throw std::runtime_error("Velocity of shrinking sphere and velocity of particles is zero");
+	    }
 
+	    if (r2 > m_R2 && v2_minus_V2 == 0)
+	    {
+		    dt = (r2 - m_R2)/(2*m_V*(rvcap-R));
+	    }
+	    else if (r2 == m_R2)
+	    {
+		    dt = Scalar(0);
+	    }
+	    else
+	    {
+            dt = (rv_RV - fast::sqrt(rv_RV*rv_RV-v2_minus_V2*(r2-m_R2)))/v2_minus_V2;
+	    }
             // backtrack the particle for time dt to get to point of contact
             pos -= vel*dt;
 
@@ -92,8 +109,8 @@ class __attribute__((visibility("default"))) SphereGeometry
              * v_para = v-v_perp
 	     * V_vec is vector component of V(interface velocity)
              */
-	    
-	    const Scalar3 V_vec = m_V*pos/(m_R-m_V*dt);
+	    const Scalar3 V_vec = m_V*pos/(fast::sqrt(r2));
+	    const Scalar3 vperp = (dot(vel,pos)/m_R2)*pos;
 
 
             if (m_bc == boundary::no_slip)
@@ -112,10 +129,16 @@ class __attribute__((visibility("default"))) SphereGeometry
                  * The new velocity v' is:
                  * v' = v_old - 2*v_perp + 2*V_interface
                 */
-                const Scalar3 vperp = (dot(vel,pos)/m_R2)*pos;
                 vel -= Scalar(2)*(vperp - V_vec);
                 }
-            return true;
+	    if (r2 > m_R2)
+	    {
+		    return true;
+	    }
+	    else if (r2 == m_R2)
+	    {
+		    return false;
+	    }
             }
 
         //! Check if a particle is out of bounds
