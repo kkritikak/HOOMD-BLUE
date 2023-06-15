@@ -57,7 +57,7 @@ class __attribute__((visibility("default"))) SphereGeometry
 
             /*
              * If particle is still inside the sphere , no collision could have occurred and therefore
-             * exit immediately. If particle is on surface, we are assuming it's inside and
+             * exit immediately. If particle is on surface, we are assuming it's still inside and
 	     * if it goes outside we can backtrack it in the end of next streaming step.
              */
             const Scalar r2 = dot(pos,pos);
