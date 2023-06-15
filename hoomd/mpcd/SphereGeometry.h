@@ -91,7 +91,7 @@ class __attribute__((visibility("default"))) SphereGeometry
 
 	    if (v2_minus_V2 < 1e-8)
 	    {
-		    dt = (r2-m_R2)/(2*rv_RV);
+		    dt = (r2-m_R2)/(Scalar(2)*rv_RV);
 	    }
 	    else
 	    {
