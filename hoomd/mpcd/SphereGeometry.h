@@ -63,10 +63,10 @@ class __attribute__((visibility("default"))) SphereGeometry
 
             const Scalar r2 = dot(pos,pos);
             if (r2 <= m_R2)
-               {
-               dt = Scalar(0);
-               return false;
-               }
+                {
+                dt = Scalar(0);
+                return false;
+                }
 
             const Scalar v2 = dot(vel,vel);
             const Scalar v2_minus_V2 = v2 - m_V2;
@@ -88,22 +88,22 @@ class __attribute__((visibility("default"))) SphereGeometry
              */
 
             if (m_V == 0 && v2 == 0)
-               {
-               throw std::runtime_error("Velocity of shrinking sphere and velocity of particles is zero");
-               }
+                {
+                throw std::runtime_error("Velocity of shrinking sphere and velocity of particles is zero");
+                }
 
             /*dt will be different in the limit v tends to V
              *when v2 - V2 ~ 0, different formula(calculated by (lim(v->V)dt)) is used
              */
 
             if (fabs(v2_minus_V2) < Scalar(1e-8))
-               {
-               dt = (r2-m_R2)/(Scalar(2)*rv_RV);
-               }
+                {
+                dt = (r2-m_R2)/(Scalar(2)*rv_RV);
+                }
             else
-               {
-               dt = (rv_RV - slow::sqrt(rv_RV*rv_RV-v2_minus_V2*(r2-m_R2)))/v2_minus_V2;
-               }
+                {
+                dt = (rv_RV - slow::sqrt(rv_RV*rv_RV-v2_minus_V2*(r2-m_R2)))/v2_minus_V2;
+                }
 
             // backtrack the particle for time dt to get to point of contact
 
@@ -124,23 +124,23 @@ class __attribute__((visibility("default"))) SphereGeometry
             const Scalar3 vperp = dot(vel,pos)*pos/(R*R);
 
             if (m_bc == boundary::no_slip)
-               {
-               /* No-slip and no penetration requires reflection of both parallel component and perpendicular(relative to interface) component
-                * V_perp(new) = -(V_perp(old)-V_interface)+V_interface 
-                * V_para(new) = -V_para(old)
-                * This results in just V_new = - v_old + 2*V_interface. 
-                */
-               vel = -vel + Scalar(2)*V_vec;
-               }
+                {
+                /* No-slip and no penetration requires reflection of both parallel component and perpendicular(relative to interface) component
+                 * V_perp(new) = -(V_perp(old)-V_interface)+V_interface 
+                 * V_para(new) = -V_para(old)
+                 * This results in just V_new = - v_old + 2*V_interface. 
+                 */
+                vel = -vel + Scalar(2)*V_vec;
+                }
             else if (m_bc == boundary::slip)
-               {
-               /*
-                * Only no-penetration condition is enforced, so only v_perp(relative to interface) is reflected.
-                * The new velocity v' is:
-                * v' = v_old - 2*v_perp + 2*V_interface
-                */
-               vel -= Scalar(2)*(vperp - V_vec);
-               }
+                {
+                /*
+                 * Only no-penetration condition is enforced, so only v_perp(relative to interface) is reflected.
+                 * The new velocity v' is:
+                 * v' = v_old - 2*v_perp + 2*V_interface
+                 */
+                vel -= Scalar(2)*(vperp - V_vec);
+                }
             return true;
             }
 
