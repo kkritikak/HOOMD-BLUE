@@ -38,7 +38,16 @@ class __attribute__((visibility("default"))) SphereGeometry
          */
         HOSTDEVICE SphereGeometry(Scalar R, Scalar V, boundary bc)
             : m_R(R), m_R2(R*R), m_bc(bc), m_V(V), m_V2(V*V)
-            { }
+            {
+            /*!
+             *Our solution for collision assumes V is negative, so V has to be negative otherwise
+             *sphere will expand instead of shrinking!
+             */
+            if (V > 0)
+                {
+                throw std::runtime_error("Sphere surface velocity cannot be positive, otherwise sphere will expand instead of shrinking");
+                }
+            }
 
         //! Detect collision between the particle and the boundary
         /*!
@@ -83,8 +92,8 @@ class __attribute__((visibility("default"))) SphereGeometry
             const Scalar rv_RV = rv - RV;
 
             /*
-             *If the velocity of shrinking sphere and velocity of particles both are zero ,
-             *This condition should never happen 
+             *If the velocity of shrinking sphere and velocity of particles both are zero-
+             *this condition should never happen 
              */
 
             if (m_V == 0 && v2 == 0)
