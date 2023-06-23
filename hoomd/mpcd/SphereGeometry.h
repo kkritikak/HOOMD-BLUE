@@ -121,7 +121,7 @@ class __attribute__((visibility("default"))) SphereGeometry
 
             const Scalar R = m_R - m_V*dt;
             const Scalar3 V_vec = m_V*pos/R;
-            const Scalar3 vperp = (dot(vel,pos)*pos)/(R*R);
+            const Scalar3 vperp = dot(vel,pos)*pos/(R*R);
 
             if (m_bc == boundary::no_slip)
                {
