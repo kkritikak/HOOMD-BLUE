@@ -105,7 +105,7 @@ class __attribute__((visibility("default"))) SphereGeometry
              *when v2 - V2 ~ 0, different formula(calculated by (lim(v->V)dt)) is used
              */
 
-            if (fabs(v2_minus_V2) < Scalar(1e-8))
+            if (std::fabs(v2_minus_V2) < Scalar(1e-8))
                 {
                 dt = (r2-m_R2)/(Scalar(2)*rv_RV);
                 }
