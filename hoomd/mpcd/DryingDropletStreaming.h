@@ -8,14 +8,14 @@
  * \brief Declaration of mpcd::DryingDropletStreaming
  */
 
-#ifndef MPCD_CONFINED_STREAMING_METHOD_H_
-#define MPCD_CONFINED_STREAMING_METHOD_H_
+#ifndef MPCD_DRYING_DROPLET_STREAMING_H_
+#define MPCD_DRYING_DROPLET_STREAMING_H_
 
 #ifdef NVCC
 #error This header cannot be compiled by nvcc
 #endif
 
-#include "StreamingMethod.h"
+#include "ConfinedStreamingMethod.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
 
 namespace mpcd
@@ -50,7 +50,7 @@ class PYBIND11_EXPORT DryingDropletStreaming : public mpcd::ConfinedStreamingMet
          * \param period Number of timesteps between collisions
          * \param phase Phase shift for periodic updates
          * \param geom Streaming geometry
-         * \param R is the radius of sphere intially
+         * \param R is the radius of sphere intially at very first timestep
          */
         DryingDropletStreaming(std::shared_ptr<mpcd::SystemData> sysdata,
                                 unsigned int cur_timestep,
@@ -94,77 +94,11 @@ class PYBIND11_EXPORT DryingDropletStreaming : public mpcd::ConfinedStreamingMet
 template<class Geometry>
 void DryingDropletStreaming<Geometry>::stream(unsigned int timestep)
     {
-    if (!shouldStream(timestep)) return;
-
-    if (m_validate_geom)
-        {
-        validate();
-        m_validate_geom = false;
-        }
-
-    if (m_prof) m_prof->push("MPCD stream");
-
-    const BoxDim& box = m_mpcd_sys->getCellList()->getCoverageBox();
-
-    ArrayHandle<Scalar4> h_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::readwrite);
-    ArrayHandle<Scalar4> h_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::readwrite);
-    const Scalar mass = m_mpcd_pdata->getMass();
-
-    // acquire polymorphic pointer to the external field
-    const mpcd::ExternalField* field = (m_field) ? m_field->get(access_location::host) : nullptr;
-
-    GPUArray<unsigned char> m_should_mask_collide(m_mpcd_pdata->getN());
-    ArrayHandle<unsigned char> mask_collision(m_should_mask_collide, access_location::host, access_mode::readwrite);
-
-    for (unsigned int cur_p = 0; cur_p < m_mpcd_pdata->getN(); ++cur_p)
-        {
-        const Scalar4 postype = h_pos.data[cur_p];
-        Scalar3 pos = make_scalar3(postype.x, postype.y, postype.z);
-        const unsigned int type = __scalar_as_int(postype.w);
-
-        const Scalar4 vel_cell = h_vel.data[cur_p];
-        Scalar3 vel = make_scalar3(vel_cell.x, vel_cell.y, vel_cell.z);
-        // estimate next velocity based on current acceleration
-        if (field)
-            {
-            vel += Scalar(0.5) * m_mpcd_dt * field->evaluate(pos) / mass;
-            }
-
-        // propagate the particle to its new position ballistically and mask them
-        Scalar dt_remain = m_mpcd_dt;
-        mask_collision.data[cur_p] = 0; //if collide will be true this value will get changed to 1 otherwise will stay 0
-        bool collide = true;
-        do
-            {
-            pos += dt_remain * vel;
-            collide = m_geom->detectCollision(pos, vel, dt_remain);
-            if (collide)
-                {
-                mask_collision.data[cur_p] = 1;
-                }
-            }
-        while (dt_remain > 0 && collide);
-        // finalize velocity update
-        if (field)
-            {
-            vel += Scalar(0.5) * m_mpcd_dt * field->evaluate(pos) / mass;
-            }
-
-        // wrap and update the position
-        int3 image = make_int3(0,0,0);
-        box.wrap(pos, image);
-
-        h_pos.data[cur_p] = make_scalar4(pos.x, pos.y, pos.z, __int_as_scalar(type));
-        h_vel.data[cur_p] = make_scalar4(vel.x, vel.y, vel.z, __int_as_scalar(mpcd::detail::NO_CELL));
-        }
-
-    // particles have moved, so the cell cache is no longer valid
-    m_mpcd_pdata->invalidateCellCache();
-    if (m_prof) m_prof->pop();
+    
     }
 
 template<class Geometry>
-void ConfinedStreamingMethod<Geometry>::validate()
+void DryingDropletStreaming<Geometry>::validate()
     {
     // ensure that the global box is padded enough for periodic boundaries
     const BoxDim& box = m_pdata->getGlobalBox();
@@ -190,7 +124,7 @@ void ConfinedStreamingMethod<Geometry>::validate()
  * out of bounds, an error is raised.
  */
 template<class Geometry>
-bool ConfinedStreamingMethod<Geometry>::validateParticles()
+bool DryingDropletStreaming<Geometry>::validateParticles()
     {
     ArrayHandle<Scalar4> h_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::read);
     ArrayHandle<unsigned int> h_tag(m_mpcd_pdata->getTags(), access_location::host, access_mode::read);
@@ -212,20 +146,20 @@ bool ConfinedStreamingMethod<Geometry>::validateParticles()
 
 namespace detail
 {
-//! Export mpcd::StreamingMethod to python
+//! Export mpcd::DryingDropletStreaming to python
 /*!
  * \param m Python module to export to
  */
 template<class Geometry>
-void export_ConfinedStreamingMethod(pybind11::module& m)
+void export_DryingDropletStreaming(pybind11::module& m)
     {
     namespace py = pybind11;
     const std::string name = "ConfinedStreamingMethod" + Geometry::getName();
-    py::class_<mpcd::ConfinedStreamingMethod<Geometry>, std::shared_ptr<mpcd::ConfinedStreamingMethod<Geometry>>>
-        (m, name.c_str(), py::base<mpcd::StreamingMethod>())
+    py::class_<mpcd::DryingDropletStreaming<Geometry>, std::shared_ptr<mpcd::DryingDropletStreaming<Geometry>>>
+        (m, name.c_str(), py::base<mpcd::ConfinedStreamingMethod>())
         .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<const Geometry>>())
-        .def_property("geometry", &mpcd::ConfinedStreamingMethod<Geometry>::getGeometry,&mpcd::ConfinedStreamingMethod<Geometry>::setGeometry);
+        .def_property("geometry", &mpcd::DryingDropletStreaming<Geometry>::getGeometry,&mpcd::DryingDropletStreaming<Geometry>::setGeometry);
     }
 } // end namespace detail
 } // end namespace mpcd
-#endif // MPCD_CONFINED_STREAMING_METHOD_H_
+#endif // MPCD_Drying_Droplet_Streaming_H_
