@@ -4,8 +4,8 @@
 // Maintainer: mphoward
 
 /*!
- * \file mpcd/ConfinedStreamingMethod.h
- * \brief Declaration of mpcd::ConfinedStreamingMethod
+ * \file mpcd/DryingDropletStreaming.h
+ * \brief Declaration of mpcd::DryingDropletStreaming
  */
 
 #ifndef MPCD_CONFINED_STREAMING_METHOD_H_
@@ -24,9 +24,9 @@ namespace mpcd
 //! MPCD confined streaming method
 /*!
  * This method implements the base version of ballistic propagation of MPCD
- * particles in confined geometries.
+ * particles in Spherical geometry.
  *
- * \tparam Geometry The confining geometry (e.g., BulkGeometry, SlitGeometry).
+ * \tparam Geometry The confining geometry (SphereGeometry).
  *
  * The integration scheme is essentially Verlet with specular reflections. The particle is streamed forward over
  * the time interval. If it moves outside the Geometry, it is placed back on the boundary and its velocity is
@@ -40,7 +40,7 @@ namespace mpcd
  *
  */
 template<class Geometry>
-class PYBIND11_EXPORT ConfinedStreamingMethod : public mpcd::StreamingMethod
+class PYBIND11_EXPORT DryingDropletStreaming : public mpcd::ConfinedStreamingMethod
     {
     public:
         //! Constructor
@@ -50,13 +50,14 @@ class PYBIND11_EXPORT ConfinedStreamingMethod : public mpcd::StreamingMethod
          * \param period Number of timesteps between collisions
          * \param phase Phase shift for periodic updates
          * \param geom Streaming geometry
+         * \param R is the radius of sphere intially
          */
-        ConfinedStreamingMethod(std::shared_ptr<mpcd::SystemData> sysdata,
+        DryingDropletStreaming(std::shared_ptr<mpcd::SystemData> sysdata,
                                 unsigned int cur_timestep,
                                 unsigned int period,
                                 int phase,
-                                std::shared_ptr<const Geometry> geom)
-        : mpcd::StreamingMethod(sysdata, cur_timestep, period, phase),
+                                std::shared_ptr<const Geometry> geom, Scalar R)
+        : mpcd::ConfinedStreamingMethod(sysdata, cur_timestep, period, phase),
           m_geom(geom), m_validate_geom(true)
           {}
 
@@ -75,8 +76,7 @@ class PYBIND11_EXPORT ConfinedStreamingMethod : public mpcd::StreamingMethod
             m_validate_geom = true;
             m_geom = geom;
             }
-        //! GPUArray to mask the collision =1 if particle has collided with boundary
-        GPUArray<unsigned char> m_should_mask_collide(m_mpcd_pdata->getN());
+
     protected:
         std::shared_ptr<const Geometry> m_geom; //!< Streaming geometry
         bool m_validate_geom;   //!< If true, run a validation check on the geometry
@@ -92,7 +92,7 @@ class PYBIND11_EXPORT ConfinedStreamingMethod : public mpcd::StreamingMethod
  * \param timestep Current time to stream
  */
 template<class Geometry>
-void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
+void DryingDropletStreaming<Geometry>::stream(unsigned int timestep)
     {
     if (!shouldStream(timestep)) return;
 
@@ -109,9 +109,12 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
     ArrayHandle<Scalar4> h_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::readwrite);
     ArrayHandle<Scalar4> h_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::readwrite);
     const Scalar mass = m_mpcd_pdata->getMass();
-    ArrayHandle<unsigned char> mask_collision(m_should_mask_collide, access_location::host, access_mode::readwrite);
+
     // acquire polymorphic pointer to the external field
     const mpcd::ExternalField* field = (m_field) ? m_field->get(access_location::host) : nullptr;
+
+    GPUArray<unsigned char> m_should_mask_collide(m_mpcd_pdata->getN());
+    ArrayHandle<unsigned char> mask_collision(m_should_mask_collide, access_location::host, access_mode::readwrite);
 
     for (unsigned int cur_p = 0; cur_p < m_mpcd_pdata->getN(); ++cur_p)
         {
@@ -127,7 +130,7 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
             vel += Scalar(0.5) * m_mpcd_dt * field->evaluate(pos) / mass;
             }
 
-        // propagate the particle to its new position ballistically
+        // propagate the particle to its new position ballistically and mask them
         Scalar dt_remain = m_mpcd_dt;
         mask_collision.data[cur_p] = 0; //if collide will be true this value will get changed to 1 otherwise will stay 0
         bool collide = true;
@@ -137,7 +140,7 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
             collide = m_geom->detectCollision(pos, vel, dt_remain);
             if (collide)
                 {
-                mask_collision.data[cur_p] = 1; //if collide is treue it's gonna change the 
+                mask_collision.data[cur_p] = 1;
                 }
             }
         while (dt_remain > 0 && collide);
