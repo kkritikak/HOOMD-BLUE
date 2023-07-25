@@ -17,7 +17,7 @@
 
 #include "ConfinedStreamingMethod.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
-#include "Variant.h"
+#include "hoomd/Variant.h"
 #include "BoundaryCondition.h"
 
 namespace mpcd
