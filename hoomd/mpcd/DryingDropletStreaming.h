@@ -83,7 +83,7 @@ void DryingDropletStreamingMethod<mpcd::SphereGeometry>::stream(unsigned int tim
         throw std::runtime_error("Droplet radius must decrease.");
         }
     m_validate_geom = m_geom; //validating the geometry
-    m_geom = std::make_shared<mpcd::SphereGeometry>(end_R, V, m_bc);
+    m_geom = std::make_shared<const mpcd::SphereGeometry>(end_R, V, m_bc);
     //stream using ConfinedStreamingMethod
     ConfinedStreamingMethod<mpcd::SphereGeometry>::stream(timestep);
     //delete marked particles
