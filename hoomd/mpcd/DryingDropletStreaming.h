@@ -83,7 +83,7 @@ void DryingDropletStreamingMethod<mpcd::SphereGeometry>::stream(unsigned int tim
         throw std::runtime_error("Droplet radius must decrease.");
         }
     m_validate_geom = m_geom; //validating the geometry
-    m_geom = std::make_shared<mpcd::SphereGeometry>::stream(end_R, V, m_bc);
+    m_geom = std::make_shared<mpcd::SphereGeometry>(end_R, V, m_bc);
     //stream using ConfinedStreamingMethod
     ConfinedStreamingMethod<mpcd::SphereGeometry>::stream(timestep);
     //delete marked particles
@@ -94,7 +94,7 @@ void DryingDropletStreamingMethod<mpcd::SphereGeometry>::stream(unsigned int tim
 
 namespace detail
 {
-//! Export mpcd::DryingDropletStreaming to python
+//! Export mpcd::DryingDropletStreamingMethod to python
 /*!
  * \param m Python module to export to
  */
@@ -103,10 +103,10 @@ void export_DryingDropletStreamingMethod(pybind11::module& m)
     {
     namespace py = pybind11;
     const std::string name = "ConfinedStreamingMethod" + Geometry::getName();
-    py::class_<mpcd::DryingDropletStreaming<mpcd::SphereGeometry>, std::shared_ptr<DryingDropletStreaming<mpcd::SphereGeometry>>>
+    py::class_<mpcd::DryingDropletStreamingMethod<mpcd::SphereGeometry>, std::shared_ptr<DryingDropletStreamingMethod<mpcd::SphereGeometry>>>
         (m, name.c_str(), py::base<mpcd::ConfinedStreamingMethod<mpcd::SphereGeometry>>())
         .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<::variant>, boundary>())
-        .def_property("Spheregeometry" ,&mpcd::DryingDropletStreaming<mpcd::SphereGeometry>::setGeometry);
+        .def_property("Spheregeometry" ,&mpcd::DryingDropletStreamingMethod<mpcd::SphereGeometry>::setGeometry);
     }
 } // end namespace detail
 } // end namespace mpcd
