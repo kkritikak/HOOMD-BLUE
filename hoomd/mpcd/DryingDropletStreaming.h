@@ -105,7 +105,7 @@ void export_DryingDropletStreamingMethod(pybind11::module& m)
     const std::string name = "ConfinedStreamingMethod" + Geometry::getName();
     py::class_<mpcd::DryingDropletStreamingMethod<mpcd::SphereGeometry>, std::shared_ptr<DryingDropletStreamingMethod<mpcd::SphereGeometry>>>
         (m, name.c_str(), py::base<mpcd::ConfinedStreamingMethod<mpcd::SphereGeometry>>())
-        .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<::variant>, boundary>())
+        .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<::Variant>, boundary>())
         .def_property("Spheregeometry" ,&mpcd::DryingDropletStreamingMethod<mpcd::SphereGeometry>::setGeometry);
     }
 } // end namespace detail
