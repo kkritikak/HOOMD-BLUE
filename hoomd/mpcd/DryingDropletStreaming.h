@@ -8,8 +8,8 @@
  * \brief Declaration of mpcd::DryingDropletStreaming
  */
 
-#ifndef MPCD_DRYING_DROPLET_STREAMING_H_
-#define MPCD_DRYING_DROPLET_STREAMING_H_
+#ifndef MPCD_DRYING_DROPLET_STREAMING_METHOD_H_
+#define MPCD_DRYING_DROPLET_STREAMING_METHOD_H_
 
 #ifdef NVCC
 #error This header cannot be compiled by nvcc
@@ -17,6 +17,8 @@
 
 #include "ConfinedStreamingMethod.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
+#include "Variant.h"
+#include "BoundaryCondition.h"
 
 namespace mpcd
 {
@@ -39,8 +41,8 @@ namespace mpcd
  *  3. validateBox(): Checks whether the global simulation box is consistent with the streaming geometry.
  *
  */
-template<class Geometry>
-class PYBIND11_EXPORT DryingDropletStreaming : public mpcd::ConfinedStreamingMethod
+
+class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStreamingMethod<mpcd::SphereGeometry>
     {
     public:
         //! Constructor
@@ -50,99 +52,45 @@ class PYBIND11_EXPORT DryingDropletStreaming : public mpcd::ConfinedStreamingMet
          * \param period Number of timesteps between collisions
          * \param phase Phase shift for periodic updates
          * \param geom Streaming geometry
-         * \param R is the radius of sphere intially at very first timestep
+         * \param R is the radius of sphere
          */
-        DryingDropletStreaming(std::shared_ptr<mpcd::SystemData> sysdata,
-                                unsigned int cur_timestep,
-                                unsigned int period,
-                                int phase,
-                                std::shared_ptr<const Geometry> geom, Scalar R)
-        : mpcd::ConfinedStreamingMethod(sysdata, cur_timestep, period, phase),
-          m_geom(geom), m_validate_geom(true)
+        DryingDropletStreamingMethod(std::shared_ptr<mpcd::SystemData> sysdata,
+                                    unsigned int cur_timestep,
+                                    unsigned int period,
+                                    int phase, std::shared_ptr<::Variant> R, boundary bc)
+        : mpcd::ConfinedStreamingMethod<mpcd::SphereGeometry>(sysdata, cur_timestep, period, phase, std::shared_ptr<mpcd::SphereGeometry>()),
+          m_R(R),m_bc(bc)
           {}
 
         //! Implementation of the streaming rule
         virtual void stream(unsigned int timestep);
-
-        //! Get the streaming geometry
-        std::shared_ptr<const Geometry> getGeometry() const
-            {
-            return m_geom;
-            }
-
-        //! Set the streaming geometry
-        void setGeometry(std::shared_ptr<const Geometry> geom)
-            {
-            m_validate_geom = true;
-            m_geom = geom;
-            }
-
-    protected:
-        std::shared_ptr<const Geometry> m_geom; //!< Streaming geometry
-        bool m_validate_geom;   //!< If true, run a validation check on the geometry
-
-        //! Validate the system with the streaming geometry
-        void validate();
-
-        //! Check that particles lie inside the geometry
-        virtual bool validateParticles();
+    private:
+        std::shared_ptr<::variant> m_R; //!Radius of Sphere
+        const boundary m_bc;            //!boundary conditions
     };
 
 /*!
  * \param timestep Current time to stream
  */
-template<class Geometry>
-void DryingDropletStreaming<Geometry>::stream(unsigned int timestep)
+
+void DryingDropletStreamingMethod<mpcd::SphereGeometry>::stream(unsigned int timestep)
     {
+    const double start_R = (*m_R)(timestep);
+    const double end_R = (*m_R)(timestep + m_period);
+    const double V = (end_R - start_R)/(m_period * m_mpcd_dt);
+    if (V>0)
+        {
+        throw std::runtime_error("Droplet radius must decrease.");
+        }
+    m_validate_geom = m_geom; //validating the geometry
+    m_geom = std::make_shared<mpcd::SphereGeometry>::stream(end_R, V, m_bc);
+    //stream using ConfinedStreamingMethod
+    ConfinedStreamingMethod<mpcd::SphereGeometry>::stream(timestep);
+    //delete marked particles
+    ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::overwrite);
     
     }
 
-template<class Geometry>
-void DryingDropletStreaming<Geometry>::validate()
-    {
-    // ensure that the global box is padded enough for periodic boundaries
-    const BoxDim& box = m_pdata->getGlobalBox();
-    const Scalar cell_width = m_mpcd_sys->getCellList()->getCellSize();
-    if (!m_geom->validateBox(box, cell_width))
-        {
-        m_exec_conf->msg->error() << "ConfinedStreamingMethod: box too small for " << Geometry::getName() << " geometry. Increase box size." << std::endl;
-        throw std::runtime_error("Simulation box too small for confined streaming method");
-        }
-
-    // check that no particles are out of bounds
-    unsigned char error = !validateParticles();
-    #ifdef ENABLE_MPI
-    if (m_exec_conf->getNRanks() > 1)
-        MPI_Allreduce(MPI_IN_PLACE, &error, 1, MPI_UNSIGNED_CHAR, MPI_LOR, m_exec_conf->getMPICommunicator());
-    #endif // ENABLE_MPI
-    if (error)
-        throw std::runtime_error("Invalid MPCD particle configuration for confined geometry");
-    }
-
-/*!
- * Checks each MPCD particle position to determine if it lies within the geometry. If any particle is
- * out of bounds, an error is raised.
- */
-template<class Geometry>
-bool DryingDropletStreaming<Geometry>::validateParticles()
-    {
-    ArrayHandle<Scalar4> h_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::read);
-    ArrayHandle<unsigned int> h_tag(m_mpcd_pdata->getTags(), access_location::host, access_mode::read);
-
-    for (unsigned int idx = 0; idx < m_mpcd_pdata->getN(); ++idx)
-        {
-        const Scalar4 postype = h_pos.data[idx];
-        const Scalar3 pos = make_scalar3(postype.x, postype.y, postype.z);
-        if (m_geom->isOutside(pos))
-            {
-            m_exec_conf->msg->errorAllRanks() << "MPCD particle with tag " << h_tag.data[idx] << " at (" << pos.x << "," << pos.y << "," << pos.z
-                          << ") lies outside the " << Geometry::getName() << " geometry. Fix configuration." << std::endl;
-            return false;
-            }
-        }
-
-    return true;
-    }
 
 namespace detail
 {
@@ -150,15 +98,15 @@ namespace detail
 /*!
  * \param m Python module to export to
  */
-template<class Geometry>
-void export_DryingDropletStreaming(pybind11::module& m)
+
+void export_DryingDropletStreamingMethod(pybind11::module& m)
     {
     namespace py = pybind11;
     const std::string name = "ConfinedStreamingMethod" + Geometry::getName();
-    py::class_<mpcd::DryingDropletStreaming<Geometry>, std::shared_ptr<mpcd::DryingDropletStreaming<Geometry>>>
-        (m, name.c_str(), py::base<mpcd::ConfinedStreamingMethod>())
-        .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<const Geometry>>())
-        .def_property("geometry", &mpcd::DryingDropletStreaming<Geometry>::getGeometry,&mpcd::DryingDropletStreaming<Geometry>::setGeometry);
+    py::class_<mpcd::DryingDropletStreaming<mpcd::SphereGeometry>, std::shared_ptr<DryingDropletStreaming<mpcd::SphereGeometry>>>
+        (m, name.c_str(), py::base<mpcd::ConfinedStreamingMethod<mpcd::SphereGeometry>>())
+        .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<::variant>, boundary>())
+        .def_property("Spheregeometry" ,&mpcd::DryingDropletStreaming<mpcd::SphereGeometry>::setGeometry);
     }
 } // end namespace detail
 } // end namespace mpcd

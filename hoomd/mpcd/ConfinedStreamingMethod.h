@@ -75,15 +75,15 @@ class PYBIND11_EXPORT ConfinedStreamingMethod : public mpcd::StreamingMethod
             m_validate_geom = true;
             m_geom = geom;
             }
-        //! GPUArray to mask the collision =1 if particle has collided with boundary
-        GPUArray<unsigned char> m_should_mask_collide(m_mpcd_pdata->getN());
+
     protected:
         std::shared_ptr<const Geometry> m_geom; //!< Streaming geometry
         bool m_validate_geom;   //!< If true, run a validation check on the geometry
 
         //! Validate the system with the streaming geometry
         void validate();
-
+        //! GPUArray to mask the collision =1 if particle has collided with boundary
+        GPUArray<unsigned char> m_bounced;
         //! Check that particles lie inside the geometry
         virtual bool validateParticles();
     };
@@ -102,6 +102,12 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
         m_validate_geom = false;
         }
 
+    if (m_mpcd_pdata->getN() > m_bounced.getNumElements())
+        {
+        GPUArray<unsigned char> bounced(m_mpcd_pdata->getN());
+        m_bounced.swap(bounced);
+        }
+    
     if (m_prof) m_prof->push("MPCD stream");
 
     const BoxDim& box = m_mpcd_sys->getCellList()->getCoverageBox();
@@ -109,7 +115,7 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
     ArrayHandle<Scalar4> h_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::readwrite);
     ArrayHandle<Scalar4> h_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::readwrite);
     const Scalar mass = m_mpcd_pdata->getMass();
-    ArrayHandle<unsigned char> mask_collision(m_should_mask_collide, access_location::host, access_mode::readwrite);
+    ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::overwrite);
     // acquire polymorphic pointer to the external field
     const mpcd::ExternalField* field = (m_field) ? m_field->get(access_location::host) : nullptr;
 
@@ -131,16 +137,15 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
         Scalar dt_remain = m_mpcd_dt;
         mask_collision.data[cur_p] = 0; //if collide is true this value will get changed to 1, otherwise will stay 0
         bool collide = true;
+        bool bounced = false;
         do
             {
             pos += dt_remain * vel;
             collide = m_geom->detectCollision(pos, vel, dt_remain);
-            if (collide)
-                {
-                mask_collision.data[cur_p] = 1; //if collide is true, it will be 1
-                }
+            bounced |= collide;
             }
         while (dt_remain > 0 && collide);
+        h_bounced.data[cur_p] = bounced;
         // finalize velocity update
         if (field)
             {
