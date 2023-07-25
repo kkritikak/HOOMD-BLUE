@@ -65,7 +65,7 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         //! Implementation of the streaming rule
         virtual void stream(unsigned int timestep);
     private:
-        std::shared_ptr<::variant> m_R; //!Radius of Sphere
+        std::shared_ptr<::Variant> m_R; //!Radius of Sphere
         const boundary m_bc;            //!boundary conditions
     };
 
