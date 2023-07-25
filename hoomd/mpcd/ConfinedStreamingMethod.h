@@ -135,7 +135,6 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
 
         // propagate the particle to its new position ballistically
         Scalar dt_remain = m_mpcd_dt;
-        mask_collision.data[cur_p] = 0; //if collide is true this value will get changed to 1, otherwise will stay 0
         bool collide = true;
         bool bounced = false;
         do
