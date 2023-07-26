@@ -66,6 +66,8 @@ class PYBIND11_EXPORT ConfinedStreamingMethodGPU : public mpcd::ConfinedStreamin
             }
 
     protected:
+        GPUArray<unsigned char> m_bounced; //!<Flag for if particles were bounced from boundary
+        
         std::unique_ptr<Autotuner> m_tuner;
     };
 
@@ -84,10 +86,18 @@ void ConfinedStreamingMethodGPU<Geometry>::stream(unsigned int timestep)
         this->validate();
         this->m_validate_geom = false;
         }
-
+    
+    if (this->m_mpcd_pdata->getN() > this->m_bounced.getNumElements())
+        {
+        GPUArray<unsigned char> bounced(this->m_mpcd_pdata->getN());
+        this->m_bounced.swap(bounced);
+        }
+    
     if (this->m_prof) this->m_prof->push(this->m_exec_conf, "MPCD stream");
     ArrayHandle<Scalar4> d_pos(this->m_mpcd_pdata->getPositions(), access_location::device, access_mode::readwrite);
     ArrayHandle<Scalar4> d_vel(this->m_mpcd_pdata->getVelocities(), access_location::device, access_mode::readwrite);
+    ArrayHandle<unsigned char> d_bounced(this->m_bounced, access_location::host, access_mode::overwrite);
+    
     mpcd::gpu::stream_args_t args(d_pos.data,
                                   d_vel.data,
                                   this->m_mpcd_pdata->getMass(),
