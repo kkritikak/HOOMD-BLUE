@@ -29,14 +29,13 @@ namespace mpcd
  * particles in moving Spherical geometry.
  *
  *
- * The integration scheme is essentially Verlet with specular reflections. The particle is streamed forward over
- * the time interval. If it moves outside the Geometry, it is placed back on the boundary and particle velocity is
- * updated according to the boundary conditions.Streaming then continues and place the particle inside SphereGeometry.
- * And particle which went outside or collided with geometry was marked.
- * Then Sphericalgeometry radius is updated and also the velocity. Then right amount of marked particles
- * are then evaporated.
+ * The integration scheme is essentially Verlet with specular reflections.First SphereGeometry radius and Velocity is updated then
+ * the particle is streamed forward over the time interval. If it moves outside the Geometry, it is placed back
+ * on the boundary and particle velocity is updated according to the boundary conditions.Streaming then continues and
+ * place the particle inside SphereGeometry. And particle which went outside or collided with geometry was marked.
+ * Right amount of marked particles are then evaporated.
  *
- * To facilitate this, ConfinedStreamingMethod must mark the particles which were bounced back from surface.
+ * To facilitate this, ConfinedStreamingMethod must flag the particles which were bounced back from surface.
  *
  */
 
@@ -77,7 +76,7 @@ void DryingDropletStreamingMethod<mpcd::SphereGeometry>::stream(unsigned int tim
     const Scalar end_R = (*m_R)(timestep + m_period);
     const Scalar V = (end_R - start_R)/(m_period * m_mpcd_dt);
     
-    if (V>0)
+    if (V > 0)
         {
         throw std::runtime_error("Droplet radius must decrease.");
         }
