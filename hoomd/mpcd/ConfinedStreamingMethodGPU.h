@@ -66,7 +66,6 @@ class PYBIND11_EXPORT ConfinedStreamingMethodGPU : public mpcd::ConfinedStreamin
             }
 
     protected:
-        GPUArray<unsigned char> m_bounced; //!<Flag for if particles were bounced from boundary
         
         std::unique_ptr<Autotuner> m_tuner;
     };

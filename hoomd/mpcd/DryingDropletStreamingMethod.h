@@ -28,7 +28,6 @@ namespace mpcd
  * This method implements the base version of ballistic propagation of MPCD
  * particles in moving Spherical geometry.
  *
- *
  * The integration scheme is essentially Verlet with specular reflections.First SphereGeometry radius and Velocity is updated then
  * the particle is streamed forward over the time interval. If it moves outside the Geometry, it is placed back
  * on the boundary and particle velocity is updated according to the boundary conditions.Streaming then continues and
@@ -36,7 +35,6 @@ namespace mpcd
  * Right amount of marked particles are then evaporated.
  *
  * To facilitate this, ConfinedStreamingMethod must flag the particles which were bounced back from surface.
- *
  */
 
 class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStreamingMethod<mpcd::SphereGeometry>
@@ -49,6 +47,7 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
          * \param period Number of timesteps between collisions
          * \param phase Phase shift for periodic updates
          * \param R is the radius of sphere
+         * \param bc is boundary conditions(slip or no-slip)
          */
         DryingDropletStreamingMethod(std::shared_ptr<mpcd::SystemData> sysdata,
                                     unsigned int cur_timestep,
