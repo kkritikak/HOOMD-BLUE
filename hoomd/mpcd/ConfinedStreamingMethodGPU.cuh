@@ -27,17 +27,19 @@ struct stream_args_t
     //! Constructor
     stream_args_t(Scalar4 *_d_pos,
                   Scalar4 *_d_vel,
+                  unsigned char *_d_bounced,
                   const Scalar _mass,
                   const mpcd::ExternalField* _field,
                   const BoxDim& _box,
                   const Scalar _dt,
                   const unsigned int _N,
                   const unsigned int _block_size)
-        : d_pos(_d_pos), d_vel(_d_vel), mass(_mass), field(_field), box(_box), dt(_dt), N(_N), block_size(_block_size)
+        : d_pos(_d_pos), d_vel(_d_vel), d_bounced(_d_bounced), mass(_mass), field(_field), box(_box), dt(_dt), N(_N), block_size(_block_size)
         { }
 
     Scalar4 *d_pos;                     //!< Particle positions
     Scalar4 *d_vel;                     //!< Particle velocities
+    unsigned char *d_bounced;           //!< Flag for particles if they have bounced back(reflected back by surface) or not
     const Scalar mass;                  //!< Particle mass
     const mpcd::ExternalField* field;   //!< Applied external field on particles
     const BoxDim& box;                  //!< Simulation box
@@ -58,6 +60,7 @@ namespace kernel
 /*!
  * \param d_pos Particle positions
  * \param d_vel Particle velocities
+ * \param d_bounced Particle flag for bounce back
  * \param mass Particle mass
  * \param box Simulation box
  * \param dt Timestep to stream
@@ -82,6 +85,7 @@ namespace kernel
 template<class Geometry>
 __global__ void confined_stream(Scalar4 *d_pos,
                                 Scalar4 *d_vel,
+                                unsigned char *d_bounced;
                                 const Scalar mass,
                                 const mpcd::ExternalField* field,
                                 const BoxDim box,
@@ -109,10 +113,12 @@ __global__ void confined_stream(Scalar4 *d_pos,
     // propagate the particle to its new position ballistically
     Scalar dt_remain = dt;
     bool collide = true;
+    bool bounced = false;
     do
         {
         pos += dt_remain * vel;
         collide = geom.detectCollision(pos, vel, dt_remain);
+        bounced |= collide;
         }
     while (dt_remain > 0 && collide);
     // finalize velocity update
@@ -127,6 +133,7 @@ __global__ void confined_stream(Scalar4 *d_pos,
 
     d_pos[idx] = make_scalar4(pos.x, pos.y, pos.z, __int_as_scalar(type));
     d_vel[idx] = make_scalar4(vel.x, vel.y, vel.z, __int_as_scalar(mpcd::detail::NO_CELL));
+    d_bounced[idx] = bounced;
     }
 
 } // end namespace kernel
@@ -152,7 +159,7 @@ cudaError_t confined_stream(const stream_args_t& args, const Geometry& geom)
 
     unsigned int run_block_size = min(args.block_size, max_block_size);
     dim3 grid(args.N / run_block_size + 1);
-    mpcd::gpu::kernel::confined_stream<Geometry><<<grid, run_block_size>>>(args.d_pos, args.d_vel, args.mass, args.field, args.box, args.dt, args.N, geom);
+    mpcd::gpu::kernel::confined_stream<Geometry><<<grid, run_block_size>>>(args.d_pos, args.d_vel, args.d_bounced, args.mass, args.field, args.box, args.dt, args.N, geom);
 
     return cudaSuccess;
     }

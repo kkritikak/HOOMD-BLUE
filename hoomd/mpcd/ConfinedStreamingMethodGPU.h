@@ -100,6 +100,7 @@ void ConfinedStreamingMethodGPU<Geometry>::stream(unsigned int timestep)
     
     mpcd::gpu::stream_args_t args(d_pos.data,
                                   d_vel.data,
+                                  d_bounced.data,
                                   this->m_mpcd_pdata->getMass(),
                                   (this->m_field) ? this->m_field->get(access_location::device) : nullptr,
                                   this->m_mpcd_sys->getCellList()->getCoverageBox(),
