@@ -85,7 +85,7 @@ namespace kernel
 template<class Geometry>
 __global__ void confined_stream(Scalar4 *d_pos,
                                 Scalar4 *d_vel,
-                                unsigned char *d_bounced;
+                                unsigned char *d_bounced,
                                 const Scalar mass,
                                 const mpcd::ExternalField* field,
                                 const BoxDim box,
