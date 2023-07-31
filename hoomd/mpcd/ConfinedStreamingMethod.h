@@ -104,7 +104,7 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
 
     if (m_mpcd_pdata->getN() > m_bounced.getNumElements())
         {
-        GPUArray<unsigned char> bounced(m_mpcd_pdata->getN());
+        GPUArray<unsigned char> bounced(m_mpcd_pdata->getN(), m_exec_conf);
         m_bounced.swap(bounced);
         }
     

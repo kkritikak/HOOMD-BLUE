@@ -195,6 +195,15 @@ class __attribute__((visibility("default"))) SphereGeometry
             return m_R;
             }
 
+        //! Get Sphere velocity
+        /*!
+         * \returns confinement velocity
+         */
+        HOSTDEVICE Scalar getV() const
+            {
+            return m_V;
+            }
+
         //! Get the wall boundary condition
         /*!
          * \returns Boundary condition at wall
