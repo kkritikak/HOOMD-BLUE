@@ -102,34 +102,32 @@ void DryingDropletStreamingMethod<mpcd::SphereGeometry>::stream(unsigned int tim
     
     // get the compact array of indexes of bounced particles
     unsigned int N_bounced = 0;
+    const unsigned int N = m_pdata->getN();
+    ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::read);
+    bool overflowed = false;
+    do
         {
-        const unsigned int N = m_pdata->getN();
-        ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::read);
-        bool overflowed = false;
-        do
+        if (overflowed)
             {
-            if (overflowed)
-                {
-                GPUArray<unsigned char> bounced_index(N_bounced, m_exec_conf);
-                m_bounced_index.swap(bounced_index);
-                // resize m_bounced_index with swap idiom
-                }
-            ArrayHandle<unsigned int> h_bounced_index(m_bounced_index, access_location::host, access_mode::overwrite);
+            GPUArray<unsigned char> bounced_index(N_bounced, m_exec_conf);
+            m_bounced_index.swap(bounced_index);
+            // resize m_bounced_index with swap idiom
+            }
+        ArrayHandle<unsigned int> h_bounced_index(m_bounced_index, access_location::host, access_mode::overwrite);
 
-            const unsigned int N_bounced_max = m_bounced_index.size();
-            N_bounced = 0;
-            for (unsigned int idx=0; idx < N; ++idx)
+        const unsigned int N_bounced_max = m_bounced_index.size();
+        N_bounced = 0;
+        for (unsigned int idx=0; idx < N; ++idx)
+            {
+            if (h_bounced.data[idx])
                 {
-                if (h_bounced.data[idx])
-                    {
-                    if (N_bounced < N_bounced_max)
-                        h_bounced_index.data[N_bounced] = idx;
-                    ++N_bounced;
-                    }
+                if (N_bounced < N_bounced_max)
+                    h_bounced_index.data[N_bounced] = idx;
+                ++N_bounced;
                 }
-            overflowed = N_bounced > N_bounced_max;
-            } while (overflowed)
-        }
+            }
+        overflowed = N_bounced > N_bounced_max;
+        } while (overflowed)
 
     // reduce / scan the number of particles that were bounced on all ranks
     unsigned int N_bounced_total = N_bounced;
@@ -199,12 +197,12 @@ void DryingDropletStreamingMethod<mpcd::SphereGeometry>::stream(unsigned int tim
         }
     }
 
-void DryingDropletStreamingMethod::makeAllPicks(unsigned int timestep, unsigned int N_pick_total, unsigned int N_mark_total)
+void DryingDropletStreamingMethod::makeAllPicks(unsigned int timestep, unsigned int N_pick_total, unsigned int N_bounced_total)
     {
-    assert(N_pick_total <= N_mark_total);
+    assert(N_pick_total <= N_bounced_total);
 
     // fill up vector which we will randomly shuffle
-    m_all_picks.resize(N_mark_total);
+    m_all_picks.resize(N_bounced_total);
     std::iota(m_all_picks.begin(), m_all_picks.end(), 0);
 
     hoomd::RandomGenerator rng(hoomd::RNGIdentifier::DryingDropletStreamingMethod, m_seed, timestep);
