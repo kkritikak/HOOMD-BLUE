@@ -44,8 +44,8 @@ class __attribute__((visibility("default"))) SphereGeometry
              *sphere will expand instead of shrinking!
              */
             if (V > 0)
-                {
-                throw std::runtime_error("Sphere surface velocity cannot be positive, otherwise sphere will expand instead of shrinking");
+                { 
+                //throw std::runtime_error("Sphere surface velocity cannot be positive, otherwise sphere will expand instead of shrinking");
                 }
             }
 
@@ -98,7 +98,7 @@ class __attribute__((visibility("default"))) SphereGeometry
 
             if (m_V == 0 && v2 == 0)
                 {
-                throw std::runtime_error("Velocity of shrinking sphere and velocity of particles is zero");
+                //throw std::runtime_error("Velocity of shrinking sphere and velocity of particles is zero");
                 }
 
             /*dt will be different in the limit v tends to V

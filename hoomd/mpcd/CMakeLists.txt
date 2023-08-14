@@ -39,6 +39,7 @@ set(_mpcd_headers
     ConfinedStreamingMethod.h
     Communicator.h
     CommunicatorUtilities.h
+    DryingDropletStreamingMethod.h
     ExternalField.h
     Integrator.h
     ManualVirtualParticleFiller.h
