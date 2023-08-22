@@ -8,6 +8,7 @@
 #include "hoomd/BoxDim.h"
 
 #include <cmath>
+#include <assert.h>
 
 #ifdef NVCC
 #define HOSTDEVICE __host__ __device__ inline
@@ -43,10 +44,7 @@ class __attribute__((visibility("default"))) SphereGeometry
              *Our solution for collision assumes V is negative, so V has to be negative otherwise
              *sphere will expand instead of shrinking!
              */
-            if (V > 0)
-                { 
-                //throw std::runtime_error("Sphere surface velocity cannot be positive, otherwise sphere will expand instead of shrinking");
-                }
+            assert(V<=0.);
             }
 
         //! Detect collision between the particle and the boundary
@@ -96,10 +94,7 @@ class __attribute__((visibility("default"))) SphereGeometry
              *this condition should never happen 
              */
 
-            if (m_V == 0 && v2 == 0)
-                {
-                //throw std::runtime_error("Velocity of shrinking sphere and velocity of particles is zero");
-                }
+            assert(m_V == 0 && v2 == 0);
 
             /*dt will be different in the limit v tends to V
              *when v2 - V2 ~ 0, different formula(calculated by (lim(v->V)dt)) is used

@@ -572,39 +572,46 @@ class sphere(_streaming_method):
     r""" Spherical streaming geometry.
 
     Args:
-        R (float): confinement radius
+        R (variant): confinement radius 
+        
         boundary (str): boundary condition at wall ("slip" or "no_slip")
+        density (float) : Solvent density 
         period (int): Number of integration steps between collisions
-
+        seed (int) : seed for picking bounced particles to keep or delete 
     The sphere geometry models a fluid confined inside a sphere, centered at the
     origin and with radius R. Solvent particles are reflected from the spherical
     walls using appropriate boundary conditions.
 
     Examples::
-        stream.sphere(period=10, R=30.)
+        stream.sphere(period=10, R=30.,density = 0.10)
 
     """
-    def __init__(self, R, boundary="no_slip", period=1):
+    def __init__(self, R, density, boundary="no_slip", period=1, seed=192):
         hoomd.util.print_status_line()
 
         _streaming_method.__init__(self, period)
 
-        self.metadata_fields += ['R', 'boundary']
-        self.R = R
+        self.metadata_fields += ['R','density', 'boundary','seed']
+        self.R = hoomd.variant._setup_variant_input(R)
+        self.density = density
         self.boundary = boundary
+        self.seed = seed
 
         bc = self._process_boundary(boundary)
 
         # create the base streaming class
         if not hoomd.context.exec_conf.isCUDAEnabled():
-            stream_class = _mpcd.ConfinedStreamingMethodSphere
+            stream_class = _mpcd.DryingDropletStreamingMethod
         else:
             stream_class = _mpcd.ConfinedStreamingMethodGPUSphere
         self._cpp = stream_class(hoomd.context.current.mpcd.data,
                                  hoomd.context.current.system.getCurrentTimeStep(),
                                  self.period,
                                  0,
-                                 _mpcd.SphereGeometry(R, bc))
+                                 self.R.cpp_variant,
+                                 self.density,
+                                 self.seed,
+                                 bc)
 
     def set_filler(self, density, kT, seed, type='A'):
         r""" Add virtual particles outside the spherical confinement
@@ -685,14 +692,17 @@ class sphere(_streaming_method):
 
         """
         hoomd.util.print_status_line()
-
+        cur_tstep = hoomd.context.current.system.getCurrentTimeStep()
+        
         if R is not None:
-            self.R = R
-
+            self.R = R   #This input R has to be float because SphereGeometry need R input as float
+        else:
+            self.R = R(cur_tstep)  #this is also not the right way
         if boundary is not None:
             self.boundary = boundary
 
         bc = self._process_boundary(self.boundary)
-        self._cpp.geometry = _mpcd.SphereGeometry(self.R,bc)
+        #the code is showing error when setting the parameters since self.V was not needed at line 589 i didnt initialize it,so the question is what to do with self.V now?
+        self._cpp.geometry = _mpcd.SphereGeometry(self.R, self.V, bc) 
         if self._filler is not None:
             self._filler.setGeometry(self._cpp.geometry)

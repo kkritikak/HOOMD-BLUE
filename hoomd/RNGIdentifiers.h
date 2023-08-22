@@ -24,6 +24,7 @@ namespace hoomd {
 struct RNGIdentifier
     {
     static const uint32_t ComputeFreeVolume = 0x23ed56f2;
+    static const uint32_t DryingDropletStreamingMethod = 0xc7af9094;
     static const uint32_t HPMCMonoShuffle = 0xfa870af6;
     static const uint32_t HPMCMonoTrialMove = 0x754dea60;
     static const uint32_t HPMCMonoShift = 0xf4a3210e;
