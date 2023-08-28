@@ -120,7 +120,7 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
 
     // acquire polymorphic pointer to the external field
     const mpcd::ExternalField* field = (m_field) ? m_field->get(access_location::host) : nullptr;
-    
+
     for (unsigned int cur_p = 0; cur_p < m_mpcd_pdata->getN(); ++cur_p)
         {
         const Scalar4 postype = h_pos.data[cur_p];
