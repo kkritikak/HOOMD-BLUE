@@ -69,7 +69,7 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         unsigned int m_seed;                 //!< Seed to evaporator pseudo-random number generator
         const mpcd::detail::boundary m_bc;   //!< Boundary condition
 
-        GPUVector<unsigned char> m_bounced_index;          //! indices of bounced particles
+        GPUArray<unsigned char> m_bounced_index;          //! indices of bounced particles
         GPUVector<unsigned int> m_picks;                   //!particles picked for keep/removing on this rank
 
         unsigned int m_Npick;
@@ -144,7 +144,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
                 }
             ArrayHandle<unsigned char> h_bounced_index(m_bounced_index, access_location::host, access_mode::overwrite);
 
-            const unsigned int N_bounced_max = m_bounced_index.size();
+            const unsigned int N_bounced_max = m_bounced_index.getNumElements();
             N_bounced = 0;
             for (unsigned int idx=0; idx < N; ++idx)
                 {
@@ -197,11 +197,11 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
          */
 
         const unsigned int max_pick_idx = N_before + N_bounced;
-        overflowed = false;
+        bool overflowed = false;
         do
             {
             m_Npick = 0;
-            const unsigned int max_Npick = m_picks.size();
+            const unsigned int max_Npick = m_picks.getNumElements();
 
                 {
                 ArrayHandle<unsigned int> h_picks(m_picks, access_location::host, access_mode::overwrite);

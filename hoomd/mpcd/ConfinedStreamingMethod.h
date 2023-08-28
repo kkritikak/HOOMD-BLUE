@@ -18,8 +18,6 @@
 #include "StreamingMethod.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
 
-#include "hoomd/HOOMDMath.h"
-
 namespace mpcd
 {
 

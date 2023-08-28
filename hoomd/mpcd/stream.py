@@ -605,7 +605,141 @@ class sphere(_streaming_method):
                                  hoomd.context.current.system.getCurrentTimeStep(),
                                  self.period,
                                  0,
-                                 _mpcd.SphereGeometry(R, 0.0 bc))
+                                 _mpcd.SphereGeometry(R, 0.0, bc))
+
+    def set_filler(self, density, kT, seed, type='A'):
+        r""" Add virtual particles outside the spherical confinement
+
+        Args:
+            density (float): Density of virtual particles.
+            kT (float): Temperature of virtual particles.
+            seed (int): Seed to pseudo-random number generator for virtual particles.
+            type (str): Type of the MPCD particles to fill with.
+
+        The virtual particle filler draws particles in *all space outside* the spherical wall since
+        it would be very tricky to determine the number of virtual particles to add close to the wall
+        (individual ranks) due to the curvature of the geometry. The particle positions are drawn
+        from an uniform distribution and the velocities from distribution consistent with ``kT`` and
+        with the given ``density``. Typically, the virtual particle density and temperature are set to
+        the same conditions as the solvent.
+
+        The virtual particles will act as a weak thermostat on the fluid, and so energy is no longer
+        conserved. Momentum will also be sunk into the walls.
+
+        NOTE: The simulation box-size should be chosen carefully. The box should be just large enough to
+        hold the sphere+padding layer of cells (best case single padding layer). Performance of the
+        filler degrades with increasing box size, since we are using rejection sampling method.
+
+        Example:
+
+            sphere.set_filler(density=5.0, kT=1.0, seed=73)
+
+        """
+        hoomd.util.print_status_line()
+
+        type_id = hoomd.context.current.mpcd.particles.getTypeByName(type)
+        T = hoomd.variant._setup_variant_input(kT)
+
+        if self._filler is None:
+            if not hoomd.context.exec_conf.isCUDAEnabled():
+                fill_class = _mpcd.SphereRejectionFiller
+            else:
+                fill_class = _mpcd.SphereRejectionFillerGPU
+            self._filler = fill_class(hoomd.context.current.mpcd.data,
+                                      density,
+                                      type_id,
+                                      T.cpp_variant,
+                                      seed,
+                                      self._cpp.geometry)
+        else:
+            self._filler.setDensity(density)
+            self._filler.setType(type_id)
+            self._filler.setTemperature(T.cpp_variant)
+            self._filler.setSeed(seed)
+
+    def remove_filler(self):
+        """ Remove the virtual particle filler.
+
+        Example::
+
+            sphere.remove_filler()
+
+        """
+        hoomd.util.print_status_line()
+
+        self._filler = None
+
+    def set_params(self, R=None, boundary=None):
+        """ Set parameters for the sphere geometry.
+
+        Args:
+            R (float): Sphere radius
+            boundary (str): boundary condition at wall ("slip" or "no_slip"")
+
+        Changing any of these parameters will require the geometry to be
+        constructed and validated, so do not change these too often.
+
+        Examples::
+
+            slit.set_params(R=15.0)
+            slit.set_params(R=0.2, boundary="no_slip")
+
+        """
+        hoomd.util.print_status_line()
+
+        if R is not None:
+            self.R = R
+
+        if boundary is not None:
+            self.boundary = boundary
+
+        bc = self._process_boundary(self.boundary)
+        self._cpp.geometry = _mpcd.SphereGeometry(self.R,0.0,bc)
+        if self._filler is not None:
+            self._filler.setGeometry(self._cpp.geometry)
+
+class movingsphere(_streaming_method):
+    r""" Spherical streaming geometry.
+
+    Args:
+        R (float): confinement radius
+        boundary (str): boundary condition at wall ("slip" or "no_slip")
+        period (int): Number of integration steps between collisions
+
+    The sphere geometry models a fluid confined inside a sphere, centered at the
+    origin and with radius R. Solvent particles are reflected from the spherical
+    walls using appropriate boundary conditions.
+
+    Examples::
+        stream.sphere(period=10, R=30.)
+
+    """
+    def __init__(self, R, density , boundary="no_slip", period=1, seed = 234):
+        hoomd.util.print_status_line()
+
+        _streaming_method.__init__(self, period)
+
+        self.metadata_fields += ['R','density','boundary','seed']
+        self.R = hoomd.variant._setup_variant_input(R)
+        self.density = density
+        self.boundary = boundary
+        self.seed = seed
+
+        bc = self._process_boundary(boundary)
+
+        # create the base streaming class
+        if not hoomd.context.exec_conf.isCUDAEnabled():
+            stream_class = _mpcd.DryingDropletStreamingMethod
+        else:
+            stream_class = _mpcd.ConfinedStreamingMethodGPUSphere
+        self._cpp = stream_class(hoomd.context.current.mpcd.data,
+                                 hoomd.context.current.system.getCurrentTimeStep(),
+                                 self.period,
+                                 0,
+                                 self.R.cpp_variant,
+                                 self.density,
+                                 self.seed,
+                                 bc)
 
     def set_filler(self, density, kT, seed, type='A'):
         r""" Add virtual particles outside the spherical confinement

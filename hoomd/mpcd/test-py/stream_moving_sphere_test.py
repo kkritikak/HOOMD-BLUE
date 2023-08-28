@@ -64,7 +64,7 @@ class mpcd_stream_sphere_test(unittest.TestCase):
 
         R1 = hoomd.variant.linear_interp(points = my_variant)
         self.mpcd_sys.sorter.set_period(period = 100)                                 
-        mpcd.stream.sphere(R=R1, density = density,period=10, boundary="no_slip")
+        mpcd.stream.movingsphere(R=R1, density = density,period=10, boundary="no_slip")
         mpcd.collide.srd(seed=1991, period=10, angle=130., kT=1.0, group=hoomd.group.all())
 
         # take 20 step
