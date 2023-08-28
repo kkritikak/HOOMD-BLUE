@@ -698,7 +698,7 @@ class sphere(_streaming_method):
         if self._filler is not None:
             self._filler.setGeometry(self._cpp.geometry)
 
-class movingsphere(_streaming_method):
+class dryingsphere(_streaming_method):
     r""" Spherical streaming geometry.
 
     Args:
