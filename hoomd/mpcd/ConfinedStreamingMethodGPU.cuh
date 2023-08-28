@@ -39,7 +39,7 @@ struct stream_args_t
 
     Scalar4 *d_pos;                     //!< Particle positions
     Scalar4 *d_vel;                     //!< Particle velocities
-    unsigned char *d_bounced;           //!< Flag for particles if they have bounced back(reflected back by surface) or not
+    unsigned char *d_bounced;           //!< Particle bounced flags
     const Scalar mass;                  //!< Particle mass
     const mpcd::ExternalField* field;   //!< Applied external field on particles
     const BoxDim& box;                  //!< Simulation box

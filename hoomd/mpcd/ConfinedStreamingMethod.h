@@ -18,6 +18,8 @@
 #include "StreamingMethod.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
 
+#include "hoomd/HOOMDMath.h"
+
 namespace mpcd
 {
 
@@ -79,7 +81,7 @@ class PYBIND11_EXPORT ConfinedStreamingMethod : public mpcd::StreamingMethod
     protected:
         std::shared_ptr<const Geometry> m_geom; //!< Streaming geometry
         bool m_validate_geom;   //!< If true, run a validation check on the geometry
-        GPUArray<unsigned char> m_bounced; //!<Flag for if particles were bounced from boundary
+        GPUArray<unsigned char> m_bounced; //!<Flag for  particles bounced from boundary
         
         //! Validate the system with the streaming geometry
         void validate();
@@ -117,13 +119,16 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
     ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::overwrite);
     
     const Scalar mass = m_mpcd_pdata->getMass();
+
     // acquire polymorphic pointer to the external field
     const mpcd::ExternalField* field = (m_field) ? m_field->get(access_location::host) : nullptr;
+    
     for (unsigned int cur_p = 0; cur_p < m_mpcd_pdata->getN(); ++cur_p)
         {
         const Scalar4 postype = h_pos.data[cur_p];
         Scalar3 pos = make_scalar3(postype.x, postype.y, postype.z);
         const unsigned int type = __scalar_as_int(postype.w);
+
         const Scalar4 vel_cell = h_vel.data[cur_p];
         Scalar3 vel = make_scalar3(vel_cell.x, vel_cell.y, vel_cell.z);
         // estimate next velocity based on current acceleration
@@ -152,6 +157,7 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
         // wrap and update the position
         int3 image = make_int3(0,0,0);
         box.wrap(pos, image);
+
         h_pos.data[cur_p] = make_scalar4(pos.x, pos.y, pos.z, __int_as_scalar(type));
         h_vel.data[cur_p] = make_scalar4(vel.x, vel.y, vel.z, __int_as_scalar(mpcd::detail::NO_CELL));
         h_bounced.data[cur_p] = bounced;
@@ -166,10 +172,8 @@ template<class Geometry>
 void ConfinedStreamingMethod<Geometry>::validate()
     {
     // ensure that the global box is padded enough for periodic boundaries
-
     const BoxDim& box = m_pdata->getGlobalBox();
     const Scalar cell_width = m_mpcd_sys->getCellList()->getCellSize();
-
     if (!m_geom->validateBox(box, cell_width))
         {
         m_exec_conf->msg->error() << "ConfinedStreamingMethod: box too small for " << Geometry::getName() << " geometry. Increase box size." << std::endl;

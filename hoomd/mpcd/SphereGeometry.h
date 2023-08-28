@@ -94,7 +94,7 @@ class __attribute__((visibility("default"))) SphereGeometry
              *this condition should never happen 
              */
 
-            assert(m_V == 0 && v2 == 0);
+            assert(!(m_V == 0. && v2 == 0.));
 
             /*dt will be different in the limit v tends to V
              *when v2 - V2 ~ 0, different formula(calculated by (lim(v->V)dt)) is used

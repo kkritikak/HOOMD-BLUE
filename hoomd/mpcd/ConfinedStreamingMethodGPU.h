@@ -66,7 +66,6 @@ class PYBIND11_EXPORT ConfinedStreamingMethodGPU : public mpcd::ConfinedStreamin
             }
 
     protected:
-        
         std::unique_ptr<Autotuner> m_tuner;
     };
 

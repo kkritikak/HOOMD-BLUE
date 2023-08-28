@@ -38,8 +38,7 @@ void sphere_rejection_fill_basic_test(std::shared_ptr<ExecutionConfiguration> ex
 
     // create a spherical confinement of radius 5.0
     Scalar r=5.0;
-    Scalar v=0.0;
-    auto sphere = std::make_shared<const mpcd::detail::SphereGeometry>(r,v, mpcd::detail::boundary::no_slip);
+    auto sphere = std::make_shared<const mpcd::detail::SphereGeometry>(r,0.0, mpcd::detail::boundary::no_slip);
     std::shared_ptr<::Variant> kT = std::make_shared<::VariantConst>(1.5);
     std::shared_ptr<mpcd::RejectionVirtualParticleFiller<mpcd::detail::SphereGeometry>> filler = std::make_shared<F>(mpcd_sys, 2.0, 1, kT, 42, sphere);
 
