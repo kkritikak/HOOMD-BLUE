@@ -68,16 +68,19 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         const Scalar m_density;              //!< Solvent density
         unsigned int m_seed;                 //!< Seed to evaporator pseudo-random number generator
         const mpcd::detail::boundary m_bc;   //!< Boundary condition
+        unsigned int m_Npick;                              //!< Number of particles picked for evaporation on this rank
 
-        GPUArray<unsigned char> m_bounced_index;          //! indices of bounced particles
-        GPUVector<unsigned int> m_picks;                   //!particles picked for keep/removing on this rank
+        GPUArray<unsigned int> m_bounced_index;           //!< Indices of bounced particles
+        GPUVector<unsigned int> m_picks;                   //!< Particles picked for evaporation on this rank
 
-        unsigned int m_Npick;
+        virtual void applyPicks();                          //!< Apply the picks
+
     private:
-        std::vector<unsigned int> m_all_picks;             //!All picked particles
+        std::vector<unsigned int> m_all_picks;             //!< All picked particles on all the ranks
 
-        //! For Making a random pick of particles across all ranks
-        void makeAllPicks(unsigned int timestep, unsigned int N_pick_total, unsigned int N_bounced_total);
+        //!< For Making a random pick of particles across all ranks
+        void makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_bounced_total);
+
     };
 
 /*!
@@ -86,13 +89,17 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
 
 void DryingDropletStreamingMethod::stream(unsigned int timestep)
     {
+    /*
+     * Stream will only happen at streaming period and
+     * geometry will only be updated when stream will happen
+     */
     if(timestep%m_period != 0) return;
-    std::cout << timestep <<std::endl;
+    
     //compute final Radius and Velocity of surface
     const Scalar start_R = m_R->getValue(timestep);
     const Scalar end_R = m_R->getValue(timestep + m_period);
     const Scalar V = (end_R - start_R)/(m_mpcd_dt);
-    std::cout << "endR is" << end_R <<std::endl;
+
     if (V > 0)
         {
         throw std::runtime_error("Droplet radius must decrease.");
@@ -122,10 +129,9 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     ConfinedStreamingMethod<mpcd::detail::SphereGeometry>::stream(timestep);
 
 
-    //calculating number of particles to remove from solvent density
+    //calculating number of particles to evaporate(such that solvent density remain constant)
     const unsigned int N_remove = round((4.*M_PI/3.)*end_R*end_R*end_R*m_density);
     const int N_evap = m_mpcd_pdata->getNGlobal() - N_remove;
-    std::cout << "Number of particles to evaporate is : " << N_evap << std::endl;
 
     // get the compact array of indexes of bounced particles
     unsigned int N_bounced = 0;
@@ -138,11 +144,11 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
             {
             if (overflowed)
                 {
-                GPUArray<unsigned char> bounced_index(N_bounced, m_exec_conf);
+                GPUArray<unsigned int> bounced_index(N_bounced, m_exec_conf);
                 m_bounced_index.swap(bounced_index);
                 // resize m_bounced_index with swap idiom
                 }
-            ArrayHandle<unsigned char> h_bounced_index(m_bounced_index, access_location::host, access_mode::overwrite);
+            ArrayHandle<unsigned int> h_bounced_index(m_bounced_index, access_location::host, access_mode::overwrite);
 
             const unsigned int N_bounced_max = m_bounced_index.getNumElements();
             N_bounced = 0;
@@ -159,7 +165,6 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
             } while (overflowed);
         }
 
-    std::cout << "N_bounced is : " << N_bounced << std::endl;
 
     // reduce / scan the number of particles that were bounced on all ranks
     unsigned int N_bounced_total = N_bounced;
@@ -171,24 +176,28 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
         MPI_Exscan(&N_bounced, &N_before, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
         }
     #endif // ENABLE_MPI
+    
 
-    // N_evap is the total number to remove (computed previously)
-    if (N_evap < N_bounced_total)
+    if (N_bounced_total <= N_evap)
         {
-        // do the pick logic, otherwise we should remove all the marked ones
-        unsigned int N_keep_total = N_bounced_total - N_evap;
-        unsigned int N_pick_total;
-        if (N_keep_total < N_bounced_total)
+        //pick all bounced particles and remove all of them
+        m_picks.resize(N_bounced);
+        ArrayHandle<unsigned int> h_picks(m_picks, access_location::host, access_mode::overwrite);
+        std::iota(h_picks.data, h_picks.data + N_bounced, 0);
+        m_Npick = N_bounced;
+        //calculating density if it will get changed alot - through a warning
+        Scalar currentdensity = (m_mpcd_pdata->getNGlobal() - N_bounced_total)/((4.*M_PI/3.)*end_R*end_R*end_R);
+        Scalar deltaindensity = std::fabs(currentdensity - m_density);
+        if (deltaindensity > 0.1)
             {
-            N_pick_total = N_keep_total;
-            //pick particles for N_keep
+            m_exec_conf->msg->warning() << "Solvent density changed to - " << currentdensity << std::endl;
             }
-        else
-            {
-            N_pick_total = N_bounced_total;
-            //pick particles for N_bounced
-            }
-        makeAllPicks(timestep, N_pick_total , N_bounced_total);
+        }
+    
+    else
+        {
+        // do the pick logic
+        makeAllPicks(timestep, N_evap , N_bounced_total);
         
         /*
          * Select the picks that lie on my rank, with reindexing to local mark indexes.
@@ -205,7 +214,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
 
                 {
                 ArrayHandle<unsigned int> h_picks(m_picks, access_location::host, access_mode::overwrite);
-                for (unsigned int i=0; i < N_pick_total; ++i)
+                for (unsigned int i=0; i < N_evap; ++i)
                     {
                     const unsigned int pick = m_all_picks[i];
                     if (pick >= N_before && pick < max_pick_idx)
@@ -227,11 +236,13 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
 
             } while (overflowed);
         }
+
+    applyPicks();
     }
 
-void DryingDropletStreamingMethod::makeAllPicks(unsigned int timestep, unsigned int N_pick_total, unsigned int N_bounced_total)
+void DryingDropletStreamingMethod::makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_bounced_total)
     {
-    assert(N_pick_total <= N_bounced_total);
+    assert(N_pick <= N_bounced_total);
 
     // fill up vector which we will randomly shuffle
     m_all_picks.resize(N_bounced_total);
@@ -243,7 +254,7 @@ void DryingDropletStreamingMethod::makeAllPicks(unsigned int timestep, unsigned 
     auto begin = m_all_picks.begin();
     auto end = m_all_picks.end();
     size_t left = std::distance(begin,end);
-    unsigned int N_choose = N_pick_total;
+    unsigned int N_choose = N_pick;
     while (N_choose-- && left > 1)
         {
         hoomd::UniformIntDistribution rand_shift(left-1);
@@ -256,7 +267,19 @@ void DryingDropletStreamingMethod::makeAllPicks(unsigned int timestep, unsigned 
         }
 
     // size the vector down to the number picked
-    m_all_picks.resize(N_pick_total);
+    m_all_picks.resize(N_pick);
+    }
+
+void DryingDropletStreamingMethod::applyPicks()
+    {
+    ArrayHandle<unsigned int> h_picks(m_picks, access_location::host, access_mode::read);
+    ArrayHandle<unsigned int> h_bounced_index(m_bounced_index, access_location::host, access_mode::read);
+    ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
+    for (unsigned int i=0; i < m_Npick; ++i)
+        {
+        const unsigned int pidx = h_bounced_index.data[h_picks.data[i]];
+        h_bounced.data[pidx]= 0b11;
+        }
     }
 
 namespace detail

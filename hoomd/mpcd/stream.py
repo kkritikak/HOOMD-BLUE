@@ -698,20 +698,24 @@ class sphere(_streaming_method):
             self._filler.setGeometry(self._cpp.geometry)
 
 class dryingsphere(_streaming_method):
-    r""" Spherical streaming geometry.
+    r""" Drying Spherical streaming geometry.
 
     Args:
-        R (float): confinement radius
+        R (variant): confinement radius
+        density (float): number density inside sphere(which will be constant throughout streaming)
         boundary (str): boundary condition at wall ("slip" or "no_slip")
         period (int): Number of integration steps between collisions
 
-    The sphere geometry models a fluid confined inside a sphere, centered at the
-    origin and with radius R. Solvent particles are reflected from the spherical
-    walls using appropriate boundary conditions.
+    The dryingsphere class models a fluid confined inside a drying sphere, centered at the
+    origin and sphere size is decreasing according to radius variant R. Solvent particles are
+    reflected from the spherical walls using appropriate boundary conditions.
 
     Examples::
-        stream.sphere(period=10, R=30.)
+        stream.dryingsphere(period=10, R= hoomd.variant(variant for R), density =5.,seed=394 )
 
+
+    Remember you can't change the Radius and density and boundary once you have initialised it.
+    
     """
     def __init__(self, R, density , boundary="no_slip", period=1, seed = 234):
         hoomd.util.print_status_line()
@@ -801,32 +805,3 @@ class dryingsphere(_streaming_method):
         hoomd.util.print_status_line()
 
         self._filler = None
-
-    def set_params(self, R=None, boundary=None):
-        """ Set parameters for the sphere geometry.
-
-        Args:
-            R (float): Sphere radius
-            boundary (str): boundary condition at wall ("slip" or "no_slip"")
-
-        Changing any of these parameters will require the geometry to be
-        constructed and validated, so do not change these too often.
-
-        Examples::
-
-            slit.set_params(R=15.0)
-            slit.set_params(R=0.2, boundary="no_slip")
-
-        """
-        hoomd.util.print_status_line()
-
-        if R is not None:
-            self.R = R
-
-        if boundary is not None:
-            self.boundary = boundary
-
-        bc = self._process_boundary(self.boundary)
-        self._cpp.geometry = _mpcd.SphereGeometry(self.R,0.0,bc)
-        if self._filler is not None:
-            self._filler.setGeometry(self._cpp.geometry)
