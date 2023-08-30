@@ -110,7 +110,6 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
      * Because the interface is shrinking, it is sufficient to validate only the first time the geometry
      * is set.
      */
-
     if (!m_geom)
         {
         m_geom = std::make_shared<mpcd::detail::SphereGeometry>(start_R, V , m_bc ); 
@@ -127,7 +126,6 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     
     //stream according to base class rules
     ConfinedStreamingMethod<mpcd::detail::SphereGeometry>::stream(timestep);
-
 
     //calculating number of particles to evaporate(such that solvent density remain constant)
     const unsigned int N_remove = round((4.*M_PI/3.)*end_R*end_R*end_R*m_density);
@@ -165,7 +163,6 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
             } while (overflowed);
         }
 
-
     // reduce / scan the number of particles that were bounced on all ranks
     unsigned int N_bounced_total = N_bounced;
     unsigned int N_before = 0;
@@ -177,7 +174,9 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
         }
     #endif // ENABLE_MPI
     
-
+    /* if N_bounced_total <= N_evap - pick all the particles to delete
+     * else pick N_evap particles out of N_bounced_total
+     */
     if (N_bounced_total <= N_evap)
         {
         //pick all bounced particles and remove all of them
@@ -185,15 +184,13 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
         ArrayHandle<unsigned int> h_picks(m_picks, access_location::host, access_mode::overwrite);
         std::iota(h_picks.data, h_picks.data + N_bounced, 0);
         m_Npick = N_bounced;
-        //calculating density if it will get changed alot - through a warning
+        //calculating density if it will get changed alot - print a warning
         Scalar currentdensity = (m_mpcd_pdata->getNGlobal() - N_bounced_total)/((4.*M_PI/3.)*end_R*end_R*end_R);
-        Scalar deltaindensity = std::fabs(currentdensity - m_density);
-        if (deltaindensity > 0.1)
+        if (std::fabs(currentdensity - m_density) > Scalar(0.1))
             {
             m_exec_conf->msg->warning() << "Solvent density changed to - " << currentdensity << std::endl;
             }
         }
-    
     else
         {
         // do the pick logic
@@ -236,7 +233,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
 
             } while (overflowed);
         }
-
+    
     applyPicks();
     }
 
