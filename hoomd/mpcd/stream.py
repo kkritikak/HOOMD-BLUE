@@ -714,7 +714,7 @@ class dryingsphere(_streaming_method):
         stream.dryingsphere(period=10, R= hoomd.variant(variant for R), density =5.,seed=394 )
 
 
-    Remember you can't change the Radius and density and boundary once you have initialised it.
+    Note: You can't change the Radius and density and boundary once you have initialised it.
     
     """
     def __init__(self, R, density , boundary="no_slip", period=1, seed = 234):

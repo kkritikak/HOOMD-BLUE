@@ -95,7 +95,6 @@ void ConfinedStreamingMethodGPU<Geometry>::stream(unsigned int timestep)
     ArrayHandle<Scalar4> d_pos(this->m_mpcd_pdata->getPositions(), access_location::device, access_mode::readwrite);
     ArrayHandle<Scalar4> d_vel(this->m_mpcd_pdata->getVelocities(), access_location::device, access_mode::readwrite);
     ArrayHandle<unsigned char> d_bounced(this->m_bounced, access_location::device, access_mode::overwrite);
-    
     mpcd::gpu::stream_args_t args(d_pos.data,
                                   d_vel.data,
                                   d_bounced.data,

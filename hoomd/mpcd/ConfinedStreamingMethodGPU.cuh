@@ -60,7 +60,7 @@ namespace kernel
 /*!
  * \param d_pos Particle positions
  * \param d_vel Particle velocities
- * \param d_bounced Particle flag whether they bounced back or not
+ * \param d_bounced Particle bounced flags
  * \param mass Particle mass
  * \param box Simulation box
  * \param dt Timestep to stream
