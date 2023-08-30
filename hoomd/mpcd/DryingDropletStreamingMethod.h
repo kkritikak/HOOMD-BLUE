@@ -120,7 +120,6 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
      *Update the geometry radius to the size at the end of the streaming step.
      * This needs to be done every time.
      */
-
     m_geom = std::make_shared<mpcd::detail::SphereGeometry>(end_R, V, m_bc );
     
     //stream according to base class rules

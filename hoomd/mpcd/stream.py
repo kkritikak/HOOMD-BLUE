@@ -702,7 +702,7 @@ class dryingsphere(_streaming_method):
 
     Args:
         R (variant): confinement radius
-        density (float): number density inside sphere
+        density (float): solvent number density inside sphere
         boundary (str): boundary condition at wall ("slip" or "no_slip")
         period (int): Number of integration steps between collisions
 
