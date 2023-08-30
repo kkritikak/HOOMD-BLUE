@@ -15,7 +15,6 @@
 #error This header cannot be compiled by nvcc
 #endif
 
-#include <string>
 #include "ConfinedStreamingMethod.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
 #include "hoomd/Variant.h"
