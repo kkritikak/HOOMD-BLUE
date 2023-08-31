@@ -81,7 +81,7 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
     private:
         std::vector<unsigned int> m_all_picks;             //!< All picked particles on all the ranks
 
-        unsigned int calculateN_bounced(GPUArray<unsigned char> m_bounced);   //!< For calculating N_bounced and m_bounced_index 
+        unsigned int calculateN_bounced();   //!< For calculating N_bounced and m_bounced_index 
         //!< For Making a random pick of particles across all ranks
         void makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_bounced_total);
 
@@ -132,7 +132,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     const int N_evap = m_mpcd_pdata->getNGlobal() - N_remove;
 
     // get the compact array of indexes of bounced particles and total N_bounced
-    unsigned int N_bounced = calculateN_bounced(m_bounced);
+    unsigned int N_bounced = calculateN_bounced();
 
     // reduce / scan the number of particles that were bounced on all ranks
     unsigned int N_bounced_total = N_bounced;
@@ -209,7 +209,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     }
 
 
-unsigned int DryingDropletStreamingMethod::calculateN_bounced(GPUArray<unsigned char> m_bounced)        
+unsigned int DryingDropletStreamingMethod::calculateN_bounced()        
     {
     unsigned int N_bounced = 0;
         {
