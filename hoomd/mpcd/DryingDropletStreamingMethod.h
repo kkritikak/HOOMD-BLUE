@@ -54,9 +54,13 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         DryingDropletStreamingMethod(std::shared_ptr<mpcd::SystemData> sysdata,
                                     unsigned int cur_timestep,
                                     unsigned int period,
-                                    int phase, std::shared_ptr<::Variant> R, const Scalar density, unsigned int seed, mpcd::detail::boundary bc)
+                                    int phase,
+                                    std::shared_ptr<::Variant> R,
+                                    mpcd::detail::boundary bc,
+                                    Scalar density,
+                                    unsigned int seed)
         : mpcd::ConfinedStreamingMethod<mpcd::detail::SphereGeometry>(sysdata, cur_timestep, period, phase, std::shared_ptr<mpcd::detail::SphereGeometry>()),
-          m_R(R), m_density(density), m_seed(seed), m_picks(m_exec_conf), m_bc(bc)
+          m_R(R), m_bc(bc), m_density(density), m_seed(seed), m_picks(m_exec_conf)
           {}
 
         //! Implementation of the streaming rule
@@ -64,10 +68,10 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
 
     protected:
         std::shared_ptr<::Variant> m_R;      //!< Radius of Sphere
-        const Scalar m_density;              //!< Solvent density
+        mpcd::detail::boundary m_bc;         //!< Boundary condition
+        Scalar m_density;                    //!< Solvent density
         unsigned int m_seed;                 //!< Seed to evaporator pseudo-random number generator
-        const mpcd::detail::boundary m_bc;   //!< Boundary condition
-        unsigned int m_Npick;                              //!< Number of particles picked for evaporation on this rank
+        unsigned int m_Npick;                //!< Number of particles picked for evaporation on this rank
 
         GPUArray<unsigned int> m_bounced_index;           //!< Indices of bounced particles
         GPUVector<unsigned int> m_picks;                   //!< Particles picked for evaporation on this rank
@@ -77,6 +81,7 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
     private:
         std::vector<unsigned int> m_all_picks;             //!< All picked particles on all the ranks
 
+        unsigned int calculateN_bounced(GPUArray<unsigned char> m_bounced);   //!< For calculating N_bounced and m_bounced_index 
         //!< For Making a random pick of particles across all ranks
         void makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_bounced_total);
 
@@ -88,11 +93,8 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
 
 void DryingDropletStreamingMethod::stream(unsigned int timestep)
     {
-    /*
-     * Stream will only happen at streaming period and
-     * geometry will only be updated when stream will happen
-     */
-    if(timestep%m_period != 0) return;
+    // use peekStream since shouldStream will be called by parent class 
+    if(!peekStream(timestep)) return;
     
     //compute final Radius and Velocity of surface
     const Scalar start_R = m_R->getValue(timestep);
@@ -129,37 +131,8 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     const unsigned int N_remove = round((4.*M_PI/3.)*end_R*end_R*end_R*m_density);
     const int N_evap = m_mpcd_pdata->getNGlobal() - N_remove;
 
-    // get the compact array of indexes of bounced particles
-    unsigned int N_bounced = 0;
-        {
-        const unsigned int N = m_mpcd_pdata->getN();
-        ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::read);
-
-        bool overflowed = false;
-        do
-            {
-            if (overflowed)
-                {
-                GPUArray<unsigned int> bounced_index(N_bounced, m_exec_conf);
-                m_bounced_index.swap(bounced_index);
-                // resize m_bounced_index with swap idiom
-                }
-            ArrayHandle<unsigned int> h_bounced_index(m_bounced_index, access_location::host, access_mode::overwrite);
-
-            const unsigned int N_bounced_max = m_bounced_index.getNumElements();
-            N_bounced = 0;
-            for (unsigned int idx=0; idx < N; ++idx)
-                {
-                if (h_bounced.data[idx])
-                    {
-                    if (N_bounced < N_bounced_max)
-                        h_bounced_index.data[N_bounced] = idx;
-                    ++N_bounced;
-                    }
-                }
-            overflowed = N_bounced > N_bounced_max;
-            } while (overflowed);
-        }
+    // get the compact array of indexes of bounced particles and total N_bounced
+    unsigned int N_bounced = calculateN_bounced(m_bounced);
 
     // reduce / scan the number of particles that were bounced on all ranks
     unsigned int N_bounced_total = N_bounced;
@@ -235,6 +208,42 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     applyPicks();
     }
 
+
+unsigned int DryingDropletStreamingMethod::calculateN_bounced(GPUArray<unsigned char> m_bounced)        
+    {
+    unsigned int N_bounced = 0;
+        {
+        const unsigned int N = m_mpcd_pdata->getN();
+        ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::read);
+
+        bool overflowed = false;
+        do
+            {
+            if (overflowed)
+                {
+                GPUArray<unsigned int> bounced_index(N_bounced, m_exec_conf);
+                m_bounced_index.swap(bounced_index);
+                // resize m_bounced_index with swap idiom
+                }
+            ArrayHandle<unsigned int> h_bounced_index(m_bounced_index, access_location::host, access_mode::overwrite);
+
+            const unsigned int N_bounced_max = m_bounced_index.getNumElements();
+            N_bounced = 0;
+            for (unsigned int idx=0; idx < N; ++idx)
+                {
+                if (h_bounced.data[idx])
+                    {
+                    if (N_bounced < N_bounced_max)
+                        h_bounced_index.data[N_bounced] = idx;
+                    ++N_bounced;
+                    }
+                }
+            overflowed = N_bounced > N_bounced_max;
+            } while (overflowed);
+        }
+    return N_bounced;
+    }
+
 void DryingDropletStreamingMethod::makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_bounced_total)
     {
     assert(N_pick <= N_bounced_total);
@@ -273,9 +282,10 @@ void DryingDropletStreamingMethod::applyPicks()
     for (unsigned int i=0; i < m_Npick; ++i)
         {
         const unsigned int pidx = h_bounced_index.data[h_picks.data[i]];
-        h_bounced.data[pidx]= 0b11;
+        h_bounced.data[pidx] |= 1 << 1;
         }
     }
+
 
 namespace detail
 {
@@ -288,7 +298,7 @@ void export_DryingDropletStreamingMethod(pybind11::module& m)
     {
     namespace py = pybind11;
     py::class_<mpcd::DryingDropletStreamingMethod, mpcd::ConfinedStreamingMethod<mpcd::detail::SphereGeometry>, std::shared_ptr<DryingDropletStreamingMethod>>(m, "DryingDropletStreamingMethod")
-        .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<::Variant>, Scalar, unsigned int, boundary>());
+        .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<::Variant>, boundary, Scalar, unsigned int>());
     }
 } // end namespace detail
 } // end namespace mpcd
