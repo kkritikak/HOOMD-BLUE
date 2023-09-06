@@ -84,7 +84,7 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         unsigned int calculateN_bounced();   //!< For calculating N_bounced and m_bounced_index 
         //!< For Making a random pick of particles across all ranks
         void makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_bounced_total);
-        GPUArray<unsigned int>& changeToint(GPUArray<unsigned char> m_bounced);
+        //GPUArray<unsigned int>& changeToint(GPUArray<unsigned char> m_bounced);
     };
 
 /*!
@@ -207,7 +207,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     
     applyPicks();
     //changing m_bounced to int
-    h_bounced.data = changeToint(m_bounced);
+    //h_bounced.data = changeToint(m_bounced);
     }
 
 
@@ -288,14 +288,14 @@ void DryingDropletStreamingMethod::applyPicks()
         }
     }
 
-GPUArray<unsigned int>& changeToint(GPUArray<unsigned char> m_bounced)
+/*GPUArray<unsigned int>& changeToint(GPUArray<unsigned char> m_bounced)
     {
     Scalar elements = m_bounced.getNumElements();
     ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
 
     (int)(h_bounced.data);
     return m_bounced;
-    }
+    }*/
 
 namespace detail
 {

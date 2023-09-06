@@ -8,7 +8,7 @@
  * \brief Defines GPU functions and kernels used by mpcd::ParticleData
  */
 
-//#ifdef ENABLE_MPI
+
 
 #include "ParticleData.cuh"
 

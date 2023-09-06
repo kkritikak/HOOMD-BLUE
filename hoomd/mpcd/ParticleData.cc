@@ -642,12 +642,12 @@ void mpcd::ParticleData::allocate(unsigned int N_max)
     m_remove_ids.swap(remove_ids);
 
     #ifdef ENABLE_CUDA
+    GPUFlags<unsigned int> num_remove(m_exec_conf);
+    m_num_remove.swap(num_remove);
+
     // this array is used for particle migration
     GPUArray<unsigned char> remove_flags(N_max, m_exec_conf);
     m_remove_flags.swap(remove_flags);
-
-    GPUFlags<unsigned int> num_remove(m_exec_conf);
-    m_num_remove.swap(num_remove);
     #endif // ENABLE_CUDA
 
     #ifdef ENABLE_MPI
@@ -1019,6 +1019,7 @@ void mpcd::ParticleData::addParticles(const GPUVector<mpcd::detail::pdata_elemen
     notifySort(timestep);
     }
 #endif // ENABLE_MPI
+
 #ifdef ENABLE_CUDA
 /*!
  * \param out Buffer into which particle data is packed
@@ -1176,9 +1177,10 @@ void mpcd::ParticleData::addParticlesGPU(const GPUVector<mpcd::detail::pdata_ele
     invalidateCellCache();
     notifySort(timestep);
     }
-#endif // ENABLE_CUDA
 #endif // ENABLE_MPI
+#endif // ENABLE_CUDA
 
+#ifdef ENABLE_MPI
 void mpcd::ParticleData::setupMPI(std::shared_ptr<DomainDecomposition> decomposition)
     {
     // set domain decomposition
@@ -1194,7 +1196,7 @@ void mpcd::ParticleData::setupMPI(std::shared_ptr<DomainDecomposition> decomposi
         }
     #endif // ENABLE_CUDA
     }
-
+#endif // ENABLE_MPI
 /*!
  * \param m Python module to export to
  */
