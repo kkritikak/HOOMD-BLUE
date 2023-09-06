@@ -8,7 +8,7 @@
  * \brief Defines GPU functions and kernels used by mpcd::ParticleData
  */
 
-#ifdef ENABLE_MPI
+//#ifdef ENABLE_MPI
 
 #include "ParticleData.cuh"
 
@@ -213,7 +213,7 @@ cudaError_t mpcd::gpu::remove_particles(mpcd::detail::pdata_element *d_out,
     return cudaSuccess;
     }
 
-
+#ifdef ENABLE_MPI
 namespace mpcd
 {
 namespace gpu

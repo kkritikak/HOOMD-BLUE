@@ -638,23 +638,24 @@ void mpcd::ParticleData::allocate(unsigned int N_max)
     GPUArray<unsigned int> tag_alt(N_max, m_exec_conf);
     m_tag_alt.swap(tag_alt);
 
+    GPUArray<unsigned int> remove_ids(N_max, m_exec_conf);
+    m_remove_ids.swap(remove_ids);
+
+    #ifdef ENABLE_CUDA
+    // this array is used for particle migration
+    GPUArray<unsigned char> remove_flags(N_max, m_exec_conf);
+    m_remove_flags.swap(remove_flags);
+
+    GPUFlags<unsigned int> num_remove(m_exec_conf);
+    m_num_remove.swap(num_remove);
+    #endif // ENABLE_CUDA
+
     #ifdef ENABLE_MPI
     if (m_decomposition)
         {
         GPUArray<unsigned int> comm_flags_alt(N_max, m_exec_conf);
         m_comm_flags_alt.swap(comm_flags_alt);
 
-        GPUArray<unsigned int> remove_ids(N_max, m_exec_conf);
-        m_remove_ids.swap(remove_ids);
-
-        #ifdef ENABLE_CUDA
-        GPUFlags<unsigned int> num_remove(m_exec_conf);
-        m_num_remove.swap(num_remove);
-
-        // this array is used for particle migration
-        GPUArray<unsigned char> remove_flags(N_max, m_exec_conf);
-        m_remove_flags.swap(remove_flags);
-        #endif // ENABLE_CUDA
         }
     #endif // ENABLE_MPI
     }
@@ -685,15 +686,17 @@ void mpcd::ParticleData::reallocate(unsigned int N_max)
     m_pos_alt.resize(N_max);
     m_vel_alt.resize(N_max);
     m_tag_alt.resize(N_max);
+
+    m_remove_ids.resize(N_max);
+    
+    #ifdef ENABLE_CUDA
+    m_remove_flags.resize(N_max);
+    #endif // ENABLE_CUDA
+
     #ifdef ENABLE_MPI
     if (m_decomposition)
         {
         m_comm_flags_alt.resize(N_max);
-        m_remove_ids.resize(N_max);
-
-        #ifdef ENABLE_CUDA
-        m_remove_flags.resize(N_max);
-        #endif // ENABLE_CUDA
         }
     #endif // ENABLE_MPI
     }
@@ -881,7 +884,6 @@ unsigned int mpcd::ParticleData::addVirtualParticles(unsigned int N)
     return first_idx;
     }
 
-#ifdef ENABLE_MPI
 /*!
  * \param out Buffer into which particle data is packed
  * \param mask Mask for \a m_comm_flags to determine if communication is necessary
@@ -894,6 +896,7 @@ unsigned int mpcd::ParticleData::addVirtualParticles(unsigned int N)
  * \post The particle data arrays remain compact, but is not guaranteed to retain its current order.
  */
 void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>& out,
+                                         GPUArray<unsigned int>& flags,
                                          unsigned int mask,
                                          unsigned int timestep)
     {
@@ -908,7 +911,7 @@ void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>&
     // and all particles to be removed are at the end of the array in reverse order of their original sorting
     unsigned int n_remove(0);
         {
-        ArrayHandle<unsigned int> h_comm_flags(m_comm_flags, access_location::host, access_mode::read);
+        ArrayHandle<unsigned int> h_comm_flags(flags, access_location::host, access_mode::read);
         ArrayHandle<unsigned int> h_remove_ids(m_remove_ids, access_location::host, access_mode::overwrite);
         unsigned int keep_addr = m_N;
         for (unsigned int idx = 0; idx < m_N; ++idx)
@@ -933,7 +936,7 @@ void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>&
         ArrayHandle<Scalar4> h_pos(m_pos, access_location::host, access_mode::readwrite);
         ArrayHandle<Scalar4> h_vel(m_vel, access_location::host, access_mode::readwrite);
         ArrayHandle<unsigned int> h_tag(m_tag, access_location::host, access_mode::readwrite);
-        ArrayHandle<unsigned int> h_comm_flags(m_comm_flags, access_location::host, access_mode::readwrite);
+        ArrayHandle<unsigned int> h_comm_flags(flags, access_location::host, access_mode::readwrite);
 
         for (unsigned int idx = 0; idx < n_remove; ++idx)
             {
@@ -966,6 +969,7 @@ void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>&
     notifySort(timestep);
     }
 
+#ifdef ENABLE_MPI
 /*!
  * \param in List of particle data elements to fill the particle data with
  * \param mask Bitmask for direction send occurred
@@ -1014,7 +1018,7 @@ void mpcd::ParticleData::addParticles(const GPUVector<mpcd::detail::pdata_elemen
     invalidateCellCache();
     notifySort(timestep);
     }
-
+#endif // ENABLE_MPI
 #ifdef ENABLE_CUDA
 /*!
  * \param out Buffer into which particle data is packed
@@ -1028,6 +1032,7 @@ void mpcd::ParticleData::addParticles(const GPUVector<mpcd::detail::pdata_elemen
  * \post The particle data arrays remain compact.
  */
 void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_element>& out,
+                                            GPUArray<unsigned int>& flags,
                                             unsigned int mask,
                                             unsigned int timestep)
     {
@@ -1047,7 +1052,7 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
     // flag particles that have left
         {
         ArrayHandle<unsigned char> d_remove_flags(m_remove_flags, access_location::device, access_mode::overwrite);
-        ArrayHandle<unsigned int> d_comm_flags(m_comm_flags, access_location::device, access_mode::read);
+        ArrayHandle<unsigned int> d_comm_flags(flags, access_location::device, access_mode::read);
 
         m_mark_tuner->begin();
         mpcd::gpu::mark_removed_particles(d_remove_flags.data, d_comm_flags.data, mask, m_N, m_mark_tuner->getParam());
@@ -1098,7 +1103,7 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
         ArrayHandle<Scalar4> d_pos(m_pos, access_location::device, access_mode::readwrite);
         ArrayHandle<Scalar4> d_vel(m_vel, access_location::device, access_mode::readwrite);
         ArrayHandle<unsigned int> d_tag(m_tag, access_location::device, access_mode::readwrite);
-        ArrayHandle<unsigned int> d_comm_flags(m_comm_flags, access_location::device, access_mode::readwrite);
+        ArrayHandle<unsigned int> d_comm_flags(flags, access_location::device, access_mode::readwrite);
 
         ArrayHandle<unsigned int> d_remove_ids(m_remove_ids, access_location::device, access_mode::read);
 
@@ -1119,7 +1124,7 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
 
     notifySort(timestep);
     }
-
+#ifdef ENABLE_MPI
 /*!
  * \param in List of particle data elements to fill the particle data with
  * \param mask Bitmask for direction send occurred
@@ -1172,6 +1177,7 @@ void mpcd::ParticleData::addParticlesGPU(const GPUVector<mpcd::detail::pdata_ele
     notifySort(timestep);
     }
 #endif // ENABLE_CUDA
+#endif // ENABLE_MPI
 
 void mpcd::ParticleData::setupMPI(std::shared_ptr<DomainDecomposition> decomposition)
     {
@@ -1188,7 +1194,6 @@ void mpcd::ParticleData::setupMPI(std::shared_ptr<DomainDecomposition> decomposi
         }
     #endif // ENABLE_CUDA
     }
-#endif // ENABLE_MPI
 
 /*!
  * \param m Python module to export to

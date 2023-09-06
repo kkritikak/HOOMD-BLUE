@@ -20,9 +20,9 @@
 
 #ifdef ENABLE_CUDA
 #include "ParticleData.cuh"
-#ifdef ENABLE_MPI
+//#ifdef ENABLE_MPI
 #include "hoomd/Autotuner.h"
-#endif // ENABLE_MPI
+//#endif // ENABLE_MPI
 #endif // ENABLE_CUDA
 
 #include "hoomd/BoxDim.h"
@@ -368,20 +368,21 @@ class PYBIND11_EXPORT ParticleData
             }
         //@}
 
+        //! Pack particle data into a buffer
+        void removeParticles(GPUVector<mpcd::detail::pdata_element>& out,GPUArray<unsigned int>& flags, unsigned int mask, unsigned int timestep);
+        #ifdef ENABLE_CUDA
+        //! Pack particle data into a buffer (GPU version)
+        void removeParticlesGPU(GPUVector<mpcd::detail::pdata_element>& out,GPUArray<unsigned int>& flags, unsigned int mask, unsigned int timestep);
+        #endif // ENABLE_CUDA
+
         #ifdef ENABLE_MPI
         //! \name communication methods
         //@{
 
-        //! Pack particle data into a buffer
-        void removeParticles(GPUVector<mpcd::detail::pdata_element>& out, unsigned int mask, unsigned int timestep);
-
         //! Add new local particles
         void addParticles(const GPUVector<mpcd::detail::pdata_element>& in, unsigned int mask, unsigned int timestep);
-
+        
         #ifdef ENABLE_CUDA
-        //! Pack particle data into a buffer (GPU version)
-        void removeParticlesGPU(GPUVector<mpcd::detail::pdata_element>& out, unsigned int mask, unsigned int timestep);
-
         //! Add new local particles (GPU version)
         void addParticlesGPU(const GPUVector<mpcd::detail::pdata_element>& in, unsigned int mask, unsigned int timestep);
         #endif // ENABLE_CUDA
@@ -429,17 +430,20 @@ class PYBIND11_EXPORT ParticleData
         GPUArray<Scalar4> m_pos_alt;        //!< Alternate position array
         GPUArray<Scalar4> m_vel_alt;        //!< Alternate velocity array
         GPUArray<unsigned int> m_tag_alt;   //!< Alternate tag array
-        #ifdef ENABLE_MPI
-        GPUArray<unsigned int> m_comm_flags_alt;    //!< Alternate communication flags
+
         GPUArray<unsigned int> m_remove_ids;      //!< Partitioned indexes of particles to keep
+
         #ifdef ENABLE_CUDA
         GPUArray<unsigned char> m_remove_flags;   //!< Temporary flag to mark keeping particle
-        GPUFlags<unsigned int> m_num_remove;      //!< Number of particles to remove
-
         std::unique_ptr<Autotuner> m_mark_tuner;    //!< Tuner for marking particles
         std::unique_ptr<Autotuner> m_remove_tuner;  //!< Tuner for removing particles
         std::unique_ptr<Autotuner> m_add_tuner;     //!< Tuner for adding particles
+
+        GPUFlags<unsigned int> m_num_remove;      //!< Number of particles to remove
         #endif // ENABLE_CUDA
+
+        #ifdef ENABLE_MPI
+        GPUArray<unsigned int> m_comm_flags_alt;    //!< Alternate communication flags
         #endif // ENABLE_MPI
 
         bool m_valid_cell_cache;    //!< Flag for validity of cell cache
@@ -465,10 +469,10 @@ class PYBIND11_EXPORT ParticleData
         //! Resize the data
         void resize(unsigned int N);
 
-        #ifdef ENABLE_MPI
+        //#ifdef ENABLE_MPI
         //! Setup MPI
         void setupMPI(std::shared_ptr<DomainDecomposition> decomposition);
-        #endif // ENABLE_MPI
+        //#endif // ENABLE_MPI
     };
 
 namespace detail
