@@ -75,6 +75,7 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
 
         GPUArray<unsigned int> m_bounced_index;           //!< Indices of bounced particles
         GPUVector<unsigned int> m_picks;                   //!< Particles picked for evaporation on this rank
+        GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Hold output particles that are removed
 
         virtual void applyPicks();                          //!< Apply the picks
 
@@ -84,7 +85,7 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         unsigned int calculateN_bounced();   //!< For calculating N_bounced and m_bounced_index 
         //!< For Making a random pick of particles across all ranks
         void makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_bounced_total);
-        //GPUArray<unsigned int>& changeToint(GPUArray<unsigned char> m_bounced);
+        void changeToint();
     };
 
 /*!
@@ -207,7 +208,10 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     
     applyPicks();
     //changing m_bounced to int
-    //h_bounced.data = changeToint(m_bounced);
+    //changeToint();
+    //finally removing the particles
+    //for
+    //mpcd::ParticleData::removeParticles();
     }
 
 
@@ -288,14 +292,14 @@ void DryingDropletStreamingMethod::applyPicks()
         }
     }
 
-/*GPUArray<unsigned int>& changeToint(GPUArray<unsigned char> m_bounced)
+void DryingDropletStreamingMethod::changeToint()
     {
-    Scalar elements = m_bounced.getNumElements();
     ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
-
-    (int)(h_bounced.data);
-    return m_bounced;
-    }*/
+    for (unsigned int i=0; i<m_bounced.getNumElements();++i)
+    {
+    h_bounced.data[i] = (int)(h_bounced.data[i]);
+    }    
+    }
 
 namespace detail
 {
