@@ -207,7 +207,6 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     
     applyPicks();
     //finally removing the picked particles
-    std::cout << "Earlier particles were " << m_mpcd_pdata->getNGlobal() << std::endl;
     const unsigned int mask = 1 << 1 ;  //mask for flags
     m_mpcd_pdata->removeParticles(m_removed,
                                   m_bounced,
