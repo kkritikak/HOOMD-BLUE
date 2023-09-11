@@ -85,7 +85,6 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         unsigned int calculateN_bounced();   //!< For calculating N_bounced and m_bounced_index 
         //!< For Making a random pick of particles across all ranks
         void makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_bounced_total);
-        void changeToint();
     };
 
 /*!
@@ -207,9 +206,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
         }
     
     applyPicks();
-    //changing m_bounced to int
-    changeToint();
-    //finally removing the particles
+    //finally removing the picked particles
     std::cout << "Earlier particles were " << m_mpcd_pdata->getNGlobal() << std::endl;
     const unsigned int mask = 1 << 1 ;  //mask for flags
     m_mpcd_pdata->removeParticles(m_removed,
@@ -294,15 +291,6 @@ void DryingDropletStreamingMethod::applyPicks()
         const unsigned int pidx = h_bounced_index.data[h_picks.data[i]];
         h_bounced.data[pidx] |= 1 << 1;
         }
-    }
-
-void DryingDropletStreamingMethod::changeToint()
-    {
-    ArrayHandle<unsigned int> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
-    for (unsigned int i=0; i<m_bounced.getNumElements();++i)
-    {
-    h_bounced.data[i] = (int)(h_bounced.data[i]);
-    }    
     }
 
 namespace detail
