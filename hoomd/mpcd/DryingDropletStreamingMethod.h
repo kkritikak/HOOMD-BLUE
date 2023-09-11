@@ -131,7 +131,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     //calculating number of particles to evaporate(such that solvent density remain constant)
     const unsigned int N_remove = round((4.*M_PI/3.)*end_R*end_R*end_R*m_density);
     const int N_evap = m_mpcd_pdata->getNGlobal() - N_remove;
-
+    std::cout << "Number of particles to evap is:" << N_evap << std::endl;
     // get the compact array of indexes of bounced particles and total N_bounced
     unsigned int N_bounced = calculateN_bounced();
 
@@ -145,7 +145,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
         MPI_Exscan(&N_bounced, &N_before, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
         }
     #endif // ENABLE_MPI
-    
+    std::cout << "N_bounced is " << N_bounced << std::endl;
     /* if N_bounced_total <= N_evap - pick all the particles to delete
      * else pick N_evap particles out of N_bounced_total
      */
@@ -208,10 +208,14 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     
     applyPicks();
     //changing m_bounced to int
-    //changeToint();
+    changeToint();
     //finally removing the particles
-    //for
-    //mpcd::ParticleData::removeParticles();
+    std::cout << "Earlier particles were " << m_mpcd_pdata->getNGlobal() << std::endl;
+    const unsigned int mask = 1 << 1 ;  //mask for flags
+    m_mpcd_pdata->removeParticles(m_removed,
+                                  m_bounced,
+                                  mask,
+                                  timestep);
     }
 
 
@@ -220,7 +224,7 @@ unsigned int DryingDropletStreamingMethod::calculateN_bounced()
     unsigned int N_bounced = 0;
         {
         const unsigned int N = m_mpcd_pdata->getN();
-        ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::read);
+        ArrayHandle<unsigned int> h_bounced(m_bounced, access_location::host, access_mode::read);
 
         bool overflowed = false;
         do
@@ -284,7 +288,7 @@ void DryingDropletStreamingMethod::applyPicks()
     {
     ArrayHandle<unsigned int> h_picks(m_picks, access_location::host, access_mode::read);
     ArrayHandle<unsigned int> h_bounced_index(m_bounced_index, access_location::host, access_mode::read);
-    ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
+    ArrayHandle<unsigned int> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
     for (unsigned int i=0; i < m_Npick; ++i)
         {
         const unsigned int pidx = h_bounced_index.data[h_picks.data[i]];
@@ -294,7 +298,7 @@ void DryingDropletStreamingMethod::applyPicks()
 
 void DryingDropletStreamingMethod::changeToint()
     {
-    ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
+    ArrayHandle<unsigned int> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
     for (unsigned int i=0; i<m_bounced.getNumElements();++i)
     {
     h_bounced.data[i] = (int)(h_bounced.data[i]);

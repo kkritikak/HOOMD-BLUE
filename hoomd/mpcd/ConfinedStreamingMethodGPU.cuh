@@ -27,7 +27,7 @@ struct stream_args_t
     //! Constructor
     stream_args_t(Scalar4 *_d_pos,
                   Scalar4 *_d_vel,
-                  unsigned char *_d_bounced,
+                  unsigned int *_d_bounced,
                   const Scalar _mass,
                   const mpcd::ExternalField* _field,
                   const BoxDim& _box,
@@ -39,7 +39,7 @@ struct stream_args_t
 
     Scalar4 *d_pos;                     //!< Particle positions
     Scalar4 *d_vel;                     //!< Particle velocities
-    unsigned char *d_bounced;           //!< Particle bounced flags
+    unsigned int *d_bounced;           //!< Particle bounced flags
     const Scalar mass;                  //!< Particle mass
     const mpcd::ExternalField* field;   //!< Applied external field on particles
     const BoxDim& box;                  //!< Simulation box
@@ -85,7 +85,7 @@ namespace kernel
 template<class Geometry>
 __global__ void confined_stream(Scalar4 *d_pos,
                                 Scalar4 *d_vel,
-                                unsigned char *d_bounced,
+                                unsigned int *d_bounced,
                                 const Scalar mass,
                                 const mpcd::ExternalField* field,
                                 const BoxDim box,

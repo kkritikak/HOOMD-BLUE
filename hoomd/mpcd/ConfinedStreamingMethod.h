@@ -79,7 +79,7 @@ class PYBIND11_EXPORT ConfinedStreamingMethod : public mpcd::StreamingMethod
     protected:
         std::shared_ptr<const Geometry> m_geom; //!< Streaming geometry
         bool m_validate_geom;   //!< If true, run a validation check on the geometry
-        GPUArray<unsigned char> m_bounced; //!<Flag for particles bounced from boundary
+        GPUArray<unsigned int> m_bounced; //!<Flag for particles bounced from boundary
         
         //! Validate the system with the streaming geometry
         void validate();
@@ -104,7 +104,7 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
 
     if (m_mpcd_pdata->getN() > m_bounced.getNumElements())
         {
-        GPUArray<unsigned char> bounced(m_mpcd_pdata->getN(), m_exec_conf);
+        GPUArray<unsigned int> bounced(m_mpcd_pdata->getN(), m_exec_conf);
         m_bounced.swap(bounced);
         }
 
@@ -114,7 +114,7 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
 
     ArrayHandle<Scalar4> h_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::readwrite);
     ArrayHandle<Scalar4> h_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::readwrite);
-    ArrayHandle<unsigned char> h_bounced(m_bounced, access_location::host, access_mode::overwrite);
+    ArrayHandle<unsigned int> h_bounced(m_bounced, access_location::host, access_mode::overwrite);
     
     const Scalar mass = m_mpcd_pdata->getMass();
 

@@ -739,6 +739,6 @@ class drying_droplet(_streaming_method):
                                  self.period,
                                  0,
                                  self.R.cpp_variant,
+                                 bc,
                                  self.density,
-                                 self.seed,
-                                 bc)
+                                 self.seed)
