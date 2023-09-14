@@ -1197,6 +1197,7 @@ void mpcd::ParticleData::setupMPI(std::shared_ptr<DomainDecomposition> decomposi
     #endif // ENABLE_CUDA
     }
 #endif // ENABLE_MPI
+
 /*!
  * \param m Python module to export to
  */
