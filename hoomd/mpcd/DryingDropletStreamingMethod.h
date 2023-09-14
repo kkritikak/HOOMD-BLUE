@@ -130,7 +130,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     //calculating number of particles to evaporate(such that solvent density remain constant)
     const unsigned int N_remove = round((4.*M_PI/3.)*end_R*end_R*end_R*m_density);
     const int N_evap = m_mpcd_pdata->getNGlobal() - N_remove;
-    std::cout << "Number of particles to evap is:" << N_evap << std::endl;
+
     // get the compact array of indexes of bounced particles and total N_bounced
     unsigned int N_bounced = calculateN_bounced();
 
@@ -144,7 +144,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
         MPI_Exscan(&N_bounced, &N_before, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
         }
     #endif // ENABLE_MPI
-    std::cout << "N_bounced is " << N_bounced << std::endl;
+
     /* if N_bounced_total <= N_evap - pick all the particles to delete
      * else pick N_evap particles out of N_bounced_total
      */
