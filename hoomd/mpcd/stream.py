@@ -698,7 +698,7 @@ class sphere(_streaming_method):
             self._filler.setGeometry(self._cpp.geometry)
 
 class drying_droplet(_streaming_method):
-    r""" Drying Spherical streaming geometry.
+    r""" Drying Droplet streaming geometry.
 
     Args:
         R (variant): confinement radius
@@ -706,12 +706,12 @@ class drying_droplet(_streaming_method):
         boundary (str): boundary condition at wall ("slip" or "no_slip")
         period (int): Number of integration steps between collisions
 
-    The dryingsphere class models a fluid confined inside a drying sphere, centered at the
-    origin and sphere size is decreasing according to radius variant R. Solvent particles are
+    The drying_droplet class models a fluid confined inside a drying droplet, centered at the
+    origin and droplet size is decreasing according to radius variant R. Solvent particles are
     reflected from the spherical walls using appropriate boundary conditions.
 
     Examples::
-        stream.dryingsphere(period=10, R= hoomd.variant(variant for R), density =5.,seed=394 )
+        stream.drying_droplet(period=10, R= hoomd.variant(variant for R), density =5.,seed=394 )
 
     Note: You can't change the Radius and density and boundary once you have initialised it.
     
