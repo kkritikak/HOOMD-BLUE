@@ -965,7 +965,15 @@ void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>&
     // resize self down (just changes value of m_N since removing)
     const unsigned int n_keep = m_N - n_remove;
     resize(n_keep);
-
+    
+    setNGlobal(m_N);
+    #ifdef ENABLE_MPI
+    if (m_exec_conf->getNRanks() > 1)
+        {
+        MPI_Allreduce(&m_N, &m_N_global, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
+        }
+    #endif // ENABLE_MPI
+    
     notifySort(timestep);
     }
 
@@ -1122,9 +1130,18 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
         if (m_exec_conf->isCUDAErrorCheckingEnabled()) CHECK_CUDA_ERROR();
         }
     resize(n_keep);
+    
+    setNGlobal(m_N);
+    #ifdef ENABLE_MPI
+    if (m_exec_conf->getNRanks() > 1)
+        {
+        MPI_Allreduce(&m_N, &m_N_global, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
+        }
+    #endif // ENABLE_MPI
 
     notifySort(timestep);
     }
+
 #ifdef ENABLE_MPI
 /*!
  * \param in List of particle data elements to fill the particle data with
