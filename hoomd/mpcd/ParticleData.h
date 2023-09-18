@@ -116,7 +116,10 @@ class PYBIND11_EXPORT ParticleData
             {
             return m_N_global;
             }
-
+        
+        //! For calculating N_global
+        unsigned int calculateN_global(unsigned int N);
+ 
         //! Get the global number of virtual MPCD particles
         /*!
          * This method requires a collective reduction in MPI simulations. The caller is responsible for caching
@@ -367,10 +370,10 @@ class PYBIND11_EXPORT ParticleData
         //@}
 
         //! Pack particle data into a buffer
-        void removeParticles(GPUVector<mpcd::detail::pdata_element>& out,GPUArray<unsigned int>& flags, unsigned int mask, unsigned int timestep);
+        void removeParticles(GPUVector<mpcd::detail::pdata_element>& out,const GPUArray<unsigned int>& flags, unsigned int mask, unsigned int timestep);
         #ifdef ENABLE_CUDA
         //! Pack particle data into a buffer (GPU version)
-        void removeParticlesGPU(GPUVector<mpcd::detail::pdata_element>& out,GPUArray<unsigned int>& flags, unsigned int mask, unsigned int timestep);
+        void removeParticlesGPU(GPUVector<mpcd::detail::pdata_element>& out,const GPUArray<unsigned int>& flags, unsigned int mask, unsigned int timestep);
         #endif // ENABLE_CUDA
 
         #ifdef ENABLE_MPI

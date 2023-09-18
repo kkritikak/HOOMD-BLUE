@@ -474,6 +474,7 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
                 const unsigned int N = pos_proc[rank_idx].size();
                 for (unsigned int idx = 0; idx < N; ++idx)
                     {
+                    std::sort(tag_proc[rank_idx].begin(),tag_proc[rank_idx].begin()+N);
                     const unsigned int snap_idx = tag_proc[rank_idx][idx];
 
                     // make sure the position stored in the snapshot is within the boundaries
@@ -494,11 +495,13 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
         {
         // allocate memory in snapshot
         snapshot->resize(getNGlobal());
+        //sorting the tags 
+        std::sort(h_tag.data, h_tag.data + m_N );
 
         // iterate through particles
         for (unsigned int idx = 0; idx < m_N; ++idx)
             {
-            const unsigned int snap_idx = h_tag.data[idx];
+            const unsigned int snap_idx = idx;
 
             // make sure the position stored in the snapshot is within the boundaries
             Scalar4 postype = h_pos.data[idx];
@@ -746,6 +749,24 @@ void mpcd::ParticleData::setMass(Scalar mass)
     }
 
 /*!
+ * \param N number of particles on that rank
+ * \return T of the corresponding type name
+ * \throw runtime_error if the type name is not found
+ */
+unsigned int mpcd::ParticleData::calculateN_global(unsigned int m_N)
+    {
+    unsigned int N_var = m_N;
+    #ifdef ENABLE_MPI
+    if (m_exec_conf->getNRanks() > 1)
+        {
+        MPI_Allreduce(&m_N, &N_var, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
+        }
+    #endif // ENABLE_MPI
+    
+    return N_var;
+    }
+
+/*!
  * \param name Type name to get the index of
  * \return Type index of the corresponding type name
  * \throw runtime_error if the type name is not found
@@ -896,7 +917,7 @@ unsigned int mpcd::ParticleData::addVirtualParticles(unsigned int N)
  * \post The particle data arrays remain compact, but is not guaranteed to retain its current order.
  */
 void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>& out,
-                                         GPUArray<unsigned int>& flags,
+                                         const GPUArray<unsigned int>& flags,
                                          unsigned int mask,
                                          unsigned int timestep)
     {
@@ -966,14 +987,8 @@ void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>&
     const unsigned int n_keep = m_N - n_remove;
     resize(n_keep);
     
-    //updating N_global
-    unsigned int N_var = m_N;
-    #ifdef ENABLE_MPI
-    if (m_exec_conf->getNRanks() > 1)
-        {
-        MPI_Allreduce(&m_N, &N_var, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
-        }
-    #endif // ENABLE_MPI
+    //calculating and updating N_global
+    unsigned int N_var = calculateN_global(m_N);
     setNGlobal(N_var);
 
     notifySort(timestep);
@@ -1043,7 +1058,7 @@ void mpcd::ParticleData::addParticles(const GPUVector<mpcd::detail::pdata_elemen
  * \post The particle data arrays remain compact.
  */
 void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_element>& out,
-                                            GPUArray<unsigned int>& flags,
+                                            const GPUArray<unsigned int>& flags,
                                             unsigned int mask,
                                             unsigned int timestep)
     {
@@ -1133,14 +1148,8 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
         }
     resize(n_keep);
     
-    //updating N_global
-    unsigned int N_var = m_N;
-    #ifdef ENABLE_MPI
-    if (m_exec_conf->getNRanks() > 1)
-        {
-        MPI_Allreduce(&m_N, &N_var, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
-        }
-    #endif // ENABLE_MPI
+    //calculating and updating N_global
+    unsigned int N_var = calculateN_global(m_N);
     setNGlobal(N_var);
 
     notifySort(timestep);
