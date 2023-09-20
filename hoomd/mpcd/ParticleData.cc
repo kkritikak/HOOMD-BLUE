@@ -471,11 +471,11 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
             // write back into the snapshot in tag order, don't really care about cache coherency
             for (unsigned int rank_idx = 0; rank_idx < n_ranks; ++rank_idx)
                 {
+                // sorting the tags and calculating N on that rank
                 std::sort(tag_proc[rank_idx].begin(),tag_proc[rank_idx].end());
                 unsigned int N = std::distance(tag_proc[rank_idx].begin(), std::unique(tag_proc[rank_idx].begin(), tag_proc[rank_idx].end()));
                 for (unsigned int idx = 0; idx < N; ++idx)
                     {
-                    //std::sort(tag_proc[rank_idx].begin(),tag_proc[rank_idx].begin()+N);
                     const unsigned int snap_idx = idx;
 
                     // make sure the position stored in the snapshot is within the boundaries
@@ -751,20 +751,19 @@ void mpcd::ParticleData::setMass(Scalar mass)
 
 /*!
  * \param N number of particles on that rank
- * \return T of the corresponding type name
- * \throw runtime_error if the type name is not found
+ * \return N_global_new (sum of all the N on every rank)
  */
 unsigned int mpcd::ParticleData::calculateN_global(unsigned int m_N)
     {
-    unsigned int N_var = m_N;
+    unsigned int N_global_new = m_N;
     #ifdef ENABLE_MPI
     if (m_exec_conf->getNRanks() > 1)
         {
-        MPI_Allreduce(&m_N, &N_var, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
+        MPI_Allreduce(&m_N, &N_global_new, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
         }
     #endif // ENABLE_MPI
     
-    return N_var;
+    return N_global_new;
     }
 
 /*!
@@ -989,8 +988,8 @@ void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>&
     resize(n_keep);
     
     //calculating and updating N_global
-    unsigned int N_var = calculateN_global(m_N);
-    setNGlobal(N_var);
+    unsigned int new_Nglobal = calculateN_global(m_N);
+    setNGlobal(new_Nglobal);
 
     notifySort(timestep);
     }
@@ -1150,8 +1149,8 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
     resize(n_keep);
     
     //calculating and updating N_global
-    unsigned int N_var = calculateN_global(m_N);
-    setNGlobal(N_var);
+    unsigned int new_Nglobal = calculateN_global(m_N);
+    setNGlobal(new_Nglobal);
 
     notifySort(timestep);
     }
