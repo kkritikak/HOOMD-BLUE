@@ -471,11 +471,12 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
             // write back into the snapshot in tag order, don't really care about cache coherency
             for (unsigned int rank_idx = 0; rank_idx < n_ranks; ++rank_idx)
                 {
-                const unsigned int N = pos_proc[rank_idx].size();
+                std::sort(tag_proc[rank_idx].begin(),tag_proc[rank_idx].end());
+                unsigned int N = std::distance(tag_proc[rank_idx].begin(), std::unique(tag_proc[rank_idx].begin(), tag_proc[rank_idx].end()));
                 for (unsigned int idx = 0; idx < N; ++idx)
                     {
-                    std::sort(tag_proc[rank_idx].begin(),tag_proc[rank_idx].begin()+N);
-                    const unsigned int snap_idx = tag_proc[rank_idx][idx];
+                    //std::sort(tag_proc[rank_idx].begin(),tag_proc[rank_idx].begin()+N);
+                    const unsigned int snap_idx = idx;
 
                     // make sure the position stored in the snapshot is within the boundaries
                     Scalar3 pos_i = pos_proc[rank_idx][idx];
