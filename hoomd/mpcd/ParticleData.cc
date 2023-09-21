@@ -471,12 +471,18 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
             // write back into the snapshot in tag order, don't really care about cache coherency
             for (unsigned int rank_idx = 0; rank_idx < n_ranks; ++rank_idx)
                 {
-                // sorting the tags and calculating N on that rank
-                std::sort(tag_proc[rank_idx].begin(),tag_proc[rank_idx].end());
-                unsigned int N = std::distance(tag_proc[rank_idx].begin(), std::unique(tag_proc[rank_idx].begin(), tag_proc[rank_idx].end()));
+                const unsigned int N = pos_proc[rank_idx].size();
+                // sorting the tags
+                std::vector<std::tuple<unsigned int, unsigned int, unsigned int>> sorted_tags(N);
+                for (unsigned int idx=0; idx < N; ++idx)
+                    {
+                    sorted_tags[idx] = std::make_tuple(rank_idx, tag_proc[rank_idx][idx], idx);
+                    }
+                std::sort(sorted_tags.begin(), sorted_tags.end());
+
                 for (unsigned int idx = 0; idx < N; ++idx)
                     {
-                    const unsigned int snap_idx = idx;
+                    const unsigned int snap_idx = std::get<2>(sorted_tags[idx]);
 
                     // make sure the position stored in the snapshot is within the boundaries
                     Scalar3 pos_i = pos_proc[rank_idx][idx];
@@ -496,13 +502,18 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
         {
         // allocate memory in snapshot
         snapshot->resize(getNGlobal());
-        //sorting the tags 
-        std::sort(h_tag.data, h_tag.data + m_N );
-
+        //sorting particle indexes by the tags
+        std::vector<std::pair<unsigned int, unsigned int>> sorted_tags(m_N);
+        for (unsigned int idx=0; idx < m_N; ++idx)
+            {
+            sorted_tags[idx] = std::make_pair(h_tag.data[idx], idx);
+            }
+        std::sort(sorted_tags.begin(), sorted_tags.end());
+        
         // iterate through particles
         for (unsigned int idx = 0; idx < m_N; ++idx)
             {
-            const unsigned int snap_idx = idx;
+            const unsigned int snap_idx = sorted_tags[idx].second;
 
             // make sure the position stored in the snapshot is within the boundaries
             Scalar4 postype = h_pos.data[idx];
@@ -726,6 +737,15 @@ void mpcd::ParticleData::resize(unsigned int N)
         reallocate(N_max);
         }
     m_N = N;
+    //calculating and updating global N
+    unsigned int N_global = m_N;
+    #ifdef ENABLE_MPI
+    if (m_exec_conf->getNRanks() > 1)
+        {
+        MPI_Allreduce(MPI_IN_PLACE, &N_global, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
+        }
+    #endif // ENABLE_MPI
+    setNGlobal(N_global);
     }
 
 /*!
@@ -747,23 +767,6 @@ void mpcd::ParticleData::setMass(Scalar mass)
         bcast(m_mass, 0, m_exec_conf->getMPICommunicator());
         }
     #endif // ENABLE_MPI
-    }
-
-/*!
- * \param N number of particles on that rank
- * \return N_global_new (sum of all the N on every rank)
- */
-unsigned int mpcd::ParticleData::calculateN_global(unsigned int m_N)
-    {
-    unsigned int N_global_new = m_N;
-    #ifdef ENABLE_MPI
-    if (m_exec_conf->getNRanks() > 1)
-        {
-        MPI_Allreduce(&m_N, &N_global_new, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
-        }
-    #endif // ENABLE_MPI
-    
-    return N_global_new;
     }
 
 /*!
@@ -986,10 +989,6 @@ void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>&
     // resize self down (just changes value of m_N since removing)
     const unsigned int n_keep = m_N - n_remove;
     resize(n_keep);
-    
-    //calculating and updating N_global
-    unsigned int new_Nglobal = calculateN_global(m_N);
-    setNGlobal(new_Nglobal);
 
     notifySort(timestep);
     }
@@ -1147,10 +1146,6 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
         if (m_exec_conf->isCUDAErrorCheckingEnabled()) CHECK_CUDA_ERROR();
         }
     resize(n_keep);
-    
-    //calculating and updating N_global
-    unsigned int new_Nglobal = calculateN_global(m_N);
-    setNGlobal(new_Nglobal);
 
     notifySort(timestep);
     }

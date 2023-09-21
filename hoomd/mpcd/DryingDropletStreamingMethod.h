@@ -72,7 +72,7 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         Scalar m_density;                    //!< Solvent density
         unsigned int m_seed;                 //!< Seed to evaporator pseudo-random number generator
         unsigned int m_Npick;                //!< Number of particles picked for evaporation on this rank
-
+        const unsigned int m_mask = 1 << 1;  //!< Mask for flags
         GPUArray<unsigned int> m_bounced_index;           //!< Indices of bounced particles
         GPUVector<unsigned int> m_picks;                   //!< Particles picked for evaporation on this rank
         GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Hold output particles that are removed
@@ -82,7 +82,7 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
     private:
         std::vector<unsigned int> m_all_picks;             //!< All picked particles on all the ranks
 
-        unsigned int calculateN_bounced();   //!< For calculating N_bounced and m_bounced_index 
+        unsigned int calculateNumbounced();   //!< For calculating N_bounced and m_bounced_index 
         //!< For Making a random pick of particles across all ranks
         void makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_bounced_total);
     };
@@ -132,7 +132,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     const int N_evap = m_mpcd_pdata->getNGlobal() - N_remove;
 
     // get the compact array of indexes of bounced particles and total N_bounced
-    unsigned int N_bounced = calculateN_bounced();
+    unsigned int N_bounced = calculateNumbounced();
 
     // reduce / scan the number of particles that were bounced on all ranks
     unsigned int N_bounced_total = N_bounced;
@@ -207,15 +207,14 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
     
     applyPicks();
     //finally removing the picked particles
-    const unsigned int mask = 1 << 1 ;  //mask for flags
     m_mpcd_pdata->removeParticles(m_removed,
                                   m_bounced,
-                                  mask,
+                                  m_mask,
                                   timestep);
     }
 
 
-unsigned int DryingDropletStreamingMethod::calculateN_bounced()        
+unsigned int DryingDropletStreamingMethod::calculateNumbounced()        
     {
     unsigned int N_bounced = 0;
         {
@@ -288,7 +287,7 @@ void DryingDropletStreamingMethod::applyPicks()
     for (unsigned int i=0; i < m_Npick; ++i)
         {
         const unsigned int pidx = h_bounced_index.data[h_picks.data[i]];
-        h_bounced.data[pidx] |= 1 << 1;
+        h_bounced.data[pidx] |= m_mask;
         }
     }
 
