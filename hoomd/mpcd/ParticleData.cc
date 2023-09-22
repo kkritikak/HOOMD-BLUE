@@ -469,12 +469,14 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
             snapshot->resize(getNGlobal());
             // sorting the tags
             std::vector<std::tuple<unsigned int, unsigned int, unsigned int>> sorted_tags(getNGlobal());
+            unsigned int total_index = 0;
             for (unsigned int rank_idx = 0; rank_idx < n_ranks; ++rank_idx)
                 {
                 const unsigned int N = pos_proc[rank_idx].size();
                 for (unsigned int idx=0; idx < N; ++idx)
                     {
-                    sorted_tags[idx] = std::make_tuple(rank_idx, tag_proc[rank_idx][idx], idx);
+                    sorted_tags[total_index] = std::make_tuple(tag_proc[rank_idx][idx], rank_idx, idx);
+                    total_index++;
                     }
                 }
             std::sort(sorted_tags.begin(), sorted_tags.end());
@@ -482,7 +484,7 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
             for (unsigned int snap_idx = 0; snap_idx < getNGlobal() ; ++snap_idx)
                 {
                 const unsigned int idx = std::get<2>(sorted_tags[snap_idx]);
-                const unsigned int rank_idx = std::get<0>(sorted_tags[snap_idx]);
+                const unsigned int rank_idx = std::get<1>(sorted_tags[snap_idx]);
                 // make sure the position stored in the snapshot is within the boundaries
                 Scalar3 pos_i = pos_proc[rank_idx][idx];
                 int3 img = make_int3(0,0,0);
