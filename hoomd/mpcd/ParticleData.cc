@@ -473,7 +473,7 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
             for (unsigned int rank_idx = 0; rank_idx < n_ranks; ++rank_idx)
                 {
                 const unsigned int N = pos_proc[rank_idx].size();
-                for (unsigned int idx=0; idx < N; ++idx)
+                for (unsigned int idx = 0; idx < N; ++idx)
                     {
                     sorted_tags[total_index] = std::make_tuple(tag_proc[rank_idx][idx], rank_idx, idx);
                     total_index++;
@@ -512,9 +512,9 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
         std::sort(sorted_tags.begin(), sorted_tags.end());
         
         // iterate through particles
-        for (unsigned int idx = 0; idx < m_N; ++idx)
+        for (unsigned int snap_idx = 0; snap_idx < m_N; ++snap_idx)
             {
-            const unsigned int snap_idx = sorted_tags[idx].second;
+            const unsigned int idx = sorted_tags[idx].second;
 
             // make sure the position stored in the snapshot is within the boundaries
             Scalar4 postype = h_pos.data[idx];
