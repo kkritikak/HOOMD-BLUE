@@ -467,33 +467,32 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
             {
             // allocate memory in snapshot
             snapshot->resize(getNGlobal());
-
-            // write back into the snapshot in tag order, don't really care about cache coherency
+            // sorting the tags
+            std::vector<std::tuple<unsigned int, unsigned int, unsigned int>> sorted_tags(getNGlobal());
             for (unsigned int rank_idx = 0; rank_idx < n_ranks; ++rank_idx)
                 {
                 const unsigned int N = pos_proc[rank_idx].size();
-                // sorting the tags
-                std::vector<std::tuple<unsigned int, unsigned int, unsigned int>> sorted_tags(N);
                 for (unsigned int idx=0; idx < N; ++idx)
                     {
                     sorted_tags[idx] = std::make_tuple(rank_idx, tag_proc[rank_idx][idx], idx);
                     }
-                std::sort(sorted_tags.begin(), sorted_tags.end());
+                }
+            std::sort(sorted_tags.begin(), sorted_tags.end());
+            // write back into the snapshot in tag order, don't really care about cache coherency
+            for (unsigned int snap_idx = 0; snap_idx < getNGlobal() ; ++snap_idx)
+                {
+                const unsigned int idx = std::get<2>(sorted_tags[snap_idx]);
+                const unsigned int rank_idx = std::get<0>(sorted_tags[snap_idx]);
+                // make sure the position stored in the snapshot is within the boundaries
+                Scalar3 pos_i = pos_proc[rank_idx][idx];
+                int3 img = make_int3(0,0,0);
+                global_box.wrap(pos_i,img);
 
-                for (unsigned int idx = 0; idx < N; ++idx)
-                    {
-                    const unsigned int snap_idx = std::get<2>(sorted_tags[idx]);
+                // push particle into the snapshot
+                snapshot->position[snap_idx] = vec3<Scalar>(pos_i);
+                snapshot->velocity[snap_idx] = vec3<Scalar>(vel_proc[rank_idx][idx]);
+                snapshot->type[snap_idx] = type_proc[rank_idx][idx];
 
-                    // make sure the position stored in the snapshot is within the boundaries
-                    Scalar3 pos_i = pos_proc[rank_idx][idx];
-                    int3 img = make_int3(0,0,0);
-                    global_box.wrap(pos_i,img);
-
-                    // push particle into the snapshot
-                    snapshot->position[snap_idx] = vec3<Scalar>(pos_i);
-                    snapshot->velocity[snap_idx] = vec3<Scalar>(vel_proc[rank_idx][idx]);
-                    snapshot->type[snap_idx] = type_proc[rank_idx][idx];
-                    }
                 }
             }
         }
