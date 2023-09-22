@@ -469,13 +469,13 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
             snapshot->resize(getNGlobal());
             // sorting particle tags by it's indices and rank
             std::vector<std::tuple<unsigned int, unsigned int, unsigned int>> sorted_tags(getNGlobal());
-            unsigned int total_index = 0;
+            unsigned int total_idx = 0;
             for (unsigned int rank_idx = 0; rank_idx < n_ranks; ++rank_idx)
                 {
                 const unsigned int N = pos_proc[rank_idx].size();
                 for (unsigned int idx = 0; idx < N; ++idx)
                     {
-                    sorted_tags[total_index] = std::make_tuple(tag_proc[rank_idx][idx], rank_idx, idx);
+                    sorted_tags[total_idx] = std::make_tuple(tag_proc[rank_idx][idx], rank_idx, idx);
                     total_index++;
                     }
                 }
