@@ -467,7 +467,7 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
             {
             // allocate memory in snapshot
             snapshot->resize(getNGlobal());
-            // sorting the tags
+            // sorting particle tags by it's indices and rank
             std::vector<std::tuple<unsigned int, unsigned int, unsigned int>> sorted_tags(getNGlobal());
             unsigned int total_index = 0;
             for (unsigned int rank_idx = 0; rank_idx < n_ranks; ++rank_idx)
@@ -480,7 +480,7 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
                     }
                 }
             std::sort(sorted_tags.begin(), sorted_tags.end());
-            // write back into the snapshot in tag order, don't really care about cache coherency
+            // write back into the snapshot in the index of that tag order, don't really care about cache coherency
             for (unsigned int snap_idx = 0; snap_idx < getNGlobal() ; ++snap_idx)
                 {
                 const unsigned int idx = std::get<2>(sorted_tags[snap_idx]);
