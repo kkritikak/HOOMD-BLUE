@@ -476,7 +476,7 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
                 for (unsigned int idx = 0; idx < N; ++idx)
                     {
                     sorted_tags[total_idx] = std::make_tuple(tag_proc[rank_idx][idx], rank_idx, idx);
-                    total_index++;
+                    total_idx++;
                     }
                 }
             std::sort(sorted_tags.begin(), sorted_tags.end());
