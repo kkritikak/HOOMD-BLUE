@@ -467,7 +467,7 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
             {
             // allocate memory in snapshot
             snapshot->resize(getNGlobal());
-            // sorting particle tags by it's indices and rank
+            // sorting particle rank and indices by it's tag
             std::vector<std::tuple<unsigned int, unsigned int, unsigned int>> sorted_tags(getNGlobal());
             unsigned int total_idx = 0;
             for (unsigned int rank_idx = 0; rank_idx < n_ranks; ++rank_idx)
