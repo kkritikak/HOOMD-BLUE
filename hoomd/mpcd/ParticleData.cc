@@ -480,7 +480,7 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
                     }
                 }
             std::sort(sorted_tags.begin(), sorted_tags.end());
-            // write back into the snapshot in the index oder of that tag, don't really care about cache coherency
+            // write back into the snapshot in the index order of that tag, don't really care about cache coherency
             for (unsigned int snap_idx = 0; snap_idx < getNGlobal() ; ++snap_idx)
                 {
                 const unsigned int idx = std::get<2>(sorted_tags[snap_idx]);
