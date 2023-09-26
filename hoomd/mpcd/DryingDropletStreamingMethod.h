@@ -15,12 +15,14 @@
 #error This header cannot be compiled by nvcc
 #endif
 
-#include "ConfinedStreamingMethod.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
 #include "hoomd/Variant.h"
-#include "BoundaryCondition.h"
 #include "hoomd/RNGIdentifiers.h"
 #include "hoomd/RandomNumbers.h"
+
+#include "BoundaryCondition.h"
+#include "ConfinedStreamingMethod.h"
+
 #include <algorithm>
 
 namespace mpcd
@@ -28,12 +30,12 @@ namespace mpcd
 //! MPCD DryingDropletStreamingMethod
 /*!
  * This method implements the base version of ballistic propagation of MPCD
- * particles in moving Spherical geometry.
+ * particles in drying droplet.
  *
- * The integration scheme is essentially Verlet with specular reflections.First SphereGeometry radius and Velocity is updated then
- * the particle is streamed forward over the time interval. If it moves outside the Geometry, it is placed back
+ * The integration scheme is essentially Verlet with specular reflections.First the radius and Velocity of droplet is updated then
+ * the particle is streamed forward over the time interval. If the particle moves outside the Geometry(spherical droplet), it is placed back
  * on the boundary and particle velocity is updated according to the boundary conditions.Streaming then continues and
- * place the particle inside SphereGeometry. And particle which went outside or collided with geometry was marked.
+ * place the particle inside droplet(sphereGeometry). And particle which went outside or collided with droplet interface was marked.
  * Right amount of marked particles are then evaporated.
  *
  * To facilitate this, ConfinedStreamingMethod must flag the particles which were bounced back from surface.
@@ -50,6 +52,8 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
          * \param phase Phase shift for periodic updates
          * \param R is the radius of sphere
          * \param bc is boundary conditions(slip or no-slip)
+         * \param density is solvent number density inside the droplet
+         * \param seed is Seed to random number Generator
          */
         DryingDropletStreamingMethod(std::shared_ptr<mpcd::SystemData> sysdata,
                                     unsigned int cur_timestep,
@@ -67,22 +71,23 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         virtual void stream(unsigned int timestep);
 
     protected:
-        std::shared_ptr<::Variant> m_R;      //!< Radius of Sphere
-        mpcd::detail::boundary m_bc;         //!< Boundary condition
-        Scalar m_density;                    //!< Solvent density
-        unsigned int m_seed;                 //!< Seed to evaporator pseudo-random number generator
-        unsigned int m_Npick;                //!< Number of particles picked for evaporation on this rank
-        const unsigned int m_mask = 1 << 1;  //!< Mask for flags
-        GPUArray<unsigned int> m_bounced_index;           //!< Indices of bounced particles
+        std::shared_ptr<::Variant> m_R;                    //!< Radius of Sphere
+        mpcd::detail::boundary m_bc;                       //!< Boundary condition
+        Scalar m_density;                                  //!< Solvent density
+        unsigned int m_seed;                               //!< Seed to evaporator pseudo-random number generator
+        unsigned int m_Npick;                              //!< Number of particles picked for evaporation on this rank
+        const unsigned int m_mask = 1 << 1;                //!< Mask for flags
+
+        GPUArray<unsigned int> m_bounced_index;            //!< Indices of bounced particles
         GPUVector<unsigned int> m_picks;                   //!< Particles picked for evaporation on this rank
         GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Hold output particles that are removed
 
-        virtual void applyPicks();                          //!< Apply the picks
+        virtual void applyPicks();                         //!< Apply the picks
 
     private:
         std::vector<unsigned int> m_all_picks;             //!< All picked particles on all the ranks
 
-        unsigned int calculateNumbounced();   //!< For calculating N_bounced and m_bounced_index 
+        unsigned int calculateNumbounced();                //!< For calculating N_bounced and m_bounced_index 
         //!< For Making a random pick of particles across all ranks
         void makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_bounced_total);
     };
@@ -90,17 +95,16 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
 /*!
  * \param timestep Current time to stream
  */
-
 void DryingDropletStreamingMethod::stream(unsigned int timestep)
     {
     // use peekStream since shouldStream will be called by parent class 
     if(!peekStream(timestep)) return;
     
-    //compute final Radius and Velocity of surface
+    // compute final Radius and Velocity of surface
     const Scalar start_R = m_R->getValue(timestep);
     const Scalar end_R = m_R->getValue(timestep + m_period);
     const Scalar V = (end_R - start_R)/(m_mpcd_dt);
-
+    // checks if V <= 0, since size of droplet must decrease
     if (V > 0)
         {
         throw std::runtime_error("Droplet radius must decrease.");
@@ -129,7 +133,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
 
     //calculating number of particles to evaporate(such that solvent density remain constant)
     const unsigned int N_remove = round((4.*M_PI/3.)*end_R*end_R*end_R*m_density);
-    const int N_evap = m_mpcd_pdata->getNGlobal() - N_remove;
+    const unsigned int N_evap = m_mpcd_pdata->getNGlobal() - N_remove;
 
     // get the compact array of indexes of bounced particles and total N_bounced
     unsigned int N_bounced = calculateNumbounced();
@@ -145,7 +149,7 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
         }
     #endif // ENABLE_MPI
 
-    /* if N_bounced_total <= N_evap - pick all the particles to delete
+    /* if N_bounced_total <= N_evap, pick all the particles to delete
      * else pick N_evap particles out of N_bounced_total
      */
     if (N_bounced_total <= N_evap)
@@ -155,11 +159,11 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
         ArrayHandle<unsigned int> h_picks(m_picks, access_location::host, access_mode::overwrite);
         std::iota(h_picks.data, h_picks.data + N_bounced, 0);
         m_Npick = N_bounced;
-        //calculating density if it will get changed alot - print a warning
+        //calculating density if it will get changed alot, print a warning
         Scalar currentdensity = (m_mpcd_pdata->getNGlobal() - N_bounced_total)/((4.*M_PI/3.)*end_R*end_R*end_R);
         if (std::fabs(currentdensity - m_density) > Scalar(0.1))
             {
-            m_exec_conf->msg->warning() << "Solvent density changed to - " << currentdensity << std::endl;
+            m_exec_conf->msg->warning() << "Solvent density changed to: " << currentdensity << std::endl;
             }
         }
     else
@@ -172,7 +176,6 @@ void DryingDropletStreamingMethod::stream(unsigned int timestep)
          * This is performed in a do loop to allow for resizing of the GPUVector.
          * After a short time, the loop will be ignored.
          */
-
         const unsigned int max_pick_idx = N_before + N_bounced;
         bool overflowed = false;
         do
@@ -228,7 +231,6 @@ unsigned int DryingDropletStreamingMethod::calculateNumbounced()
                 {
                 GPUArray<unsigned int> bounced_index(N_bounced, m_exec_conf);
                 m_bounced_index.swap(bounced_index);
-                // resize m_bounced_index with swap idiom
                 }
             ArrayHandle<unsigned int> h_bounced_index(m_bounced_index, access_location::host, access_mode::overwrite);
 

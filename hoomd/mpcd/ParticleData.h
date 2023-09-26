@@ -116,10 +116,7 @@ class PYBIND11_EXPORT ParticleData
             {
             return m_N_global;
             }
-        
-        //! For calculating N_global
-        unsigned int calculateN_global(unsigned int N);
- 
+
         //! Get the global number of virtual MPCD particles
         /*!
          * This method requires a collective reduction in MPI simulations. The caller is responsible for caching
