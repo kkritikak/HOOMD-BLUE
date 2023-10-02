@@ -272,7 +272,7 @@ void mpcd::Communicator::migrateParticles(unsigned int timestep)
 
     // fill send buffer once
     if (m_prof) m_prof->push("pack");
-    m_mpcd_pdata->removeParticles(m_sendbuf, m_mpcd_pdata->getCommFlags() , 0xffffffff, timestep);
+    m_mpcd_pdata->removeParticles(m_sendbuf, m_mpcd_pdata->getCommFlags(), 0xffffffff, timestep);
     if (m_prof) m_prof->pop();
 
     // fill the buffers and send in each direction

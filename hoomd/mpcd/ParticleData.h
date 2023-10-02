@@ -368,6 +368,7 @@ class PYBIND11_EXPORT ParticleData
 
         //! Pack particle data into a buffer
         void removeParticles(GPUVector<mpcd::detail::pdata_element>& out,const GPUArray<unsigned int>& flags, unsigned int mask, unsigned int timestep);
+
         #ifdef ENABLE_CUDA
         //! Pack particle data into a buffer (GPU version)
         void removeParticlesGPU(GPUVector<mpcd::detail::pdata_element>& out,const GPUArray<unsigned int>& flags, unsigned int mask, unsigned int timestep);
@@ -428,6 +429,10 @@ class PYBIND11_EXPORT ParticleData
         GPUArray<Scalar4> m_pos_alt;        //!< Alternate position array
         GPUArray<Scalar4> m_vel_alt;        //!< Alternate velocity array
         GPUArray<unsigned int> m_tag_alt;   //!< Alternate tag array
+        #ifdef ENABLE_MPI
+        GPUArray<unsigned int> m_comm_flags_alt;    //!< Alternate communication flags
+        #endif // ENABLE_MPI
+        GPUArray<unsigned int> m_remove_ids;      //!< Partitioned indexes of particles to keep
         #ifdef ENABLE_CUDA
         GPUArray<unsigned char> m_remove_flags;   //!< Temporary flag to mark keeping particle
         GPUFlags<unsigned int> m_num_remove;      //!< Number of particles to remove
@@ -436,11 +441,6 @@ class PYBIND11_EXPORT ParticleData
         std::unique_ptr<Autotuner> m_remove_tuner;  //!< Tuner for removing particles
         std::unique_ptr<Autotuner> m_add_tuner;     //!< Tuner for adding particles
         #endif // ENABLE_CUDA
-
-        #ifdef ENABLE_MPI
-        GPUArray<unsigned int> m_comm_flags_alt;    //!< Alternate communication flags
-        #endif // ENABLE_MPI
-        GPUArray<unsigned int> m_remove_ids;      //!< Partitioned indexes of particles to keep
 
         bool m_valid_cell_cache;    //!< Flag for validity of cell cache
         SortSignal m_sort_signal;   //!< Signal triggered when particles are sorted

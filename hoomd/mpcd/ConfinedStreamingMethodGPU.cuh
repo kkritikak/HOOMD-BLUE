@@ -39,7 +39,7 @@ struct stream_args_t
 
     Scalar4 *d_pos;                     //!< Particle positions
     Scalar4 *d_vel;                     //!< Particle velocities
-    unsigned int *d_bounced;           //!< Particle bounced flags
+    unsigned int *d_bounced;            //!< Particle bounced flags
     const Scalar mass;                  //!< Particle mass
     const mpcd::ExternalField* field;   //!< Applied external field on particles
     const BoxDim& box;                  //!< Simulation box

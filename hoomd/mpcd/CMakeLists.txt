@@ -11,6 +11,7 @@ set(_mpcd_sources
     CellList.cc
     CollisionMethod.cc
     Communicator.cc
+    DryingDropletStreamingMethod.cc
     ExternalField.cc
     Integrator.cc
     ManualVirtualParticleFiller.cc
