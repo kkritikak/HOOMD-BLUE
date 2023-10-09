@@ -469,6 +469,9 @@ class PYBIND11_EXPORT ParticleData
         //! Setup MPI
         void setupMPI(std::shared_ptr<DomainDecomposition> decomposition);
         #endif // ENABLE_MPI
+        #ifdef ENABLE_CUDA
+        void setupTuners();
+        #endif //ENABLE_CUDA
     };
 
 namespace detail
