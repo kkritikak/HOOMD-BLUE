@@ -58,7 +58,9 @@ mpcd::ParticleData::ParticleData(unsigned int N,
         my_seed += m_exec_conf->getRank(); // each rank must get a different seed value for C++11 PRNG
         }
     #endif // ENABLE_MPI
-
+    #ifdef ENABLE_CUDA
+    setupTuners();
+    #endif // ENABLE_CUDA
     initializeRandom(N, local_box, kT, my_seed, ndimensions);
     }
 
@@ -80,7 +82,9 @@ mpcd::ParticleData::ParticleData(std::shared_ptr<mpcd::ParticleDataSnapshot> sna
     #ifdef ENABLE_MPI
     setupMPI(decomposition);
     #endif
-
+    #ifdef ENABLE_CUDA
+    setupTuners();
+    #endif
     if (m_exec_conf->getRank() == 0 && snapshot->type_mapping.size() == 0)
         {
         m_exec_conf->msg->warning() << "Number of MPCD types in snapshot is 0, incrementing to 1" << std::endl;
@@ -1101,7 +1105,6 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
                                        d_remove_ids.data,
                                        m_num_remove.getDeviceFlags(),
                                        m_N);
-
         // partition particles to keep
         ScopedAllocation<unsigned char> d_tmp_alloc(m_exec_conf->getCachedAllocator(), (tmp_bytes > 0) ? tmp_bytes : 1);
         d_tmp = (void*)d_tmp_alloc();
@@ -1111,21 +1114,17 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
                                        d_remove_ids.data,
                                        m_num_remove.getDeviceFlags(),
                                        m_N);
-
         // check for errors after the partitioning is completed
         if (m_exec_conf->isCUDAErrorCheckingEnabled()) CHECK_CUDA_ERROR();
         }
-
     // resize the output buffer large enough to hold the returned result
     const unsigned int n_remove = m_num_remove.readFlags();
     const unsigned int n_keep = m_N - n_remove;
     out.resize(n_remove);
-
     // remove the particles and compact down the current array
         {
         // access output array
         ArrayHandle<mpcd::detail::pdata_element> d_out(out, access_location::device, access_mode::overwrite);
-
         // access particle data arrays to read from
         ArrayHandle<Scalar4> d_pos(m_pos, access_location::device, access_mode::readwrite);
         ArrayHandle<Scalar4> d_vel(m_vel, access_location::device, access_mode::readwrite);
@@ -1133,7 +1132,6 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
         ArrayHandle<unsigned int> d_comm_flags(flags, access_location::device, access_mode::readwrite);
 
         ArrayHandle<unsigned int> d_remove_ids(m_remove_ids, access_location::device, access_mode::read);
-
         m_remove_tuner->begin();
         mpcd::gpu::remove_particles(d_out.data,
                                     d_pos.data,
@@ -1214,17 +1212,19 @@ void mpcd::ParticleData::setupMPI(std::shared_ptr<DomainDecomposition> decomposi
     if (decomposition)
         m_decomposition = decomposition;
 
-    #ifdef ENABLE_CUDA
+    }
+#endif // ENABLE_MPI
+#ifdef ENABLE_CUDA
+void::mpcd::ParticleData::setupTuners()
+    {
     if (m_exec_conf->isCUDAEnabled())
         {
         m_mark_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_pdata_mark", m_exec_conf));
         m_remove_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_pdata_remove", m_exec_conf));
         m_add_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_pdata_add", m_exec_conf));
         }
-    #endif // ENABLE_CUDA
     }
-#endif // ENABLE_MPI
-
+#endif // ENABLE_CUDA
 /*!
  * \param m Python module to export to
  */

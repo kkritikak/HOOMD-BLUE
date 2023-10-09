@@ -68,6 +68,7 @@ list(APPEND _mpcd_sources
     CellThermoComputeGPU.cc
     CellListGPU.cc
     CommunicatorGPU.cc
+    DryingDropletStreamingMethodGPU.cc
     SlitGeometryFillerGPU.cc
     SlitPoreGeometryFillerGPU.cc
     SorterGPU.cc
@@ -87,6 +88,8 @@ list(APPEND _mpcd_headers
     CommunicatorGPU.h
     ConfinedStreamingMethodGPU.cuh
     ConfinedStreamingMethodGPU.h
+    DryingDropletStreamingMethodGPU.cuh
+    DryingDropletStreamingMethodGPU.h
     ParticleData.cuh
     RejectionVirtualParticleFillerGPU.cuh
     RejectionVirtualParticleFillerGPU.h
@@ -108,6 +111,7 @@ set(_mpcd_cu_sources
     CellListGPU.cu
     ConfinedStreamingMethodGPU.cu
     CommunicatorGPU.cu
+    DryingDropletStreamingMethodGPU.cu
     ExternalField.cu
     ParticleData.cu
     RejectionVirtualParticleFillerGPU.cu
