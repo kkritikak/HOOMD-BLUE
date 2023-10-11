@@ -34,7 +34,6 @@ namespace mpcd
  * particles in drying droplet on GPU
  *
  * See DryingDropletStreamingMethod for details
- *
  */
 
 class PYBIND11_EXPORT DryingDropletStreamingMethodGPU : public mpcd::ConfinedStreamingMethodGPU<mpcd::detail::SphereGeometry>
@@ -74,9 +73,9 @@ class PYBIND11_EXPORT DryingDropletStreamingMethodGPU : public mpcd::ConfinedStr
         GPUVector<unsigned int> m_bounced_idx;             //!< Indices of bounced particles
         GPUVector<unsigned int> m_picks;                   //!< Particles picked for evaporation on this rank
         GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Hold output particles that are removed
-        GPUFlags<unsigned int> m_num_bounced;              //!< GPU Flags for the number of marked particles
+        GPUFlags<unsigned int> m_num_bounced;              //!< GPU Flags for the number of bounced particles
 
-        std::unique_ptr<Autotuner> m_idx_tuner;            //!< Tuner for marking
+        std::unique_ptr<Autotuner> m_idx_tuner;            //!< Tuner for creating bounced idx
         std::unique_ptr<Autotuner> m_pick_tuner;           //!< Tuner for applying picks
 
         virtual void applyPicks();                         //!< Apply the picks

@@ -5,7 +5,7 @@
 
 /*!
  * \file mpcd/DryingDropletStreamingMethodGPU.cc
- * \brief Declaration of mpcd::DryingDropletStreamingMethodGPU
+ * \brief Definition of mpcd::DryingDropletStreamingMethodGPU
  */
 #include "DryingDropletStreamingMethodGPU.h"
 #include "DryingDropletStreamingMethodGPU.cuh"
@@ -33,8 +33,8 @@ mpcd::DryingDropletStreamingMethodGPU::DryingDropletStreamingMethodGPU(std::shar
     : mpcd::ConfinedStreamingMethodGPU<mpcd::detail::SphereGeometry>(sysdata, cur_timestep, period, phase, std::shared_ptr<mpcd::detail::SphereGeometry>()),
       m_R(R), m_bc(bc), m_density(density), m_seed(seed),m_picks(this->m_exec_conf), m_num_bounced(this->m_exec_conf), m_bounced_idx(this->m_exec_conf), m_removed(this->m_exec_conf)
     {
-    m_idx_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mark_idx_particles", this->m_exec_conf));
-    m_pick_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "pick_particles", this->m_exec_conf));    
+    m_idx_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_bounced_idx_particles", this->m_exec_conf));
+    m_pick_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_pick_particles", this->m_exec_conf));
     }
 
 /*!
@@ -46,8 +46,8 @@ void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
     if(!this->peekStream(timestep)) return;
 
     // compute final Radius and Velocity of surface
-    const Scalar start_R = m_R->getValue(timestep);
-    const Scalar end_R = m_R->getValue(timestep + m_period);
+    const Scalar start_R = this->m_R->getValue(timestep);
+    const Scalar end_R = this->m_R->getValue(timestep + m_period);
     const Scalar V = (end_R - start_R)/(m_mpcd_dt);
     // checks if V <= 0, since size of droplet must decrease
     if (V > 0)
@@ -185,8 +185,8 @@ unsigned int mpcd::DryingDropletStreamingMethodGPU::calculateNumBounced()
     m_num_bounced.resetFlags(0);
     ArrayHandle<unsigned int> d_bounced(this->m_bounced, access_location::device, access_mode::read);
     ArrayHandle<unsigned int> d_bounced_idx(this->m_bounced_idx, access_location::device, access_mode::overwrite);
-    // get the compact array of indexes of bounced particles and total N_bounced
 
+    // get the compact array of indexes of bounced particles and total N_bounced
     m_idx_tuner->begin();
     mpcd::gpu::create_bounced_idx(d_bounced_idx.data,
                                   this->m_mpcd_pdata->getN(),

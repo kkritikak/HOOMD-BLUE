@@ -1105,6 +1105,7 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
                                        d_remove_ids.data,
                                        m_num_remove.getDeviceFlags(),
                                        m_N);
+
         // partition particles to keep
         ScopedAllocation<unsigned char> d_tmp_alloc(m_exec_conf->getCachedAllocator(), (tmp_bytes > 0) ? tmp_bytes : 1);
         d_tmp = (void*)d_tmp_alloc();
@@ -1114,17 +1115,21 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
                                        d_remove_ids.data,
                                        m_num_remove.getDeviceFlags(),
                                        m_N);
+
         // check for errors after the partitioning is completed
         if (m_exec_conf->isCUDAErrorCheckingEnabled()) CHECK_CUDA_ERROR();
         }
+
     // resize the output buffer large enough to hold the returned result
     const unsigned int n_remove = m_num_remove.readFlags();
     const unsigned int n_keep = m_N - n_remove;
     out.resize(n_remove);
+
     // remove the particles and compact down the current array
         {
         // access output array
         ArrayHandle<mpcd::detail::pdata_element> d_out(out, access_location::device, access_mode::overwrite);
+
         // access particle data arrays to read from
         ArrayHandle<Scalar4> d_pos(m_pos, access_location::device, access_mode::readwrite);
         ArrayHandle<Scalar4> d_vel(m_vel, access_location::device, access_mode::readwrite);
@@ -1132,6 +1137,7 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
         ArrayHandle<unsigned int> d_comm_flags(flags, access_location::device, access_mode::readwrite);
 
         ArrayHandle<unsigned int> d_remove_ids(m_remove_ids, access_location::device, access_mode::read);
+
         m_remove_tuner->begin();
         mpcd::gpu::remove_particles(d_out.data,
                                     d_pos.data,

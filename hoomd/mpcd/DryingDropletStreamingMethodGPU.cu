@@ -26,7 +26,7 @@ namespace kernel
  * \param d_bounced_idx Array of particle indexes
  * \param N Number of particles
  *
- * Using one thread per particle, d_bounced is checked if it's a 1.
+ * Using one thread per particle,
  * The \a d_bounced_idx array is filled up with the particle indexes so that compact_bounced_idx
  * can later select these particle indexes based on \a d_bounced.
  */
@@ -37,7 +37,6 @@ __global__ void create_bounced_idx(unsigned int *d_bounced_idx,
     if (idx >= N) return;
 
     d_bounced_idx[idx] = idx;
-
     }
 /*!
  * \param d_picks Indexes of picked particles in \a d_bounced_idx
@@ -136,7 +135,7 @@ cudaError_t compact_bounced_idx(unsigned int *d_bounced_idx,
  * \param N_pick Number of picks made
  * \param block_size Number of threads per block
  *
- * \sa kernel::evaporate_apply_picks
+ * \sa kernel::apply_picks
  */
 cudaError_t apply_picks(unsigned int *d_bounced,
                         const unsigned int *d_picks,

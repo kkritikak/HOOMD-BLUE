@@ -8,7 +8,6 @@
  * \brief Declaration of mpcd::DryingDropletStreamingMethod
  */
 #include "DryingDropletStreamingMethod.h"
-
 #include <algorithm>
 
 //! Constructor
@@ -159,7 +158,6 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
                                   m_mask,
                                   timestep);
     }
-
 
 unsigned int mpcd::DryingDropletStreamingMethod::calculateNumBounced()
     {
