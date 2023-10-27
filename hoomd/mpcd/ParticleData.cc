@@ -966,7 +966,7 @@ void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>&
         ArrayHandle<Scalar4> h_pos(m_pos, access_location::host, access_mode::readwrite);
         ArrayHandle<Scalar4> h_vel(m_vel, access_location::host, access_mode::readwrite);
         ArrayHandle<unsigned int> h_tag(m_tag, access_location::host, access_mode::readwrite);
-        ArrayHandle<unsigned int> h_comm_flags(flags, access_location::host, access_mode::readwrite);
+        ArrayHandle<unsigned int> h_comm_flags(m_comm_flags, access_location::host, access_mode::readwrite);
 
         for (unsigned int idx = 0; idx < n_remove; ++idx)
             {
@@ -1134,7 +1134,7 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
         ArrayHandle<Scalar4> d_pos(m_pos, access_location::device, access_mode::readwrite);
         ArrayHandle<Scalar4> d_vel(m_vel, access_location::device, access_mode::readwrite);
         ArrayHandle<unsigned int> d_tag(m_tag, access_location::device, access_mode::readwrite);
-        ArrayHandle<unsigned int> d_comm_flags(flags, access_location::device, access_mode::readwrite);
+        ArrayHandle<unsigned int> d_comm_flags(m_comm_flags, access_location::device, access_mode::readwrite);
 
         ArrayHandle<unsigned int> d_remove_ids(m_remove_ids, access_location::device, access_mode::read);
 
