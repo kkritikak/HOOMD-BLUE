@@ -15,15 +15,16 @@
 #error This header cannot be compiled by nvcc
 #endif
 
+#include "hoomd/Autotuner.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
-#include "hoomd/Variant.h"
+#include "hoomd/GPUFlags.h"
 #include "hoomd/RNGIdentifiers.h"
 #include "hoomd/RandomNumbers.h"
-#include "hoomd/Autotuner.h"
-#include "hoomd/GPUFlags.h"
+#include "hoomd/Variant.h"
 
 #include "BoundaryCondition.h"
 #include "ConfinedStreamingMethodGPU.h"
+#include "RandomSubsetPicker.h"
 #include "SphereGeometry.h"
 
 namespace mpcd
@@ -70,21 +71,15 @@ class PYBIND11_EXPORT DryingDropletStreamingMethodGPU : public mpcd::ConfinedStr
         unsigned int m_Npick;                              //!< Number of particles picked for evaporation on this rank
         const unsigned int m_mask = 1 << 1;                //!< Mask for flags
 
-        GPUVector<unsigned int> m_bounced_idx;             //!< Indices of bounced particles
         GPUVector<unsigned int> m_picks;                   //!< Particles picked for evaporation on this rank
         GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Hold output particles that are removed
-        GPUFlags<unsigned int> m_num_bounced;              //!< GPU Flags for the number of bounced particles
 
-        std::unique_ptr<Autotuner> m_idx_tuner;            //!< Tuner for creating bounced idx
         std::unique_ptr<Autotuner> m_pick_tuner;           //!< Tuner for applying picks
 
         virtual void applyPicks();                         //!< Apply the picks
-    private:
-        std::vector<unsigned int> m_all_picks;             //!< All picked particles on all the ranks
 
-        unsigned int calculateNumBounced();                //!< For calculating N_bounced and m_bounced_index
-        //!< For Making a random pick of particles across all ranks
-        void makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_bounced_total);
+    private:
+        RandomSubsetPicker m_picker;
     };
 
 namespace detail

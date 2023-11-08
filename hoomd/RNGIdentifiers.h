@@ -44,7 +44,7 @@ struct RNGIdentifier
     static const uint32_t TwoStepNVTMTK = 0x451234b9;
     static const uint32_t ATCollisionMethod = 0xf4009e6a;
     static const uint32_t CollisionMethod = 0x5af53be6;
-    static const uint32_t DryingDropletStreamingMethod = 0x8f3b1d76;
+    static const uint32_t RandomSubsetPicker = 0x8f3b1d76;
     static const uint32_t SRDCollisionMethod = 0x7b61fda0;
     static const uint32_t SlitGeometryFiller = 0xdb68c12c;
     static const uint32_t SlitPoreGeometryFiller = 0xc7af9094;

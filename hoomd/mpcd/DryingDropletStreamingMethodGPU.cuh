@@ -18,23 +18,9 @@ namespace mpcd
 {
 namespace gpu
 {
-//! For scanning m_bounced and storing indices in bounced_idx
-cudaError_t create_bounced_idx(unsigned int *d_bounced_idx,
-                               unsigned int N,
-                               unsigned int block_size);
-
-//! Drives CUB device selection routines for bounced particles
-cudaError_t compact_bounced_idx(unsigned int *d_bounced_idx,
-                                unsigned int *d_num_bounced,
-                                void *d_tmp_storage,
-                                size_t &tmp_storage_bytes,
-                                unsigned int *d_bounced,
-                                unsigned int N);
-
-//! Updates d_bounced according to picks made on cpu
+//! Updates d_bounced according to picks made by m_picker
 cudaError_t apply_picks(unsigned int *d_bounced,
                         const unsigned int *d_picks,
-                        const unsigned int *d_bounced_idx,
                         const unsigned int m_mask,
                         unsigned int N_pick,
                         unsigned int block_size);

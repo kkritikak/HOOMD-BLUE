@@ -17,6 +17,7 @@ set(_mpcd_sources
     ManualVirtualParticleFiller.cc
     ParticleData.cc
     ParticleDataSnapshot.cc
+    RandomSubsetPicker.cc
     SlitGeometryFiller.cc
     SlitPoreGeometryFiller.cc
     Sorter.cc
@@ -47,6 +48,7 @@ set(_mpcd_headers
     ParticleData.h
     ParticleDataSnapshot.h
     ParticleDataUtilities.h
+    RandomSubsetPicker.h
     RejectionVirtualParticleFiller.h
     SlitGeometry.h
     SlitGeometryFiller.h
@@ -91,6 +93,7 @@ list(APPEND _mpcd_headers
     DryingDropletStreamingMethodGPU.cuh
     DryingDropletStreamingMethodGPU.h
     ParticleData.cuh
+    RandomSubsetPicker.cuh
     RejectionVirtualParticleFillerGPU.cuh
     RejectionVirtualParticleFillerGPU.h
     SlitGeometryFillerGPU.cuh
@@ -114,6 +117,7 @@ set(_mpcd_cu_sources
     DryingDropletStreamingMethodGPU.cu
     ExternalField.cu
     ParticleData.cu
+    RandomSubsetPicker.cu
     RejectionVirtualParticleFillerGPU.cu
     SlitGeometryFillerGPU.cu
     SlitPoreGeometryFillerGPU.cu

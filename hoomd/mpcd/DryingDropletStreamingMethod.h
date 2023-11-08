@@ -17,11 +17,10 @@
 
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
 #include "hoomd/Variant.h"
-#include "hoomd/RNGIdentifiers.h"
-#include "hoomd/RandomNumbers.h"
 
 #include "BoundaryCondition.h"
 #include "ConfinedStreamingMethod.h"
+#include "RandomSubsetPicker.h"
 #include "SphereGeometry.h"
 
 namespace mpcd
@@ -74,18 +73,13 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         unsigned int m_Npick;                              //!< Number of particles picked for evaporation on this rank
         const unsigned int m_mask = 1 << 1;                //!< Mask for flags
 
-        GPUArray<unsigned int> m_bounced_index;            //!< Indices of bounced particles
         GPUVector<unsigned int> m_picks;                   //!< Particles picked for evaporation on this rank
         GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Hold output particles that are removed
 
         virtual void applyPicks();                         //!< Apply the picks
 
     private:
-        std::vector<unsigned int> m_all_picks;             //!< All picked particles on all the ranks
-
-        unsigned int calculateNumBounced();                //!< For calculating N_bounced and m_bounced_index
-        //!< For Making a random pick of particles across all ranks
-        void makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_bounced_total);
+        RandomSubsetPicker m_picker;                       //!< For picking particles for evaporation
     };
 
 namespace detail
