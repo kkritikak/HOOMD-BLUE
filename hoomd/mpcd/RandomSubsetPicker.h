@@ -121,9 +121,9 @@ class RandomSubsetPicker
  * \param picks       //!< indexes that are picked in the *original* flags array
  * \param N_pick      //!< number of particles picked
  * \param flags       //!< flags indicating which particles to pick from [ 0 1 0 1 1 ...] 
- * \param N_try_pick  //!< target number of particles to pick (if total number of 1's in flags will be less than N_try_pick, it will pick all the 1's, in that case N_pick would be less then N_try_pick)
- * \param N           //!< Total number of particles
+ * \param N_try_pick  //!< target number of particles to pick (if total number of 1's in flags will be less than N_try_pick, it will pick all the 1's, in that case N_pick would be less then N_try_pick
  * \param seed        //!< Seed to random number Generator
+ * \param timestep    //!< timestep at which this is called
  */
 
 template<typename T>
