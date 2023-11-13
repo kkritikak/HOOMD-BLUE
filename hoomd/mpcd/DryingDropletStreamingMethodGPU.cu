@@ -22,14 +22,15 @@ namespace gpu
 namespace kernel
 {
 /*!
- * \param d_picks Indexes of picked particles in \a d_bounced_idx
- * \param d_bounced_idx Compacted array of particle indexes marked as candidates for evaporation
+ * \param d_bounced Flags identifying which particles are bounced (1=bounced)
+ * \param d_picks Indexes of picked particles in \a d_bounced
+ * \param mask Mask for setting an additional bit in d_bounced
  * \param N_pick Number of picks made
  *
- * Using one thread per particle, d_bounced array is modified such that 3(11) is stored 
- * for picked particles .
- * See kernel::create_bounced_idx and mpcd::gpu::compact_bounced_idx for details of how bounced
- * particles index are stored.
+ * Using one thread per particle, the particles which were picked are marked 
+ * by setting an additional bit in d_bounced array(e.g., 3 (11) is stored in m_bounced)
+ * See RandomSubsetPicker::operator() on how particles are picked and picked particles
+ * indices are stored in \a d_picks
  */
 __global__ void apply_picks(unsigned int *d_bounced,
                             const unsigned int *d_picks,
@@ -46,9 +47,10 @@ __global__ void apply_picks(unsigned int *d_bounced,
 } //end namespace kernel
 
 /*!
- * \param d_picks Indexes of picked particles in \a d_bounced_idx
- * \param d_bounced_idx Compacted array of particle indexes marked as candidates for evaporation
- * \param N_pick Number of picks made
+ * \param d_bounced flags identifying which particles were bounced (1=bounced)
+ * \param d_picks Indexes of picked particles in \a d_bounced
+ * \param mask Mask for setting an additional bit in d_bounced
+ * \param N_pick Number of picks made out of all bounced particles
  * \param block_size Number of threads per block
  *
  * \sa kernel::apply_picks

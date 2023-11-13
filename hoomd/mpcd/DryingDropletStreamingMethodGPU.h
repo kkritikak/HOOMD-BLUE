@@ -17,9 +17,6 @@
 
 #include "hoomd/Autotuner.h"
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
-#include "hoomd/GPUFlags.h"
-#include "hoomd/RNGIdentifiers.h"
-#include "hoomd/RandomNumbers.h"
 #include "hoomd/Variant.h"
 
 #include "BoundaryCondition.h"
@@ -69,17 +66,17 @@ class PYBIND11_EXPORT DryingDropletStreamingMethodGPU : public mpcd::ConfinedStr
         Scalar m_density;                                  //!< Solvent density
         unsigned int m_seed;                               //!< Seed to evaporator pseudo-random number generator
         unsigned int m_Npick;                              //!< Number of particles picked for evaporation on this rank
-        const unsigned int m_mask = 1 << 1;                //!< Mask for flags
+        const unsigned int m_mask = 1 << 1;                //!< Mask for applying picks in \a m_bounced array and for removing particles
 
-        GPUVector<unsigned int> m_picks;                   //!< Particles picked for evaporation on this rank
+        GPUVector<unsigned int> m_picks;                   //!< Indices of Particles picked for evaporation on this rank in \a m_bounced array
         GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Hold output particles that are removed
 
-        std::unique_ptr<Autotuner> m_pick_tuner;           //!< Tuner for applying picks
+        std::unique_ptr<Autotuner> m_apply_picks_tuner;    //!< Tuner for applying picks
 
         virtual void applyPicks();                         //!< Apply the picks
 
     private:
-        RandomSubsetPicker m_picker;
+        RandomSubsetPicker m_picker;                       //!< For randomly picking particles to evaporate from particles which are bounced
     };
 
 namespace detail

@@ -6,10 +6,19 @@
 #include "RandomSubsetPicker.h"
 
 /* 
- * This file contains definitions of some functions used in RandomSubsetPicker::operator()
+ * This file contains some definitions of functions used in RandomSubsetPicker::operator()
+ * see RandomSubsetPicker.h file for declarations for RandomSubsetPicker and definition of operator()
  */
 void mpcd::RandomSubsetPicker::storePicksIdx(GPUArray<unsigned int>& picks)
     {
+    /* 
+     * The function stores the indexes of picked particles(indices of picked particles according to the *original* flags array) in picks.
+     * This chooses whether to take CPU path or GPU path according to m_exec_conf
+     *
+     * \param picks Indices of picked partickes in \a flags 
+     * \param m_picks_idx Indices of picked particles in \a m_flags_idx array
+     * \param m_flags_idx Indices of particles in \a flags which are set (1=set)
+     */
     picks.resize(m_Npick);
     #ifdef ENABLE_CUDA
     if(m_exec_conf->isCUDAEnabled())
@@ -42,13 +51,13 @@ void mpcd::RandomSubsetPicker::storePicksIdx(GPUArray<unsigned int>& picks)
         }
     }
 
-void mpcd::RandomSubsetPicker::makeAllPicks(unsigned int timestep, unsigned int N_try_pick, unsigned int N_total_all_ranks)
+void mpcd::RandomSubsetPicker::makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_total_all_ranks)
     {
     /* The Fisher-Yates shuffle algorithm is applied to randomly pick unique particles
      * out of the possible particles across all ranks. The result is stored in
      * \a m_all_picks.
      */
-    assert(N_try_pick < N_total_all_ranks);
+    assert(N_pick < N_total_all_ranks);
 
     // fill up vector which we will randomly shuffle
     m_all_picks.resize(N_total_all_ranks);
@@ -60,7 +69,7 @@ void mpcd::RandomSubsetPicker::makeAllPicks(unsigned int timestep, unsigned int 
     auto begin = m_all_picks.begin();
     auto end = m_all_picks.end();
     size_t left = std::distance(begin,end);
-    unsigned int N_choose = N_try_pick;
+    unsigned int N_choose = N_pick;
     while (N_choose-- && left > 1)
         {
         hoomd::UniformIntDistribution rand_shift(left-1);
@@ -73,5 +82,5 @@ void mpcd::RandomSubsetPicker::makeAllPicks(unsigned int timestep, unsigned int 
         }
 
     // size the vector down to the number picked
-    m_all_picks.resize(N_try_pick);
+    m_all_picks.resize(N_pick);
     }

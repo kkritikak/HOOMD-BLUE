@@ -11,12 +11,10 @@
 #ifndef MPCD_RANDOM_SUBSET_PICKER_CUH_
 #define MPCD_RANDOM_SUBSET_PICKER_CUH_
 
-
 #include <cuda_runtime.h>
 
-#include "hoomd/HOOMDMath.h"
 #include "hoomd/BoxDim.h"
-
+#include "hoomd/HOOMDMath.h"
 #include "hoomd/RandomNumbers.h"
 #include "hoomd/RNGIdentifiers.h"
 
@@ -24,14 +22,12 @@ namespace mpcd
 {
 namespace gpu
 {
-// Function declarations
-
-//! For scanning flags and storing indices in m_flags_idx
+//! For storing indices in m_flags_idx
 cudaError_t create_flags_idx(unsigned int *d_flags_idx,
                              unsigned int N,
                              unsigned int block_size);
 
-//! Drives CUB device selection routines for flagged particles
+//! Drives CUB device selection routines for flags which are set to *1*
 template<typename T>
 cudaError_t compact_flags_idx(unsigned int *d_flags_idx,
                               unsigned int *d_num_flags,
@@ -40,12 +36,12 @@ cudaError_t compact_flags_idx(unsigned int *d_flags_idx,
                               T *d_flags,
                               unsigned int N);
 
-//! Stores *original* indices of picked particles in \a d_picks according to d_picks_idx(indices of picked particles in a /d_flags_idx)
+//! Stores *original* indices of picked particles in \a d_picks according to d_picks_idx which contains indices of picked particles in a /d_flags_idx
 cudaError_t store_picks_idx(unsigned int *d_picks_idx,
                             unsigned int *d_picks,
                             unsigned int *d_flags_idx,
                             unsigned int N_pick,
-                            unsigned int blocksize);
+                            unsigned int block_size);
 
 } //namespace gpu
 } //namespace mpcd

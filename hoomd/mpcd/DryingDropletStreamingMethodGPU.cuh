@@ -21,7 +21,7 @@ namespace gpu
 //! Updates d_bounced according to picks made by m_picker
 cudaError_t apply_picks(unsigned int *d_bounced,
                         const unsigned int *d_picks,
-                        const unsigned int m_mask,
+                        const unsigned int mask,
                         unsigned int N_pick,
                         unsigned int block_size);
 }

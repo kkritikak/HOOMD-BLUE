@@ -26,7 +26,7 @@ namespace kernel
  * \param N Number of particles
  *
  * Using one thread per particle,
- * The \a d_flags_idx array is filled up with the particle indexes so that compact_bounced_idx
+ * The \a d_flags_idx array is filled up with the particle indexes so that compact_flags_idx
  * can later select these particle indexes based on \a d_flags.
  */
 __global__ void create_flags_idx(unsigned int *d_flags_idx,
@@ -41,7 +41,7 @@ __global__ void create_flags_idx(unsigned int *d_flags_idx,
 /*!
  * \param d_picks_idx Indexes of picked particles in \a d_flags_idx
  * \param d_picks Indexes of picked particles in \a d_flags
- * \param d_flags_idx Compacted array of particle indexes marked as candidates for evaporation
+ * \param d_flags_idx Compacted array of particle indexes which has *1* in flags
  * \param N_pick Number of picks made
  *
  * Using one thread per particle, d_picks is modified such that picks has now indices of picked particles the *original* flags array.
@@ -92,8 +92,8 @@ cudaError_t create_flags_idx(unsigned int *d_flags_idx,
     }
 
 /*!
- * \param d_flags_idx Compacted array of particle indexes marked as candidates for picking
- * \param d_num_flags Flag to store the total number of flagged particles
+ * \param d_flags_idx Compacted array of particle indexes which has *1* in flags
+ * \param d_num_flags Flag to store the total number of particles which has *1* in flags
  * \param d_tmp_storage Temporary storage allocated on the device, NULL on first call
  * \param tmp_storage_bytes Number of bytes necessary for temporary storage, 0 on first call
  * \param d_flags Flags identifying which particles to select (1 = select)
@@ -131,7 +131,7 @@ cudaError_t compact_flags_idx(unsigned int *d_flags_idx,
 /*!
  * \param d_picks_idx Indexes of picked particles in \a d_flags_idx
  * \param d_picks Indexes of picked particles in \a d_flags
- * \param d_flags_idx Compacted array of particle indexes marked as candidates for picking
+ * \param d_flags_idx Compacted array of particle indexes which has *1* in flags
  * \param N_pick Number of picks made
  * \param block_size Number of threads per block
  *
