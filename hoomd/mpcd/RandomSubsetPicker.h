@@ -47,7 +47,7 @@
  * Construct the picker with the Constructor of class
  * m_picker(sysdef, seed);
  * In the code where you wanna use it, call this like:
- * m_picker(picks, m_Npick, m_flags, N_try_pick, timestep);
+ * m_picker(picks, m_Npick, m_flags, N_try_pick, timestep, N);
  */
 
 namespace mpcd
