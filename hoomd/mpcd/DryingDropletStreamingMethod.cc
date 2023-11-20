@@ -81,7 +81,7 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
      * picked particles in \a m_bounced array.
      */
     m_Npick = 0;
-    m_picker(m_picks, m_Npick, m_bounced, N_evap, timestep);
+    m_picker(m_picks, m_Npick, m_bounced, N_evap, timestep, m_mpcd_pdata->getNGlobal());
 
     /*
      * applying the picks, In m_bounced array, the particles which were picked are marked 

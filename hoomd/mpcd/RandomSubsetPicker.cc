@@ -57,7 +57,7 @@ void mpcd::RandomSubsetPicker::makeAllPicks(unsigned int timestep, unsigned int 
      * out of the possible particles across all ranks. The result is stored in
      * \a m_all_picks.
      */
-    assert(N_pick < N_total_all_ranks);
+    assert(N_pick <= N_total_all_ranks);
 
     // fill up vector which we will randomly shuffle
     m_all_picks.resize(N_total_all_ranks);

@@ -78,7 +78,8 @@ class RandomSubsetPicker
                         unsigned int& N_pick,
                         const GPUArray<T>& flags,
                         unsigned int N_try_pick,
-                        unsigned int timestep);
+                        unsigned int timestep,
+                        unsigned int N);
 
     protected:
         std::shared_ptr<SystemDefinition> m_sysdef;
@@ -96,7 +97,7 @@ class RandomSubsetPicker
 
         //! For calculating total number of particles which has 1 in flags[0 1 0 1 1 0...] and storing their index in flags_idx
         template<typename T>
-        unsigned int CalculateTotalNumbersToPickFrom(const GPUArray<T>& flags);
+        unsigned int CalculateTotalNumbersToPickFrom(const GPUArray<T>& flags, unsigned int N);
 
         //!< For Making a random pick of particles across all ranks
         void makeAllPicks(unsigned int timestep, unsigned int N_try_pick, unsigned int N_total_all_ranks);
@@ -116,13 +117,15 @@ class RandomSubsetPicker
  * \param N_try_pick  //!< target number of particles to pick (if total number of 1's in flags will be less than N_try_pick, it will pick all the 1's, in that case N_pick would be less then N_try_pick
  * \param seed        //!< Seed to random number Generator
  * \param timestep    //!< timestep at which this is called
+ * \param N           //!< total number of particles 
  */
 template<typename T>
 void RandomSubsetPicker::operator()(GPUArray<unsigned int>& picks,
                                     unsigned int& N_pick,
                                     const GPUArray<T>& flags,
                                     unsigned int N_try_pick,
-                                    unsigned int timestep)
+                                    unsigned int timestep,
+                                    unsigned int N)
     {
     /*
      * It first calculates total number of 1's in flags(N_total) and store the indices of those 1's in m_flags_idx.
@@ -139,7 +142,7 @@ void RandomSubsetPicker::operator()(GPUArray<unsigned int>& picks,
      * First calculating How many marked particles are there in flags(1 = marked) and storing their indexes in m_flags_idx
      * This is done by CalculateTotalNumbersToPickFrom()
      */
-    unsigned int N_total = CalculateTotalNumbersToPickFrom<T>(flags);
+    unsigned int N_total = CalculateTotalNumbersToPickFrom<T>(flags, N);
     unsigned int N_total_all_ranks = N_total;
     unsigned int N_before = 0;
 
@@ -207,10 +210,10 @@ void RandomSubsetPicker::operator()(GPUArray<unsigned int>& picks,
 } //namespace mpcd
 
 template<typename T>
-unsigned int mpcd::RandomSubsetPicker::CalculateTotalNumbersToPickFrom(const GPUArray<T>& flags)
+unsigned int mpcd::RandomSubsetPicker::CalculateTotalNumbersToPickFrom(const GPUArray<T>& flags, unsigned int N)
     {
     unsigned int N_total = 0;  
-    unsigned int N = flags.getNumElements();  
+
     #ifdef ENABLE_CUDA
     if(m_exec_conf->isCUDAEnabled())
         {
