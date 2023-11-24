@@ -65,8 +65,6 @@ class PYBIND11_EXPORT DryingDropletStreamingMethodGPU : public mpcd::ConfinedStr
         mpcd::detail::boundary m_bc;                       //!< Boundary condition
         Scalar m_density;                                  //!< Solvent density
         unsigned int m_seed;                               //!< Seed to evaporator pseudo-random number generator
-        unsigned int m_Npick;                              //!< Number of particles picked for evaporation on this rank
-        const unsigned int m_mask = 1 << 1;                //!< Mask for applying picks in \a m_bounced array and for removing particles
 
         GPUVector<unsigned int> m_picks;                   //!< Indices of Particles picked for evaporation on this rank in \a m_bounced array
         GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Hold output particles that are removed

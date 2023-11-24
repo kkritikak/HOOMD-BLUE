@@ -81,18 +81,18 @@ void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
 
     /*
      * Picking N_evap particles out of total number of bounced particles using RandomPicker,
-     * m_Npick is the total number of particles picked on this rank, m_picks will contain the indices of
+     * Npick is the total number of particles picked on this rank, m_picks will contain the indices of
      * picked particles in \a m_bounced array.
      */
-    m_Npick = 0;
-    m_picker(m_picks, m_Npick, m_bounced, N_evap, timestep, this->m_mpcd_pdata->getN());
+    unsigned int Npick = 0;
+    m_picker(m_picks, Npick, m_bounced, N_evap, timestep, this->m_mpcd_pdata->getN());
 
     /*
      * Applying the picks -
      * In m_bounced array, the particles which were picked are marked 
      * by setting an additional bit (e.g., 3 (11) is stored in m_bounced),
      * m_picks has indices of picked particles in a \m_bounced array
-     * m_Npick is number of particles picked
+     * Npick is number of particles picked
      */
     const unsigned int mask = 1 << 1;     //!< Mask for setting additional bit in m_bounced
     {
@@ -102,7 +102,7 @@ void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
     mpcd::gpu::apply_picks(d_bounced.data,
                            d_picks.data,
                            mask,
-                           this->m_Npick,
+                           Npick,
                            m_apply_picks_tuner->getParam());
     if (m_exec_conf->isCUDAErrorCheckingEnabled())
         CHECK_CUDA_ERROR();
