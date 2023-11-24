@@ -170,15 +170,5 @@ template cudaError_t compact_flags_idx<unsigned int>
      size_t &tmp_storage_bytes,
      unsigned int *d_flags,
      unsigned int N);
-
-//! Template instantiation of unsigned char
-template cudaError_t compact_flags_idx<unsigned char>
-    (unsigned int *d_flags_idx,
-     unsigned int *d_num_flags,
-     void *d_tmp_storage,
-     size_t &tmp_storage_bytes,
-     unsigned char *d_flags,
-     unsigned int N);
-
 } //namespace gpu
 } //namespace mpcd

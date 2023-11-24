@@ -34,7 +34,7 @@
  * \a GPUArray flags( marked with flags where 1 indicates that a particle can be picked)
  *
  * First it calculates N_total(number of all candidate particles which can be possible picks) from flags[0 1 0 1 1 ...],
- * This is done by a function CalculateTotalNumbersToPickFrom(),
+ * This is done by a function countAndCompactFlags(),
  * then it calculates N_total_all ranks(all candidates particles which can be picked on all ranks)
  * Then if /param N_try_pick( that is number of particles to pick) >= N_total_all_ranks - it picks all the particles
  * else it does more complicated picking
@@ -97,12 +97,14 @@ class RandomSubsetPicker
 
         //! For calculating total number of particles which has 1 in flags[0 1 0 1 1 0...] and storing their index in flags_idx
         template<typename T>
-        unsigned int CalculateTotalNumbersToPickFrom(const GPUArray<T>& flags, unsigned int N);
+        unsigned int countAndCompactFlags(const GPUArray<T>& flags, unsigned int N);
 
         //!< For Making a random pick of particles across all ranks
         void makeAllPicks(unsigned int timestep, unsigned int N_try_pick, unsigned int N_total_all_ranks);
-        //!< For storing indices of picked particles in picks
-        void storePicksIdx(GPUArray<unsigned int>& picks);
+        //!< For picking up the particles that lies on current rank
+        void makePicks(unsigned int timestep, unsigned int N_try_pick, unsigned int N_before, unsigned int N_total_all_ranks, unsigned int N_total);
+        //!< For storing indices of picked particles in picks and number of picked particles in N_pick
+        void assignPicks(GPUArray<unsigned int>& picks, unsigned int& N_pick);
 
     private:
         std::vector<unsigned int> m_all_picks;               //!< All picked particles on all the ranks
@@ -140,9 +142,9 @@ void RandomSubsetPicker::operator()(GPUArray<unsigned int>& picks,
 
     /*
      * First calculating How many marked particles are there in flags(1 = marked) and storing their indexes in m_flags_idx
-     * This is done by CalculateTotalNumbersToPickFrom()
+     * This is done by countAndCompactFlags()
      */
-    unsigned int N_total = CalculateTotalNumbersToPickFrom<T>(flags, N);
+    unsigned int N_total = countAndCompactFlags<T>(flags, N);
     unsigned int N_total_all_ranks = N_total;
     unsigned int N_before = 0;
 
@@ -158,7 +160,11 @@ void RandomSubsetPicker::operator()(GPUArray<unsigned int>& picks,
     // If N_try_pick >= N_total_all_ranks - pick all particles
     if (N_total_all_ranks <= N_try_pick)
         {
-        m_picks_idx.resize(N_total);
+        if (m_picks_idx.getNumElements() < N_total)
+            {
+            GPUArray<unsigned int> picks_indx(N_total, m_exec_conf);
+            m_picks_idx.swap(picks_indx);
+            }
         ArrayHandle<unsigned int> h_picks_idx(m_picks_idx, access_location::host, access_mode::overwrite);
         std::iota(h_picks_idx.data, h_picks_idx.data + N_total, 0);
         m_Npick = N_total;
@@ -166,58 +172,27 @@ void RandomSubsetPicker::operator()(GPUArray<unsigned int>& picks,
     else
         {
         // do the pick logic
-        makeAllPicks(timestep, N_try_pick, N_total_all_ranks);
-        /*
-         * Select the picks that lie on my rank, with reindexing to local mark indexes.
-         * This is performed in a do loop to allow for resizing of the GPUVector.
-         * After a short time, the loop will be ignored.
-         */
-        const unsigned int max_pick_idx = N_before + N_total;
-        bool overflowed = false;
-        do
-            {
-            m_Npick = 0;
-            const unsigned int max_Npick = m_picks_idx.getNumElements();
-
-                {
-                ArrayHandle<unsigned int> h_picks_idx(m_picks_idx, access_location::host, access_mode::overwrite);
-                for (unsigned int i=0; i < N_try_pick; ++i)
-                    {
-                    const unsigned int pick = m_all_picks[i];
-                    if (pick >= N_before && pick < max_pick_idx)
-                        {
-                        if (m_Npick < max_Npick)
-                            {
-                            h_picks_idx.data[m_Npick] = pick - N_before;
-                            }
-                        ++m_Npick;
-                        }
-                    }
-                }
-
-            overflowed = (m_Npick > max_Npick);
-            if (overflowed)
-                {
-                m_picks_idx.resize(m_Npick);
-                }
-
-            } while (overflowed);
+        makePicks(timestep, N_try_pick, N_before, N_total_all_ranks, N_total);
         }
-    //storing indexes of picked particles according to the *original* flags array in picks and updating N_pick
-    storePicksIdx(picks);
-    N_pick = m_Npick;
-    } //closing RandomSubsetPicker::operator()
-} //namespace mpcd
+
+    // storing indexes of picked particles according to the *original* flags array in picks and updating N_pick
+    assignPicks(picks, N_pick);
+    } // closing RandomSubsetPicker::operator()
+} // namespace mpcd
 
 template<typename T>
-unsigned int mpcd::RandomSubsetPicker::CalculateTotalNumbersToPickFrom(const GPUArray<T>& flags, unsigned int N)
+unsigned int mpcd::RandomSubsetPicker::countAndCompactFlags(const GPUArray<T>& flags, unsigned int N)
     {
     unsigned int N_total = 0;  
 
     #ifdef ENABLE_CUDA
     if(m_exec_conf->isCUDAEnabled())
         {
-        m_flags_idx.resize(N);
+        if (m_flags_idx.getNumElements() < N)
+            {
+            GPUArray<unsigned int> flags_idx(N, m_exec_conf);
+            m_flags_idx.swap(flags_idx);
+            }
         m_num_flags.resetFlags(0);
         ArrayHandle<unsigned int> d_flags_idx(m_flags_idx, access_location::device, access_mode::overwrite);
         // get the compact array of indexes of total particles which are marked in flags
@@ -287,6 +262,6 @@ unsigned int mpcd::RandomSubsetPicker::CalculateTotalNumbersToPickFrom(const GPU
             } while (overflowed);
         }
     return N_total;
-    } //end calculateTotalNumberToPickFrom()
+    } //end countAndCompactFlags()
 
 #endif //MPCD_RANDOM_SUBSET_PICKER_H

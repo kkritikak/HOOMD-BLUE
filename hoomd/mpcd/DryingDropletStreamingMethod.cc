@@ -77,22 +77,33 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
 
     /*
      * Picking N_evap particles out of total number of bounced particles using RandomPicker,
-     * m_Npick is the total number of particles picked on this rank, m_picks will contain the indices of
+     * Npick is the total number of particles picked on this rank, m_picks will contain the indices of
      * picked particles in \a m_bounced array.
      */
-    m_Npick = 0;
-    m_picker(m_picks, m_Npick, m_bounced, N_evap, timestep, m_mpcd_pdata->getNGlobal());
+    unsigned int Npick = 0;
+    m_picker(m_picks, Npick, m_bounced, N_evap, timestep, m_mpcd_pdata->getN());
 
     /*
-     * applying the picks, In m_bounced array, the particles which were picked are marked 
-     * by setting an additional bit.
+     * Applying the picks
+     * In m_bounced array, the particles which were picked are marked 
+     * by setting an additional bit (e.g., 3 (11) is stored in m_bounced),
+     * m_picks has indices of picked particles in a \m_bounced array
+     * Npick is number of particles picked
      */
-    applyPicks();
+    const unsigned int mask = 1 << 1;   //!< Mask for setting additional bit in m_bounced
+    {
+    ArrayHandle<unsigned int> h_picks(m_picks, access_location::host, access_mode::read);
+    ArrayHandle<unsigned int> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
+    for (unsigned int i=0; i < Npick; ++i)
+        {
+        h_bounced.data[h_picks.data[i]] |= mask;
+        }
+    }
 
     // finally removing the picked particles
     m_mpcd_pdata->removeParticles(m_removed,
                                   m_bounced,
-                                  m_mask,
+                                  mask,
                                   timestep);
 
     // calculating density after removing particles if it's changed alot, print a warning
@@ -101,22 +112,6 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
     if (std::fabs(currentdensity - m_density) > Scalar(0.1))
         {
         this->m_exec_conf->msg->warning() << "Solvent density changed to: " << currentdensity << std::endl;
-        }
-    }
-
-void mpcd::DryingDropletStreamingMethod::applyPicks()
-    {
-    /*
-     * In m_bounced array, the particles which were picked are marked 
-     * by setting an additional bit (e.g., 3 (11) is stored in m_bounced),
-     * m_picks has indices of picked particles in a \m_bounced array
-     * m_Npick is number of particles picked
-     */
-    ArrayHandle<unsigned int> h_picks(m_picks, access_location::host, access_mode::read);
-    ArrayHandle<unsigned int> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
-    for (unsigned int i=0; i < m_Npick; ++i)
-        {
-        h_bounced.data[h_picks.data[i]] |= m_mask;
         }
     }
 

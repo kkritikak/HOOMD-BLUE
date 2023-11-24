@@ -85,18 +85,34 @@ void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
      * picked particles in \a m_bounced array.
      */
     m_Npick = 0;
-    m_picker(m_picks, m_Npick, m_bounced, N_evap, timestep, this->m_mpcd_pdata->getNGlobal());
+    m_picker(m_picks, m_Npick, m_bounced, N_evap, timestep, this->m_mpcd_pdata->getN());
 
     /*
-     * applying the picks, In m_bounced array, the particles which were picked are marked 
-     * by setting an additional bit.
+     * Applying the picks -
+     * In m_bounced array, the particles which were picked are marked 
+     * by setting an additional bit (e.g., 3 (11) is stored in m_bounced),
+     * m_picks has indices of picked particles in a \m_bounced array
+     * m_Npick is number of particles picked
      */
-    applyPicks();
+    const unsigned int mask = 1 << 1;     //!< Mask for setting additional bit in m_bounced
+    {
+    ArrayHandle<unsigned int> d_picks(this->m_picks, access_location::device, access_mode::read);
+    ArrayHandle<unsigned int> d_bounced(this->m_bounced, access_location::device, access_mode::readwrite);
+    m_apply_picks_tuner->begin();
+    mpcd::gpu::apply_picks(d_bounced.data,
+                           d_picks.data,
+                           mask,
+                           this->m_Npick,
+                           m_apply_picks_tuner->getParam());
+    if (m_exec_conf->isCUDAErrorCheckingEnabled())
+        CHECK_CUDA_ERROR();
+    m_apply_picks_tuner->end();
+    }
 
     // finally removing the picked particles
     this->m_mpcd_pdata->removeParticlesGPU(this->m_removed,
                                            this->m_bounced,
-                                           this->m_mask,
+                                           mask,
                                            timestep);
 
     // calculating density after removing particles if it's changed alot, print a warning
@@ -107,27 +123,6 @@ void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
         this->m_exec_conf->msg->warning() << "Solvent density changed to: " << currentdensity << std::endl;
         }
     }
-void mpcd::DryingDropletStreamingMethodGPU::applyPicks()
-    {
-    /*
-     * In m_bounced array, the particles which were picked are marked 
-     * by setting an additional bit (e.g., 3 (11) is stored in m_bounced),
-     * m_picks has indices of picked particles in a \m_bounced array
-     * m_Npick is number of particles picked
-     */
-    ArrayHandle<unsigned int> d_picks(this->m_picks, access_location::device, access_mode::read);
-    ArrayHandle<unsigned int> d_bounced(this->m_bounced, access_location::device, access_mode::readwrite);
-    m_apply_picks_tuner->begin();
-    mpcd::gpu::apply_picks(d_bounced.data,
-                           d_picks.data,
-                           this->m_mask,
-                           this->m_Npick,
-                           m_apply_picks_tuner->getParam());
-    if (m_exec_conf->isCUDAErrorCheckingEnabled())
-        CHECK_CUDA_ERROR();
-    m_apply_picks_tuner->end();
-    }
-
 
 void mpcd::detail::export_DryingDropletStreamingMethodGPU(pybind11::module& m)
     {

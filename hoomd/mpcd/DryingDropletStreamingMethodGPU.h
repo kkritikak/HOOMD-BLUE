@@ -73,8 +73,6 @@ class PYBIND11_EXPORT DryingDropletStreamingMethodGPU : public mpcd::ConfinedStr
 
         std::unique_ptr<Autotuner> m_apply_picks_tuner;    //!< Tuner for applying picks
 
-        virtual void applyPicks();                         //!< Apply the picks
-
     private:
         RandomSubsetPicker m_picker;                       //!< For randomly picking particles to evaporate from particles which are bounced
     };
