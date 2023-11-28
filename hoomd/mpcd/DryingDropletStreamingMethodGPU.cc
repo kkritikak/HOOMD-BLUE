@@ -7,6 +7,7 @@
  * \file mpcd/DryingDropletStreamingMethodGPU.cc
  * \brief Definition of mpcd::DryingDropletStreamingMethodGPU
  */
+
 #include "DryingDropletStreamingMethodGPU.h"
 #include "DryingDropletStreamingMethodGPU.cuh"
 
@@ -40,24 +41,20 @@ mpcd::DryingDropletStreamingMethodGPU::DryingDropletStreamingMethodGPU(std::shar
  */
 void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
     {
-    // use peekStream since shouldStream will be called by parent class
+    /* 
+     * This code duplicates DryingDropletMethodStreamingMethod::stream.
+     * See there for comments.
+     */
     if(!this->peekStream(timestep)) return;
 
-    // compute final Radius and Velocity of surface
     const Scalar start_R = this->m_R->getValue(timestep);
     const Scalar end_R = this->m_R->getValue(timestep + m_period);
     const Scalar V = (end_R - start_R)/(m_mpcd_dt);
-    // make sure that V < 0, since size of droplet must decrease
     if (V > 0)
         {
         throw std::runtime_error("Droplet radius must decrease.");
         }
 
-    /*
-     * If the initial geometry was not set. Set the geometry and validate the geometry
-     * Because the interface is shrinking, it is sufficient to validate only the first time the geometry
-     * is set.
-     */
     if (!this->m_geom)
         {
         this->m_geom = std::make_shared<mpcd::detail::SphereGeometry>(start_R, V , m_bc );
@@ -65,35 +62,18 @@ void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
         this->m_validate_geom = false;
         }
 
-    /*
-     * Update the geometry radius to the size at the end of the streaming step.
-     * This needs to be done every time.
-     */
     this->m_geom = std::make_shared<mpcd::detail::SphereGeometry>(end_R, V, m_bc );
 
-    // stream according to base class rules
     ConfinedStreamingMethodGPU<mpcd::detail::SphereGeometry>::stream(timestep);
 
-    // calculating number of particles to evaporate(such that solvent density remain constant)
     const unsigned int N_end = std::round((4.*M_PI/3.)*end_R*end_R*end_R*m_density);
     const unsigned int N_global = this->m_mpcd_pdata->getNGlobal();
     const unsigned int N_evap = (N_end < N_global) ? N_global - N_end : 0;
 
-    /*
-     * Picking N_evap particles out of total number of bounced particles using RandomPicker,
-     * Npick is the total number of particles picked on this rank, m_picks will contain the indices of
-     * picked particles in \a m_bounced array.
-     */
     unsigned int Npick = 0;
     m_picker(m_picks, Npick, m_bounced, N_evap, timestep, this->m_mpcd_pdata->getN());
 
-    /*
-     * Applying the picks -
-     * In m_bounced array, the particles which were picked are marked 
-     * by setting an additional bit (e.g., 3 (11) is stored in m_bounced),
-     * m_picks has indices of picked particles in a \m_bounced array
-     * Npick is number of particles picked
-     */
+    // apply picks using the GPU
     const unsigned int mask = 1 << 1;     //!< Mask for setting additional bit in m_bounced
     {
     ArrayHandle<unsigned int> d_picks(this->m_picks, access_location::device, access_mode::read);
@@ -109,13 +89,11 @@ void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
     m_apply_picks_tuner->end();
     }
 
-    // finally removing the picked particles
     this->m_mpcd_pdata->removeParticlesGPU(this->m_removed,
                                            this->m_bounced,
                                            mask,
                                            timestep);
 
-    // calculating density after removing particles if it's changed alot, print a warning
     Scalar V_end = (4.*M_PI/3.)*end_R*end_R*end_R;
     Scalar currentdensity = this->m_mpcd_pdata->getNGlobal()/V_end;
     if (std::fabs(currentdensity - m_density) > Scalar(0.1))
@@ -126,10 +104,6 @@ void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
 
 void mpcd::detail::export_DryingDropletStreamingMethodGPU(pybind11::module& m)
     {
-    //! Export mpcd::DryingDropletStreamingMethod to python
-    /*!
-     * \param m Python module to export to
-     */
     namespace py = pybind11;
     py::class_<mpcd::DryingDropletStreamingMethodGPU, mpcd::ConfinedStreamingMethodGPU<mpcd::detail::SphereGeometry>, std::shared_ptr<mpcd::DryingDropletStreamingMethodGPU>>(m, "DryingDropletStreamingMethodGPU")
         .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<::Variant>, boundary, Scalar, unsigned int>());

@@ -66,16 +66,14 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         virtual void stream(unsigned int timestep);
 
     protected:
-        std::shared_ptr<::Variant> m_R;                    //!< Radius of Sphere
+        std::shared_ptr<::Variant> m_R;                    //!< Radius of sphere
         mpcd::detail::boundary m_bc;                       //!< Boundary condition
         Scalar m_density;                                  //!< Solvent density
         unsigned int m_seed;                               //!< Seed to evaporator pseudo-random number generator
 
-        GPUArray<unsigned int> m_picks;                   //!< Indices of Particles picked for evaporation on this rank in /a m_bounced array
-        GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Hold output particles that are removed
-
-    private:
-        RandomSubsetPicker m_picker;                       //!< For randomly picking particles to evaporate from particles which are bounced
+        RandomSubsetPicker m_picker;                       //!< Picker to remove particles
+        GPUArray<unsigned int> m_picks;                   //!< Indexes of particles to remove
+        GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Removed particle data (not used after removal)
     };
 
 namespace detail

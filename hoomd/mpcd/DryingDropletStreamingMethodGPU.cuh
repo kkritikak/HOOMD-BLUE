@@ -8,8 +8,8 @@
  * \brief Declaration of kernel drivers for DryingDropletStreamingMethodGPU
  */
 
-#ifndef MPCD_DRYING_DROPLET_STREAMING_METHOD_CUH_
-#define MPCD_DRYING_DROPLET_STREAMING_METHOD_CUH_
+#ifndef MPCD_DRYING_DROPLET_STREAMING_METHOD_GPU_CUH_
+#define MPCD_DRYING_DROPLET_STREAMING_METHOD_GPU_CUH_
 
 #include <cuda_runtime.h>
 #include "hoomd/HOOMDMath.h"
@@ -27,4 +27,4 @@ cudaError_t apply_picks(unsigned int *d_bounced,
 }
 }
 
-#endif // MPCD_DRYING_DROPLET_STREAMING_METHOD_CUH_
+#endif // MPCD_DRYING_DROPLET_STREAMING_METHOD_GPU_CUH_

@@ -472,7 +472,7 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
             // allocate memory in snapshot
             snapshot->resize(getNGlobal());
 
-            // sorting particle rank and indices by it's tag
+            // sort particle rank and indices by tag
             std::vector<std::tuple<unsigned int, unsigned int, unsigned int>> sorted_tags(getNGlobal());
             unsigned int total_idx = 0;
             for (unsigned int rank_idx = 0; rank_idx < n_ranks; ++rank_idx)
@@ -508,7 +508,7 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
         {
         // allocate memory in snapshot
         snapshot->resize(getNGlobal());
-        //sorting particle indexes by the tags
+        // sort particle indexes by the tags
         std::vector<std::pair<unsigned int, unsigned int>> sorted_tags(m_N);
         for (unsigned int idx=0; idx < m_N; ++idx)
             {
@@ -666,7 +666,6 @@ void mpcd::ParticleData::allocate(unsigned int N_max)
     GPUFlags<unsigned int> num_remove(m_exec_conf);
     m_num_remove.swap(num_remove);
 
-    // this array is used for particle migration
     GPUArray<unsigned char> remove_flags(N_max, m_exec_conf);
     m_remove_flags.swap(remove_flags);
     #endif // ENABLE_CUDA
@@ -707,9 +706,7 @@ void mpcd::ParticleData::reallocate(unsigned int N_max)
     m_pos_alt.resize(N_max);
     m_vel_alt.resize(N_max);
     m_tag_alt.resize(N_max);
-
-    m_remove_ids.resize(N_max);
-    
+    m_remove_ids.resize(N_max);   
     #ifdef ENABLE_CUDA
     m_remove_flags.resize(N_max);
     #endif // ENABLE_CUDA
@@ -1220,6 +1217,7 @@ void mpcd::ParticleData::setupMPI(std::shared_ptr<DomainDecomposition> decomposi
 
     }
 #endif // ENABLE_MPI
+
 #ifdef ENABLE_CUDA
 void::mpcd::ParticleData::setupTuners()
     {
@@ -1231,6 +1229,7 @@ void::mpcd::ParticleData::setupTuners()
         }
     }
 #endif // ENABLE_CUDA
+
 /*!
  * \param m Python module to export to
  */

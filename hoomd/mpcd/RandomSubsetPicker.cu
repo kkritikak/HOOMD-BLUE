@@ -60,7 +60,6 @@ __global__ void store_picks_idx(unsigned int *d_picks_idx,
     const unsigned int pidx = d_flags_idx[pick];
 
     d_picks[idx] = pidx;
-
     }
 } //end namespace kernel
 

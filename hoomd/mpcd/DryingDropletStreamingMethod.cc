@@ -7,7 +7,9 @@
  * \file mpcd/DryingDropletStreamingMethod.cc
  * \brief Definition of mpcd::DryingDropletStreamingMethod
  */
+
 #include "DryingDropletStreamingMethod.h"
+
 //! Constructor
 /*!
  * \param sysdata MPCD system data
@@ -50,13 +52,13 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
         }
 
     /*
-     * If the initial geometry was not set. Set the geometry and validate the geometry
+     * If the initial geometry was not set, set the geometry and validate it.
      * Because the interface is shrinking, it is sufficient to validate only the first time the geometry
      * is set.
      */
     if (!m_geom)
         {
-        m_geom = std::make_shared<mpcd::detail::SphereGeometry>(start_R, V , m_bc );
+        m_geom = std::make_shared<mpcd::detail::SphereGeometry>(start_R, V, m_bc);
         validate();
         m_validate_geom = false;
         }
@@ -65,32 +67,28 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
      * Update the geometry radius to the size at the end of the streaming step.
      * This needs to be done every time.
      */
-    m_geom = std::make_shared<mpcd::detail::SphereGeometry>(end_R, V, m_bc );
+    m_geom = std::make_shared<mpcd::detail::SphereGeometry>(end_R, V, m_bc);
 
     // stream according to base class rules
     ConfinedStreamingMethod<mpcd::detail::SphereGeometry>::stream(timestep);
 
-    // calculating number of particles to evaporate(such that solvent density remain constant)
+    // calculate number of particles to evaporate such that solvent density remains constant
     const unsigned int N_end = std::round((4.*M_PI/3.)*end_R*end_R*end_R*m_density);
     const unsigned int N_global = m_mpcd_pdata->getNGlobal();
     const unsigned int N_evap = (N_end < N_global) ? N_global - N_end : 0;
 
     /*
-     * Picking N_evap particles out of total number of bounced particles using RandomPicker,
+     * Pick N_evap particles out of total number of bounced particles using RandomPicker.
      * Npick is the total number of particles picked on this rank, m_picks will contain the indices of
-     * picked particles in \a m_bounced array.
+     * the picked particles.
      */
     unsigned int Npick = 0;
     m_picker(m_picks, Npick, m_bounced, N_evap, timestep, m_mpcd_pdata->getN());
 
     /*
-     * Applying the picks
-     * In m_bounced array, the particles which were picked are marked 
-     * by setting an additional bit (e.g., 3 (11) is stored in m_bounced),
-     * m_picks has indices of picked particles in a \m_bounced array
-     * Npick is number of particles picked
+     * Apply the picks in the bounced indices by setting the next bit up.
      */
-    const unsigned int mask = 1 << 1;   //!< Mask for setting additional bit in m_bounced
+    const unsigned int mask = 1 << 1;
     {
     ArrayHandle<unsigned int> h_picks(m_picks, access_location::host, access_mode::read);
     ArrayHandle<unsigned int> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
@@ -100,18 +98,18 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
         }
     }
 
-    // finally removing the picked particles
+    // finally, remove the picked particles using the bounced flags and mask
     m_mpcd_pdata->removeParticles(m_removed,
                                   m_bounced,
                                   mask,
                                   timestep);
 
-    // calculating density after removing particles if it's changed alot, print a warning
+    // warn if density is too far from target
     Scalar V_end = (4.*M_PI/3.)*end_R*end_R*end_R;
-    Scalar currentdensity = this->m_mpcd_pdata->getNGlobal()/V_end;
+    Scalar currentdensity = m_mpcd_pdata->getNGlobal()/V_end;
     if (std::fabs(currentdensity - m_density) > Scalar(0.1))
         {
-        this->m_exec_conf->msg->warning() << "Solvent density changed to: " << currentdensity << std::endl;
+        m_exec_conf->msg->warning() << "Solvent density changed to: " << currentdensity << std::endl;
         }
     }
 

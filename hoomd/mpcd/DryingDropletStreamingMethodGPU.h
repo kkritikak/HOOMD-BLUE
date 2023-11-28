@@ -49,13 +49,13 @@ class PYBIND11_EXPORT DryingDropletStreamingMethodGPU : public mpcd::ConfinedStr
          * \param seed is Seed to random number Generator
          */
         DryingDropletStreamingMethodGPU(std::shared_ptr<mpcd::SystemData> sysdata,
-                                    unsigned int cur_timestep,
-                                    unsigned int period,
-                                    int phase,
-                                    std::shared_ptr<::Variant> R,
-                                    mpcd::detail::boundary bc,
-                                    Scalar density,
-                                    unsigned int seed);
+                                        unsigned int cur_timestep,
+                                        unsigned int period,
+                                        int phase,
+                                        std::shared_ptr<::Variant> R,
+                                        mpcd::detail::boundary bc,
+                                        Scalar density,
+                                        unsigned int seed);
 
         //! Implementation of the streaming rule
         virtual void stream(unsigned int timestep);
@@ -66,13 +66,10 @@ class PYBIND11_EXPORT DryingDropletStreamingMethodGPU : public mpcd::ConfinedStr
         Scalar m_density;                                  //!< Solvent density
         unsigned int m_seed;                               //!< Seed to evaporator pseudo-random number generator
 
-        GPUVector<unsigned int> m_picks;                   //!< Indices of Particles picked for evaporation on this rank in \a m_bounced array
-        GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Hold output particles that are removed
-
+        RandomSubsetPicker m_picker;                       //!< Picker to remove particles
+        GPUArray<unsigned int> m_picks;                   //!< Indexes of particles to remove
+        GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Removed particle data (not used after removal)
         std::unique_ptr<Autotuner> m_apply_picks_tuner;    //!< Tuner for applying picks
-
-    private:
-        RandomSubsetPicker m_picker;                       //!< For randomly picking particles to evaporate from particles which are bounced
     };
 
 namespace detail

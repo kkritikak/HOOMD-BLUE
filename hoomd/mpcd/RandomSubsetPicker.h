@@ -62,14 +62,12 @@ class RandomSubsetPicker
          */
         RandomSubsetPicker(std::shared_ptr<SystemDefinition> sysdef,
                            unsigned int seed)
-            : m_sysdef(sysdef), m_exec_conf(sysdef->getParticleData()->getExecConf()), m_seed(seed), m_num_flags(m_exec_conf), 
+            : m_sysdef(sysdef), m_exec_conf(m_sysdef->getParticleData()->getExecConf()), m_seed(seed), m_num_flags(m_exec_conf), 
               m_flags_idx(m_exec_conf), m_picks_idx(m_exec_conf)
             {
             #ifdef ENABLE_CUDA
-            //!< tuner for creating indices of particles
-            m_idx_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_Randomsubsetpicker_create_idx_particles", this->m_exec_conf));
-            //!< Tuner for storing pick Indices in picks
-            m_storepickIdx_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_Randomsubsetpicker_store_pick_Idx", this->m_exec_conf));
+            m_idx_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_randomsubsetpicker_create_idx_particles", m_exec_conf));
+            m_storepickIdx_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_randomsubsetpicker_store_pick_idx", m_exec_conf));
             #endif //ENABLE_CUDA
             }
 
@@ -81,7 +79,7 @@ class RandomSubsetPicker
                         unsigned int timestep,
                         unsigned int N);
 
-    protected:
+    private:
         std::shared_ptr<SystemDefinition> m_sysdef;
         std::shared_ptr<const ExecutionConfiguration> m_exec_conf;
         unsigned int m_seed;                                           //!< seed to random number generator
@@ -99,14 +97,13 @@ class RandomSubsetPicker
         template<typename T>
         unsigned int countAndCompactFlags(const GPUArray<T>& flags, unsigned int N);
 
-        //!< For Making a random pick of particles across all ranks
+        //! For Making a random pick of particles across all ranks
         void makeAllPicks(unsigned int timestep, unsigned int N_try_pick, unsigned int N_total_all_ranks);
-        //!< For picking up the particles that lies on current rank
+        //! For picking up the particles that lies on current rank
         void makePicks(unsigned int timestep, unsigned int N_try_pick, unsigned int N_before, unsigned int N_total_all_ranks, unsigned int N_total);
-        //!< For storing indices of picked particles in picks and number of picked particles in N_pick
+        //! For storing indices of picked particles in picks and number of picked particles in N_pick
         void assignPicks(GPUArray<unsigned int>& picks, unsigned int& N_pick);
 
-    private:
         std::vector<unsigned int> m_all_picks;               //!< All picked particles on all the ranks
         //!< Indices of Particles picked on this rank in a /m_flags_idx array( This will not contain the original index of picked particles in flags, these are index of particles picked in m_flags_idx))
         GPUArray<unsigned int> m_picks_idx;
@@ -262,6 +259,6 @@ unsigned int mpcd::RandomSubsetPicker::countAndCompactFlags(const GPUArray<T>& f
             } while (overflowed);
         }
     return N_total;
-    } //end countAndCompactFlags()
+    }
 
 #endif //MPCD_RANDOM_SUBSET_PICKER_H

@@ -79,7 +79,7 @@ class PYBIND11_EXPORT ConfinedStreamingMethod : public mpcd::StreamingMethod
     protected:
         std::shared_ptr<const Geometry> m_geom; //!< Streaming geometry
         bool m_validate_geom;   //!< If true, run a validation check on the geometry
-        GPUArray<unsigned int> m_bounced; //!<Flag for particles bounced from boundary
+        GPUArray<unsigned int> m_bounced; //!< Flag for particles bounced from boundary
         
         //! Validate the system with the streaming geometry
         void validate();
