@@ -97,8 +97,6 @@ class RandomSubsetPicker
         template<typename T>
         unsigned int countAndCompactFlags(const GPUArray<T>& flags, unsigned int N);
 
-        //! For Making a random pick of particles across all ranks
-        void makeAllPicks(unsigned int timestep, unsigned int N_try_pick, unsigned int N_total_all_ranks);
         //! For picking up the particles that lies on current rank
         void makePicks(unsigned int timestep, unsigned int N_try_pick, unsigned int N_before, unsigned int N_total_all_ranks, unsigned int N_total);
         //! For storing indices of picked particles in picks and number of picked particles in N_pick

@@ -62,7 +62,39 @@ void mpcd::RandomSubsetPicker::assignPicks(GPUArray<unsigned int>& picks, unsign
 void mpcd::RandomSubsetPicker::makePicks(unsigned int timestep, unsigned int N_try_pick, unsigned int N_before, unsigned int N_total_all_ranks, unsigned int N_total)
     {
     // Making a random pick of particles across all ranks
-    makeAllPicks(timestep, N_try_pick, N_total_all_ranks);
+        {
+        /* The Fisher-Yates shuffle algorithm is applied to randomly pick unique particles
+         * out of the possible particles across all ranks. The result is stored in
+         * \a m_all_picks.
+         */
+        assert(N_try_pick <= N_total_all_ranks);
+
+        // fill up vector which we will randomly shuffle
+        m_all_picks.resize(N_total_all_ranks);
+        std::iota(m_all_picks.begin(), m_all_picks.end(), 0);
+
+        hoomd::RandomGenerator rng(hoomd::RNGIdentifier::RandomSubsetPicker, m_seed, timestep);
+
+        // random shuffle (fisher-yates) to get picks, seeded the same across all ranks
+        auto begin = m_all_picks.begin();
+        auto end = m_all_picks.end();
+        size_t left = std::distance(begin,end);
+        unsigned int N_choose = N_try_pick;
+        while (N_choose-- && left > 1)
+            {
+            hoomd::UniformIntDistribution rand_shift(left-1);
+
+            auto r = begin;
+            std::advance(r, rand_shift(rng));
+            std::swap(*begin, *r);
+            ++begin;
+            --left;
+            }
+
+        // size the vector down to the number picked
+        m_all_picks.resize(N_try_pick);
+        }
+
     /*
      * Select the picks that lie on my rank, with reindexing to local mark indexes.
      * This is performed in a do loop to allow for resizing of the GPUVector.
@@ -98,38 +130,4 @@ void mpcd::RandomSubsetPicker::makePicks(unsigned int timestep, unsigned int N_t
             }
 
         } while (overflowed);
-    }
-
-void mpcd::RandomSubsetPicker::makeAllPicks(unsigned int timestep, unsigned int N_pick, unsigned int N_total_all_ranks)
-    {
-    /* The Fisher-Yates shuffle algorithm is applied to randomly pick unique particles
-     * out of the possible particles across all ranks. The result is stored in
-     * \a m_all_picks.
-     */
-    assert(N_pick <= N_total_all_ranks);
-
-    // fill up vector which we will randomly shuffle
-    m_all_picks.resize(N_total_all_ranks);
-    std::iota(m_all_picks.begin(), m_all_picks.end(), 0);
-
-    hoomd::RandomGenerator rng(hoomd::RNGIdentifier::RandomSubsetPicker, m_seed, timestep);
-
-    // random shuffle (fisher-yates) to get picks, seeded the same across all ranks
-    auto begin = m_all_picks.begin();
-    auto end = m_all_picks.end();
-    size_t left = std::distance(begin,end);
-    unsigned int N_choose = N_pick;
-    while (N_choose-- && left > 1)
-        {
-        hoomd::UniformIntDistribution rand_shift(left-1);
-
-        auto r = begin;
-        std::advance(r, rand_shift(rng));
-        std::swap(*begin, *r);
-        ++begin;
-        --left;
-        }
-
-    // size the vector down to the number picked
-    m_all_picks.resize(N_pick);
     }
