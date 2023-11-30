@@ -82,7 +82,7 @@ class mpcd_stream_sphere_test(unittest.TestCase):
         hoomd.run(1)
         snap = self.mpcd_sys.take_snapshot()
         message = "Global number of particles inside droplet is increasing after decreasing the radius"
-        if hoomd.comm.get_rank == 0:
+        if hoomd.comm.get_rank() == 0:
             num_par_After = snap.particles.N
             self.assertLessEqual(num_par_After, self.num_particles, message)
 
