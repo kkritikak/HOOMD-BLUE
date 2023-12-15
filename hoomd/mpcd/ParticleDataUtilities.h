@@ -26,7 +26,6 @@ namespace detail
 //! Sentinel value to signify that this particle is not placed in a cell
 const unsigned int NO_CELL = 0xffffffff;
 
-#ifdef ENABLE_MPI
 //! Structure to store packed MPCD particle data
 /*!
  * This structure is used mostly for MPI communication during particle migration.
@@ -41,7 +40,6 @@ struct pdata_element
     unsigned int tag;       //!< Global tag
     unsigned int comm_flag; //!< Communication flag
     };
-#endif // ENABLE_MPI
 
 } // end namespace detail
 } // end namespace mpcd

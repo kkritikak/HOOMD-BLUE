@@ -58,7 +58,9 @@ mpcd::ParticleData::ParticleData(unsigned int N,
         my_seed += m_exec_conf->getRank(); // each rank must get a different seed value for C++11 PRNG
         }
     #endif // ENABLE_MPI
-
+    #ifdef ENABLE_CUDA
+    setupTuners();
+    #endif // ENABLE_CUDA
     initializeRandom(N, local_box, kT, my_seed, ndimensions);
     }
 
@@ -80,7 +82,9 @@ mpcd::ParticleData::ParticleData(std::shared_ptr<mpcd::ParticleDataSnapshot> sna
     #ifdef ENABLE_MPI
     setupMPI(decomposition);
     #endif
-
+    #ifdef ENABLE_CUDA
+    setupTuners();
+    #endif
     if (m_exec_conf->getRank() == 0 && snapshot->type_mapping.size() == 0)
         {
         m_exec_conf->msg->warning() << "Number of MPCD types in snapshot is 0, incrementing to 1" << std::endl;
@@ -468,24 +472,34 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
             // allocate memory in snapshot
             snapshot->resize(getNGlobal());
 
-            // write back into the snapshot in tag order, don't really care about cache coherency
+            // sort particle rank and indices by tag
+            std::vector<std::tuple<unsigned int, unsigned int, unsigned int>> sorted_tags(getNGlobal());
+            unsigned int total_idx = 0;
             for (unsigned int rank_idx = 0; rank_idx < n_ranks; ++rank_idx)
                 {
                 const unsigned int N = pos_proc[rank_idx].size();
                 for (unsigned int idx = 0; idx < N; ++idx)
                     {
-                    const unsigned int snap_idx = tag_proc[rank_idx][idx];
-
-                    // make sure the position stored in the snapshot is within the boundaries
-                    Scalar3 pos_i = pos_proc[rank_idx][idx];
-                    int3 img = make_int3(0,0,0);
-                    global_box.wrap(pos_i,img);
-
-                    // push particle into the snapshot
-                    snapshot->position[snap_idx] = vec3<Scalar>(pos_i);
-                    snapshot->velocity[snap_idx] = vec3<Scalar>(vel_proc[rank_idx][idx]);
-                    snapshot->type[snap_idx] = type_proc[rank_idx][idx];
+                    sorted_tags[total_idx++] = std::make_tuple(tag_proc[rank_idx][idx], rank_idx, idx);
                     }
+                }
+            std::sort(sorted_tags.begin(), sorted_tags.end());
+
+            // write back into the snapshot in tag order
+            for (unsigned int snap_idx = 0; snap_idx < getNGlobal(); ++snap_idx)
+                {
+                const unsigned int rank_idx = std::get<1>(sorted_tags[snap_idx]);
+                const unsigned int idx = std::get<2>(sorted_tags[snap_idx]);
+                // make sure the position stored in the snapshot is within the boundaries
+                Scalar3 pos_i = pos_proc[rank_idx][idx];
+                int3 img = make_int3(0,0,0);
+                global_box.wrap(pos_i,img);
+
+                // push particle into the snapshot
+                snapshot->position[snap_idx] = vec3<Scalar>(pos_i);
+                snapshot->velocity[snap_idx] = vec3<Scalar>(vel_proc[rank_idx][idx]);
+                snapshot->type[snap_idx] = type_proc[rank_idx][idx];
+
                 }
             }
         }
@@ -494,11 +508,18 @@ void mpcd::ParticleData::takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot
         {
         // allocate memory in snapshot
         snapshot->resize(getNGlobal());
-
-        // iterate through particles
-        for (unsigned int idx = 0; idx < m_N; ++idx)
+        // sort particle indexes by the tags
+        std::vector<std::pair<unsigned int, unsigned int>> sorted_tags(m_N);
+        for (unsigned int idx=0; idx < m_N; ++idx)
             {
-            const unsigned int snap_idx = h_tag.data[idx];
+            sorted_tags[idx] = std::make_pair(h_tag.data[idx], idx);
+            }
+        std::sort(sorted_tags.begin(), sorted_tags.end());
+        
+        // iterate through particles
+        for (unsigned int snap_idx = 0; snap_idx < m_N; ++snap_idx)
+            {
+            const unsigned int idx = sorted_tags[snap_idx].second;
 
             // make sure the position stored in the snapshot is within the boundaries
             Scalar4 postype = h_pos.data[idx];
@@ -638,23 +659,23 @@ void mpcd::ParticleData::allocate(unsigned int N_max)
     GPUArray<unsigned int> tag_alt(N_max, m_exec_conf);
     m_tag_alt.swap(tag_alt);
 
+    GPUArray<unsigned int> remove_ids(N_max, m_exec_conf);
+    m_remove_ids.swap(remove_ids);
+
+    #ifdef ENABLE_CUDA
+    GPUFlags<unsigned int> num_remove(m_exec_conf);
+    m_num_remove.swap(num_remove);
+
+    GPUArray<unsigned char> remove_flags(N_max, m_exec_conf);
+    m_remove_flags.swap(remove_flags);
+    #endif // ENABLE_CUDA
+
     #ifdef ENABLE_MPI
     if (m_decomposition)
         {
         GPUArray<unsigned int> comm_flags_alt(N_max, m_exec_conf);
         m_comm_flags_alt.swap(comm_flags_alt);
 
-        GPUArray<unsigned int> remove_ids(N_max, m_exec_conf);
-        m_remove_ids.swap(remove_ids);
-
-        #ifdef ENABLE_CUDA
-        GPUFlags<unsigned int> num_remove(m_exec_conf);
-        m_num_remove.swap(num_remove);
-
-        // this array is used for particle migration
-        GPUArray<unsigned char> remove_flags(N_max, m_exec_conf);
-        m_remove_flags.swap(remove_flags);
-        #endif // ENABLE_CUDA
         }
     #endif // ENABLE_MPI
     }
@@ -685,15 +706,15 @@ void mpcd::ParticleData::reallocate(unsigned int N_max)
     m_pos_alt.resize(N_max);
     m_vel_alt.resize(N_max);
     m_tag_alt.resize(N_max);
+    m_remove_ids.resize(N_max);   
+    #ifdef ENABLE_CUDA
+    m_remove_flags.resize(N_max);
+    #endif // ENABLE_CUDA
+
     #ifdef ENABLE_MPI
     if (m_decomposition)
         {
         m_comm_flags_alt.resize(N_max);
-        m_remove_ids.resize(N_max);
-
-        #ifdef ENABLE_CUDA
-        m_remove_flags.resize(N_max);
-        #endif // ENABLE_CUDA
         }
     #endif // ENABLE_MPI
     }
@@ -719,6 +740,15 @@ void mpcd::ParticleData::resize(unsigned int N)
         reallocate(N_max);
         }
     m_N = N;
+    // update global N too
+    unsigned int N_global = m_N;
+    #ifdef ENABLE_MPI
+    if (m_exec_conf->getNRanks() > 1)
+        {
+        MPI_Allreduce(MPI_IN_PLACE, &N_global, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
+        }
+    #endif // ENABLE_MPI
+    setNGlobal(N_global);
     }
 
 /*!
@@ -881,7 +911,6 @@ unsigned int mpcd::ParticleData::addVirtualParticles(unsigned int N)
     return first_idx;
     }
 
-#ifdef ENABLE_MPI
 /*!
  * \param out Buffer into which particle data is packed
  * \param mask Mask for \a m_comm_flags to determine if communication is necessary
@@ -894,6 +923,7 @@ unsigned int mpcd::ParticleData::addVirtualParticles(unsigned int N)
  * \post The particle data arrays remain compact, but is not guaranteed to retain its current order.
  */
 void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>& out,
+                                         const GPUArray<unsigned int>& flags,
                                          unsigned int mask,
                                          unsigned int timestep)
     {
@@ -908,7 +938,7 @@ void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>&
     // and all particles to be removed are at the end of the array in reverse order of their original sorting
     unsigned int n_remove(0);
         {
-        ArrayHandle<unsigned int> h_comm_flags(m_comm_flags, access_location::host, access_mode::read);
+        ArrayHandle<unsigned int> h_comm_flags(flags, access_location::host, access_mode::read);
         ArrayHandle<unsigned int> h_remove_ids(m_remove_ids, access_location::host, access_mode::overwrite);
         unsigned int keep_addr = m_N;
         for (unsigned int idx = 0; idx < m_N; ++idx)
@@ -933,7 +963,7 @@ void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>&
         ArrayHandle<Scalar4> h_pos(m_pos, access_location::host, access_mode::readwrite);
         ArrayHandle<Scalar4> h_vel(m_vel, access_location::host, access_mode::readwrite);
         ArrayHandle<unsigned int> h_tag(m_tag, access_location::host, access_mode::readwrite);
-        ArrayHandle<unsigned int> h_comm_flags(m_comm_flags, access_location::host, access_mode::readwrite);
+        ArrayHandle<unsigned int> h_comm_flags(flags, access_location::host, access_mode::readwrite);
 
         for (unsigned int idx = 0; idx < n_remove; ++idx)
             {
@@ -966,6 +996,7 @@ void mpcd::ParticleData::removeParticles(GPUVector<mpcd::detail::pdata_element>&
     notifySort(timestep);
     }
 
+#ifdef ENABLE_MPI
 /*!
  * \param in List of particle data elements to fill the particle data with
  * \param mask Bitmask for direction send occurred
@@ -1014,6 +1045,7 @@ void mpcd::ParticleData::addParticles(const GPUVector<mpcd::detail::pdata_elemen
     invalidateCellCache();
     notifySort(timestep);
     }
+#endif // ENABLE_MPI
 
 #ifdef ENABLE_CUDA
 /*!
@@ -1028,6 +1060,7 @@ void mpcd::ParticleData::addParticles(const GPUVector<mpcd::detail::pdata_elemen
  * \post The particle data arrays remain compact.
  */
 void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_element>& out,
+                                            const GPUArray<unsigned int>& flags,
                                             unsigned int mask,
                                             unsigned int timestep)
     {
@@ -1047,7 +1080,7 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
     // flag particles that have left
         {
         ArrayHandle<unsigned char> d_remove_flags(m_remove_flags, access_location::device, access_mode::overwrite);
-        ArrayHandle<unsigned int> d_comm_flags(m_comm_flags, access_location::device, access_mode::read);
+        ArrayHandle<unsigned int> d_comm_flags(flags, access_location::device, access_mode::read);
 
         m_mark_tuner->begin();
         mpcd::gpu::mark_removed_particles(d_remove_flags.data, d_comm_flags.data, mask, m_N, m_mark_tuner->getParam());
@@ -1098,7 +1131,7 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
         ArrayHandle<Scalar4> d_pos(m_pos, access_location::device, access_mode::readwrite);
         ArrayHandle<Scalar4> d_vel(m_vel, access_location::device, access_mode::readwrite);
         ArrayHandle<unsigned int> d_tag(m_tag, access_location::device, access_mode::readwrite);
-        ArrayHandle<unsigned int> d_comm_flags(m_comm_flags, access_location::device, access_mode::readwrite);
+        ArrayHandle<unsigned int> d_comm_flags(flags, access_location::device, access_mode::readwrite);
 
         ArrayHandle<unsigned int> d_remove_ids(m_remove_ids, access_location::device, access_mode::read);
 
@@ -1120,6 +1153,7 @@ void mpcd::ParticleData::removeParticlesGPU(GPUVector<mpcd::detail::pdata_elemen
     notifySort(timestep);
     }
 
+#ifdef ENABLE_MPI
 /*!
  * \param in List of particle data elements to fill the particle data with
  * \param mask Bitmask for direction send occurred
@@ -1171,24 +1205,30 @@ void mpcd::ParticleData::addParticlesGPU(const GPUVector<mpcd::detail::pdata_ele
     invalidateCellCache();
     notifySort(timestep);
     }
+#endif // ENABLE_MPI
 #endif // ENABLE_CUDA
 
+#ifdef ENABLE_MPI
 void mpcd::ParticleData::setupMPI(std::shared_ptr<DomainDecomposition> decomposition)
     {
     // set domain decomposition
     if (decomposition)
         m_decomposition = decomposition;
 
-    #ifdef ENABLE_CUDA
+    }
+#endif // ENABLE_MPI
+
+#ifdef ENABLE_CUDA
+void::mpcd::ParticleData::setupTuners()
+    {
     if (m_exec_conf->isCUDAEnabled())
         {
         m_mark_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_pdata_mark", m_exec_conf));
         m_remove_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_pdata_remove", m_exec_conf));
         m_add_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_pdata_add", m_exec_conf));
         }
-    #endif // ENABLE_CUDA
     }
-#endif // ENABLE_MPI
+#endif // ENABLE_CUDA
 
 /*!
  * \param m Python module to export to

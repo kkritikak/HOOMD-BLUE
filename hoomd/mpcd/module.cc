@@ -37,8 +37,10 @@
 #include "StreamingGeometry.h"
 #include "StreamingMethod.h"
 #include "ConfinedStreamingMethod.h"
+#include "DryingDropletStreamingMethod.h"
 #ifdef ENABLE_CUDA
 #include "ConfinedStreamingMethodGPU.h"
+#include "DryingDropletStreamingMethodGPU.h"
 #endif // ENABLE_CUDA
 
 // integration methods
@@ -150,11 +152,13 @@ PYBIND11_MODULE(_mpcd, m)
     mpcd::detail::export_ConfinedStreamingMethod<mpcd::detail::SlitGeometry>(m);
     mpcd::detail::export_ConfinedStreamingMethod<mpcd::detail::SlitPoreGeometry>(m);
     mpcd::detail::export_ConfinedStreamingMethod<mpcd::detail::SphereGeometry>(m);
+    mpcd::detail::export_DryingDropletStreamingMethod(m);
     #ifdef ENABLE_CUDA
     mpcd::detail::export_ConfinedStreamingMethodGPU<mpcd::detail::BulkGeometry>(m);
     mpcd::detail::export_ConfinedStreamingMethodGPU<mpcd::detail::SlitGeometry>(m);
     mpcd::detail::export_ConfinedStreamingMethodGPU<mpcd::detail::SlitPoreGeometry>(m);
     mpcd::detail::export_ConfinedStreamingMethodGPU<mpcd::detail::SphereGeometry>(m);
+    mpcd::detail::export_DryingDropletStreamingMethodGPU(m);
     #endif // ENABLE_CUDA
 
     mpcd::detail::export_BounceBackNVE<mpcd::detail::SlitGeometry>(m);

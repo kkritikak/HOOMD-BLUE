@@ -11,11 +11,13 @@ set(_mpcd_sources
     CellList.cc
     CollisionMethod.cc
     Communicator.cc
+    DryingDropletStreamingMethod.cc
     ExternalField.cc
     Integrator.cc
     ManualVirtualParticleFiller.cc
     ParticleData.cc
     ParticleDataSnapshot.cc
+    RandomSubsetPicker.cc
     SlitGeometryFiller.cc
     SlitPoreGeometryFiller.cc
     Sorter.cc
@@ -39,12 +41,14 @@ set(_mpcd_headers
     ConfinedStreamingMethod.h
     Communicator.h
     CommunicatorUtilities.h
+    DryingDropletStreamingMethod.h
     ExternalField.h
     Integrator.h
     ManualVirtualParticleFiller.h
     ParticleData.h
     ParticleDataSnapshot.h
     ParticleDataUtilities.h
+    RandomSubsetPicker.h
     RejectionVirtualParticleFiller.h
     SlitGeometry.h
     SlitGeometryFiller.h
@@ -66,6 +70,7 @@ list(APPEND _mpcd_sources
     CellThermoComputeGPU.cc
     CellListGPU.cc
     CommunicatorGPU.cc
+    DryingDropletStreamingMethodGPU.cc
     SlitGeometryFillerGPU.cc
     SlitPoreGeometryFillerGPU.cc
     SorterGPU.cc
@@ -85,7 +90,10 @@ list(APPEND _mpcd_headers
     CommunicatorGPU.h
     ConfinedStreamingMethodGPU.cuh
     ConfinedStreamingMethodGPU.h
+    DryingDropletStreamingMethodGPU.cuh
+    DryingDropletStreamingMethodGPU.h
     ParticleData.cuh
+    RandomSubsetPicker.cuh
     RejectionVirtualParticleFillerGPU.cuh
     RejectionVirtualParticleFillerGPU.h
     SlitGeometryFillerGPU.cuh
@@ -106,8 +114,10 @@ set(_mpcd_cu_sources
     CellListGPU.cu
     ConfinedStreamingMethodGPU.cu
     CommunicatorGPU.cu
+    DryingDropletStreamingMethodGPU.cu
     ExternalField.cu
     ParticleData.cu
+    RandomSubsetPicker.cu
     RejectionVirtualParticleFillerGPU.cu
     SlitGeometryFillerGPU.cu
     SlitPoreGeometryFillerGPU.cu

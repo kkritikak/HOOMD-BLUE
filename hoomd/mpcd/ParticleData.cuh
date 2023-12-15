@@ -13,7 +13,6 @@
 
 #include <cuda_runtime.h>
 
-#ifdef ENABLE_MPI
 #include "hoomd/BoxDim.h"
 #include "ParticleDataUtilities.h"
 
@@ -46,7 +45,7 @@ cudaError_t remove_particles(mpcd::detail::pdata_element *d_out,
                              const unsigned int n_remove,
                              const unsigned int N,
                              const unsigned int block_size);
-
+#ifdef ENABLE_MPI
 //! Update particle data with new particles
 void add_particles(unsigned int old_nparticles,
                    unsigned int num_add_ptls,
@@ -57,9 +56,9 @@ void add_particles(unsigned int old_nparticles,
                    const mpcd::detail::pdata_element *d_in,
                    const unsigned int mask,
                    const unsigned int block_size);
+#endif // ENABLE_MPI
 } // end namespace gpu
 } // end namespace mpcd
 
-#endif // ENABLE_MPI
 
 #endif // MPCD_PARTICLE_DATA_CUH_

@@ -79,7 +79,8 @@ class PYBIND11_EXPORT ConfinedStreamingMethod : public mpcd::StreamingMethod
     protected:
         std::shared_ptr<const Geometry> m_geom; //!< Streaming geometry
         bool m_validate_geom;   //!< If true, run a validation check on the geometry
-
+        GPUArray<unsigned int> m_bounced; //!< Flag for particles bounced from boundary
+        
         //! Validate the system with the streaming geometry
         void validate();
 
@@ -101,12 +102,20 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
         m_validate_geom = false;
         }
 
+    if (m_mpcd_pdata->getN() > m_bounced.getNumElements())
+        {
+        GPUArray<unsigned int> bounced(m_mpcd_pdata->getN(), m_exec_conf);
+        m_bounced.swap(bounced);
+        }
+
     if (m_prof) m_prof->push("MPCD stream");
 
     const BoxDim& box = m_mpcd_sys->getCellList()->getCoverageBox();
 
     ArrayHandle<Scalar4> h_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::readwrite);
     ArrayHandle<Scalar4> h_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::readwrite);
+    ArrayHandle<unsigned int> h_bounced(m_bounced, access_location::host, access_mode::overwrite);
+    
     const Scalar mass = m_mpcd_pdata->getMass();
 
     // acquire polymorphic pointer to the external field
@@ -129,10 +138,12 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
         // propagate the particle to its new position ballistically
         Scalar dt_remain = m_mpcd_dt;
         bool collide = true;
+        bool bounced = false;
         do
             {
             pos += dt_remain * vel;
             collide = m_geom->detectCollision(pos, vel, dt_remain);
+            bounced |= collide;
             }
         while (dt_remain > 0 && collide);
         // finalize velocity update
@@ -147,6 +158,7 @@ void ConfinedStreamingMethod<Geometry>::stream(unsigned int timestep)
 
         h_pos.data[cur_p] = make_scalar4(pos.x, pos.y, pos.z, __int_as_scalar(type));
         h_vel.data[cur_p] = make_scalar4(vel.x, vel.y, vel.z, __int_as_scalar(mpcd::detail::NO_CELL));
+        h_bounced.data[cur_p] = bounced;
         }
 
     // particles have moved, so the cell cache is no longer valid

@@ -604,7 +604,7 @@ class sphere(_streaming_method):
                                  hoomd.context.current.system.getCurrentTimeStep(),
                                  self.period,
                                  0,
-                                 _mpcd.SphereGeometry(R, bc))
+                                 _mpcd.SphereGeometry(R, 0.0, bc))
 
     def set_filler(self, density, kT, seed, type='A'):
         r""" Add virtual particles outside the spherical confinement
@@ -693,6 +693,53 @@ class sphere(_streaming_method):
             self.boundary = boundary
 
         bc = self._process_boundary(self.boundary)
-        self._cpp.geometry = _mpcd.SphereGeometry(self.R,bc)
+        self._cpp.geometry = _mpcd.SphereGeometry(self.R, 0.0, bc)
         if self._filler is not None:
             self._filler.setGeometry(self._cpp.geometry)
+
+class drying_droplet(_streaming_method):
+    r"""Drying Droplet streaming geometry.
+
+    Args:
+        R (variant): confinement radius
+        density (float): solvent number density inside sphere
+        boundary (str): boundary condition at wall ("slip" or "no_slip")
+        period (int): Number of integration steps between collisions
+
+    The drying_droplet class models a fluid confined inside a drying droplet, centered at the
+    origin and droplet size is decreasing according to radius variant R. Solvent particles are
+    reflected from the spherical walls using appropriate boundary conditions.
+
+    Examples::
+        R = hoomd.variant.linear_interp([(0, 50), (1e6, 25)])
+        stream.drying_droplet(period=10, R=R, density=5., seed=394)
+
+    Note: You can't change the Radius and density and boundary once you have initialised it.
+    
+    """
+    def __init__(self, R, density , boundary="no_slip", period=1, seed=234):
+        hoomd.util.print_status_line()
+
+        _streaming_method.__init__(self, period)
+
+        self.metadata_fields += ['R','density','boundary','seed']
+        self.R = hoomd.variant._setup_variant_input(R)
+        self.density = density
+        self.boundary = boundary
+        self.seed = seed
+
+        bc = self._process_boundary(boundary)
+
+        # create the base streaming class
+        if not hoomd.context.exec_conf.isCUDAEnabled():
+            stream_class = _mpcd.DryingDropletStreamingMethod
+        else:
+            stream_class = _mpcd.DryingDropletStreamingMethodGPU
+        self._cpp = stream_class(hoomd.context.current.mpcd.data,
+                                 hoomd.context.current.system.getCurrentTimeStep(),
+                                 self.period,
+                                 0,
+                                 self.R.cpp_variant,
+                                 bc,
+                                 self.density,
+                                 self.seed)
