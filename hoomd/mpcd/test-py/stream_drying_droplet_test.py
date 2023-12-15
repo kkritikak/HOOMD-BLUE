@@ -90,7 +90,7 @@ class mpcd_stream_sphere_test(unittest.TestCase):
         snap = self.mpcd_sys.take_snapshot()
         if hoomd.comm.get_rank() == 0:
             num_par_after2 = snap.particles.N
-            self.assertLessEqual(num_par_after1, num_part_after2)
+            self.assertLessEqual(num_par_after2, num_par_after1)
 
     def tearDown(self):
         del self.mpcd_sys

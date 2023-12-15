@@ -75,19 +75,19 @@ void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
 
     // apply picks using the GPU
     const unsigned int mask = 1 << 1;     //!< Mask for setting additional bit in m_bounced
-    {
-    ArrayHandle<unsigned int> d_picks(this->m_picks, access_location::device, access_mode::read);
-    ArrayHandle<unsigned int> d_bounced(this->m_bounced, access_location::device, access_mode::readwrite);
-    m_apply_picks_tuner->begin();
-    mpcd::gpu::apply_picks(d_bounced.data,
-                           d_picks.data,
-                           mask,
-                           Npick,
-                           m_apply_picks_tuner->getParam());
-    if (m_exec_conf->isCUDAErrorCheckingEnabled())
-        CHECK_CUDA_ERROR();
-    m_apply_picks_tuner->end();
-    }
+        {
+        ArrayHandle<unsigned int> d_picks(this->m_picks, access_location::device, access_mode::read);
+        ArrayHandle<unsigned int> d_bounced(this->m_bounced, access_location::device, access_mode::readwrite);
+        m_apply_picks_tuner->begin();
+        mpcd::gpu::apply_picks(d_bounced.data,
+                               d_picks.data,
+                               mask,
+                               Npick,
+                               m_apply_picks_tuner->getParam());
+        if (m_exec_conf->isCUDAErrorCheckingEnabled())
+            CHECK_CUDA_ERROR();
+        m_apply_picks_tuner->end();
+        }
 
     this->m_mpcd_pdata->removeParticlesGPU(this->m_removed,
                                            this->m_bounced,
@@ -96,7 +96,7 @@ void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
 
     Scalar V_end = (4.*M_PI/3.)*end_R*end_R*end_R;
     Scalar currentdensity = this->m_mpcd_pdata->getNGlobal()/V_end;
-    if (std::fabs(currentdensity - m_density) > Scalar(0.1))
+    if (std::fabs(currentdensity - m_density) > Scalar(0.1) * m_density)
         {
         this->m_exec_conf->msg->warning() << "Solvent density changed to: " << currentdensity << std::endl;
         }

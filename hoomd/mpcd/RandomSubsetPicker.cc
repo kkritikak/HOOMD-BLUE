@@ -5,9 +5,7 @@
 
 #include "RandomSubsetPicker.h"
 
-void mpcd::RandomSubsetPicker::assignPicks(GPUArray<unsigned int>& picks, unsigned int& N_pick)
-    {
-    /* 
+    /*! 
      * The function stores the indexes of picked particles(indices of picked particles according to the *original* flags array) in picks
      * and number of picked particles in N_pick.
      * This chooses whether to take CPU path or GPU path according to m_exec_conf
@@ -18,6 +16,8 @@ void mpcd::RandomSubsetPicker::assignPicks(GPUArray<unsigned int>& picks, unsign
      * \param m_flags_idx Indices of particles in \a flags which are set (1=set)
      * \param N_pick number of picked particles which should be set to m_Npick in this function
      */
+void mpcd::RandomSubsetPicker::assignPicks(GPUArray<unsigned int>& picks, unsigned int& N_pick)
+    {
     if (picks.getNumElements() < m_Npick)
         {
         GPUArray<unsigned int> picks_idx(m_Npick, m_exec_conf);

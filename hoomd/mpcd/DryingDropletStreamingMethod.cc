@@ -89,14 +89,14 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
      * Apply the picks in the bounced indices by setting the next bit up.
      */
     const unsigned int mask = 1 << 1;
-    {
-    ArrayHandle<unsigned int> h_picks(m_picks, access_location::host, access_mode::read);
-    ArrayHandle<unsigned int> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
-    for (unsigned int i=0; i < Npick; ++i)
         {
-        h_bounced.data[h_picks.data[i]] |= mask;
+        ArrayHandle<unsigned int> h_picks(m_picks, access_location::host, access_mode::read);
+        ArrayHandle<unsigned int> h_bounced(m_bounced, access_location::host, access_mode::readwrite);
+        for (unsigned int i=0; i < Npick; ++i)
+            {
+            h_bounced.data[h_picks.data[i]] |= mask;
+            }
         }
-    }
 
     // finally, remove the picked particles using the bounced flags and mask
     m_mpcd_pdata->removeParticles(m_removed,
@@ -107,7 +107,7 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
     // warn if density is too far from target
     Scalar V_end = (4.*M_PI/3.)*end_R*end_R*end_R;
     Scalar currentdensity = m_mpcd_pdata->getNGlobal()/V_end;
-    if (std::fabs(currentdensity - m_density) > Scalar(0.1))
+    if (std::fabs(currentdensity - m_density) > Scalar(0.1) * m_density)
         {
         m_exec_conf->msg->warning() << "Solvent density changed to: " << currentdensity << std::endl;
         }
