@@ -26,6 +26,7 @@
 
 namespace mpcd
 {
+
 //! MPCD DryingDropletStreamingMethodGPU
 /*!
  * This method implements the base version of ballistic propagation of MPCD
@@ -33,7 +34,6 @@ namespace mpcd
  *
  * See DryingDropletStreamingMethod for details
  */
-
 class PYBIND11_EXPORT DryingDropletStreamingMethodGPU : public mpcd::ConfinedStreamingMethodGPU<mpcd::detail::SphereGeometry>
     {
     public:
@@ -67,7 +67,7 @@ class PYBIND11_EXPORT DryingDropletStreamingMethodGPU : public mpcd::ConfinedStr
         unsigned int m_seed;                               //!< Seed to evaporator pseudo-random number generator
 
         RandomSubsetPicker m_picker;                       //!< Picker to remove particles
-        GPUArray<unsigned int> m_picks;                   //!< Indexes of particles to remove
+        GPUArray<unsigned int> m_picks;                    //!< Indexes of particles to remove
         GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Removed particle data (not used after removal)
         std::unique_ptr<Autotuner> m_apply_picks_tuner;    //!< Tuner for applying picks
     };

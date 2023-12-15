@@ -693,12 +693,12 @@ class sphere(_streaming_method):
             self.boundary = boundary
 
         bc = self._process_boundary(self.boundary)
-        self._cpp.geometry = _mpcd.SphereGeometry(self.R,0.0,bc)
+        self._cpp.geometry = _mpcd.SphereGeometry(self.R, 0.0, bc)
         if self._filler is not None:
             self._filler.setGeometry(self._cpp.geometry)
 
 class drying_droplet(_streaming_method):
-    r""" Drying Droplet streaming geometry.
+    r"""Drying Droplet streaming geometry.
 
     Args:
         R (variant): confinement radius
@@ -711,12 +711,13 @@ class drying_droplet(_streaming_method):
     reflected from the spherical walls using appropriate boundary conditions.
 
     Examples::
-        stream.drying_droplet(period=10, R= hoomd.variant(variant for R), density =5.,seed=394 )
+        R = hoomd.variant.linear_interp([(0, 50), (1e6, 25)])
+        stream.drying_droplet(period=10, R=R, density=5., seed=394)
 
     Note: You can't change the Radius and density and boundary once you have initialised it.
     
     """
-    def __init__(self, R, density , boundary="no_slip", period=1, seed = 234):
+    def __init__(self, R, density , boundary="no_slip", period=1, seed=234):
         hoomd.util.print_status_line()
 
         _streaming_method.__init__(self, period)

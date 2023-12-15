@@ -44,7 +44,7 @@ class __attribute__((visibility("default"))) SphereGeometry
              *Our solution for collision assumes V is negative, so V has to be negative otherwise
              *sphere will expand instead of shrinking!
              */
-            assert(V<=0.);
+            assert(V <= 0.);
             }
 
         //! Detect collision between the particle and the boundary

@@ -9,7 +9,6 @@
  */
 
 
-
 #include "ParticleData.cuh"
 
 #if __CUDACC_VER_MAJOR__ >= 11

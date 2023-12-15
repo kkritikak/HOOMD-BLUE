@@ -81,17 +81,16 @@ class mpcd_stream_sphere_test(unittest.TestCase):
         # take 1 step and seeing if number of particles are decreasing or not
         hoomd.run(1)
         snap = self.mpcd_sys.take_snapshot()
-        message = "Global number of particles inside droplet is increasing after decreasing the radius"
         if hoomd.comm.get_rank() == 0:
-            num_par_After = snap.particles.N
-            self.assertLessEqual(num_par_After, self.num_particles, message)
+            num_par_after1 = snap.particles.N
+            self.assertLessEqual(num_par_after1, self.num_particles)
 
         # take another step and see if number of particles are decreasing again
         hoomd.run(1)
-        snap2 = self.mpcd_sys.take_snapshot()
+        snap = self.mpcd_sys.take_snapshot()
         if hoomd.comm.get_rank() == 0:
-            num_par_After = snap2.particles.N
-            self.assertLessEqual(num_par_After, self.num_particles, message)
+            num_par_after2 = snap.particles.N
+            self.assertLessEqual(num_par_after1, num_part_after2)
 
     def tearDown(self):
         del self.mpcd_sys

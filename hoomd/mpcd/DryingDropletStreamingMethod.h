@@ -72,7 +72,7 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         unsigned int m_seed;                               //!< Seed to evaporator pseudo-random number generator
 
         RandomSubsetPicker m_picker;                       //!< Picker to remove particles
-        GPUArray<unsigned int> m_picks;                   //!< Indexes of particles to remove
+        GPUArray<unsigned int> m_picks;                    //!< Indexes of particles to remove
         GPUVector<mpcd::detail::pdata_element> m_removed;  //!< Removed particle data (not used after removal)
     };
 

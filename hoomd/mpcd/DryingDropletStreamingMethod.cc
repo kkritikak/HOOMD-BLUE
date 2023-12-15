@@ -113,12 +113,12 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
         }
     }
 
+//! Export mpcd::DryingDropletStreamingMethod to python
+/*!
+ * \param m Python module to export to
+ */
 void mpcd::detail::export_DryingDropletStreamingMethod(pybind11::module& m)
     {
-    //! Export mpcd::DryingDropletStreamingMethod to python
-    /*!
-     * \param m Python module to export to
-     */
     namespace py = pybind11;
     py::class_<mpcd::DryingDropletStreamingMethod, mpcd::ConfinedStreamingMethod<mpcd::detail::SphereGeometry>, std::shared_ptr<mpcd::DryingDropletStreamingMethod>>(m, "DryingDropletStreamingMethod")
         .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<::Variant>, boundary, Scalar, unsigned int>());

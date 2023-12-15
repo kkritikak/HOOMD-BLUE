@@ -28,6 +28,9 @@
 #include <algorithm> 
 #include <numeric>
 
+namespace mpcd
+{
+
 //! MPCD RandomSubsetPicker
 /*!
  * This class enables random particle selection. It attempts to randomly pick a specified number, N_try_pick, of particles from
@@ -49,9 +52,6 @@
  * In the code where you wanna use it, call this like:
  * m_picker(picks, m_Npick, m_flags, N_try_pick, timestep, N);
  */
-
-namespace mpcd
-{
 class RandomSubsetPicker
     {
     public:
@@ -102,12 +102,11 @@ class RandomSubsetPicker
         //! For storing indices of picked particles in picks and number of picked particles in N_pick
         void assignPicks(GPUArray<unsigned int>& picks, unsigned int& N_pick);
 
-        std::vector<unsigned int> m_all_picks;               //!< All picked particles on all the ranks
-        //!< Indices of Particles picked on this rank in a /m_flags_idx array( This will not contain the original index of picked particles in flags, these are index of particles picked in m_flags_idx))
-        GPUArray<unsigned int> m_picks_idx;
+        std::vector<unsigned int> m_all_picks; //!< All picked particles on all the ranks
+        GPUArray<unsigned int> m_picks_idx; //!< Indices of particles picked on this rank in \a m_flags_idx array
     };
 
-/*
+/*!
  * \param picks       //!< indexes that are picked in the *original* flags array
  * \param N_pick      //!< number of particles picked
  * \param flags       //!< flags indicating which particles to pick from [ 0 1 0 1 1 ...] 

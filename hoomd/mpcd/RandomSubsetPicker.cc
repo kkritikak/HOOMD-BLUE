@@ -5,10 +5,6 @@
 
 #include "RandomSubsetPicker.h"
 
-/* 
- * This file contains some definitions of functions used in RandomSubsetPicker::operator()
- * see RandomSubsetPicker.h file for declarations for RandomSubsetPicker and definition of operator()
- */
 void mpcd::RandomSubsetPicker::assignPicks(GPUArray<unsigned int>& picks, unsigned int& N_pick)
     {
     /* 
@@ -61,12 +57,11 @@ void mpcd::RandomSubsetPicker::assignPicks(GPUArray<unsigned int>& picks, unsign
 
 void mpcd::RandomSubsetPicker::makePicks(unsigned int timestep, unsigned int N_try_pick, unsigned int N_before, unsigned int N_total_all_ranks, unsigned int N_total)
     {
-    // Making a random pick of particles across all ranks
-        {
-        /* The Fisher-Yates shuffle algorithm is applied to randomly pick unique particles
-         * out of the possible particles across all ranks. The result is stored in
-         * \a m_all_picks.
+        /*
+         * The Fisher-Yates shuffle algorithm is applied to randomly pick unique particles
+         * out of the possible particles across all ranks. The result is stored in m_all_picks.
          */
+        {
         assert(N_try_pick <= N_total_all_ranks);
 
         // fill up vector which we will randomly shuffle
@@ -106,7 +101,6 @@ void mpcd::RandomSubsetPicker::makePicks(unsigned int timestep, unsigned int N_t
         {
         m_Npick = 0;
         const unsigned int max_Npick = m_picks_idx.getNumElements();
-
             {
             ArrayHandle<unsigned int> h_picks_idx(m_picks_idx, access_location::host, access_mode::overwrite);
             for (unsigned int i=0; i < N_try_pick; ++i)

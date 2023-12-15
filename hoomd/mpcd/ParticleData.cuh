@@ -13,7 +13,6 @@
 
 #include <cuda_runtime.h>
 
-
 #include "hoomd/BoxDim.h"
 #include "ParticleDataUtilities.h"
 
@@ -60,7 +59,6 @@ void add_particles(unsigned int old_nparticles,
 #endif // ENABLE_MPI
 } // end namespace gpu
 } // end namespace mpcd
-
 
 
 #endif // MPCD_PARTICLE_DATA_CUH_
