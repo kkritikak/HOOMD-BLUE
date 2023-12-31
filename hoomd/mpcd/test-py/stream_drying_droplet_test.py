@@ -92,6 +92,34 @@ class mpcd_stream_sphere_test(unittest.TestCase):
             num_par_after2 = snap.particles.N
             self.assertLessEqual(num_par_after2, num_par_after1)
 
+    # test that virtual particle filler can be attached, removed and updated
+    def test_filler(self):
+        # initialization of a filler
+        drying_sphere = mpcd.stream.drying_droplet(R=self.R1, density = self.density, period=1, boundary="no_slip", seed=1991)
+        drying_sphere.set_filler(density=5.0, kT=1.0, seed=79, type='A')
+        self.assertTrue(drying_sphere._filler is not None)
+
+        # run should be able to setup the filler, although this all happens silently
+        hoomd.run(2)
+
+        # changing filler should be allowed
+        drying_sphere.set_filler(density=10.0, kT=1.5, seed=51)
+        self.assertTrue(drying_sphere._filler is not None)
+        hoomd.run(1)
+
+        # assert an error is raised if we set a bad particle type
+        with self.assertRaises(RuntimeError):
+            drying_sphere.set_filler(density=5., kT=1.0, seed=42, type='B')
+
+        # assert an error is raised if we set a bad density
+        with self.assertRaises(RuntimeError):
+            drying_sphere.set_filler(density=-1.0, kT=1.0, seed=42)
+
+        # removing the filler should still allow a run
+        drying_sphere.remove_filler()
+        self.assertTrue(drying_sphere._filler is None)
+        hoomd.run(1)
+
     def tearDown(self):
         del self.mpcd_sys
 

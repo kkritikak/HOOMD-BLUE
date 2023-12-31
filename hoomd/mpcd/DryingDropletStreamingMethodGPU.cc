@@ -63,6 +63,10 @@ void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
         }
 
     this->m_geom = std::make_shared<mpcd::detail::SphereGeometry>(end_R, V, m_bc );
+    if (this->m_filler != NULL)
+        {
+        this->m_filler->setGeometry(this->m_geom);
+        }
 
     ConfinedStreamingMethodGPU<mpcd::detail::SphereGeometry>::stream(timestep);
 
@@ -106,5 +110,7 @@ void mpcd::detail::export_DryingDropletStreamingMethodGPU(pybind11::module& m)
     {
     namespace py = pybind11;
     py::class_<mpcd::DryingDropletStreamingMethodGPU, mpcd::ConfinedStreamingMethodGPU<mpcd::detail::SphereGeometry>, std::shared_ptr<mpcd::DryingDropletStreamingMethodGPU>>(m, "DryingDropletStreamingMethodGPU")
-        .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<::Variant>, boundary, Scalar, unsigned int>());
+        .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<::Variant>, boundary, Scalar, unsigned int>())
+        .def("getFiller", &mpcd::DryingDropletStreamingMethodGPU::getFiller)
+        .def("setFiller", &mpcd::DryingDropletStreamingMethodGPU::setFiller);
     }
