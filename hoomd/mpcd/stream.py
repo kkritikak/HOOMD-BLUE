@@ -743,7 +743,7 @@ class drying_droplet(_streaming_method):
                                  bc,
                                  self.density,
                                  self.seed)
-        self._cpp.setFiller(None)
+
     def set_filler(self, density, kT, seed, type='A'):
         r""" Add virtual particles outside the spherical confinement
 
@@ -788,13 +788,12 @@ class drying_droplet(_streaming_method):
                                       T.cpp_variant,
                                       seed,
                                       self._cpp.geometry)
-            self._cpp.setFiller(self._filler)
+            self._cpp.filler = self._filler
         else:
             self._filler.setDensity(density)
             self._filler.setType(type_id)
             self._filler.setTemperature(T.cpp_variant)
             self._filler.setSeed(seed)
-            self._cpp.setFiller(self._filler)
 
     def remove_filler(self):
         """ Remove the virtual particle filler.
@@ -807,4 +806,4 @@ class drying_droplet(_streaming_method):
         hoomd.util.print_status_line()
 
         self._filler = None
-        self._cpp.setFiller(None)
+        self._cpp.filler = None
