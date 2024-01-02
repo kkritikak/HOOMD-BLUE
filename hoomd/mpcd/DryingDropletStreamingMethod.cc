@@ -68,6 +68,10 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
      * This needs to be done every time.
      */
     m_geom = std::make_shared<mpcd::detail::SphereGeometry>(end_R, V, m_bc);
+    if (m_filler)
+        {
+        m_filler->setGeometry(m_geom);
+        }
 
     // stream according to base class rules
     ConfinedStreamingMethod<mpcd::detail::SphereGeometry>::stream(timestep);
@@ -121,5 +125,6 @@ void mpcd::detail::export_DryingDropletStreamingMethod(pybind11::module& m)
     {
     namespace py = pybind11;
     py::class_<mpcd::DryingDropletStreamingMethod, mpcd::ConfinedStreamingMethod<mpcd::detail::SphereGeometry>, std::shared_ptr<mpcd::DryingDropletStreamingMethod>>(m, "DryingDropletStreamingMethod")
-        .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<::Variant>, boundary, Scalar, unsigned int>());
+        .def(py::init<std::shared_ptr<mpcd::SystemData>, unsigned int, unsigned int, int, std::shared_ptr<::Variant>, boundary, Scalar, unsigned int>())
+        .def_property("filler", &mpcd::DryingDropletStreamingMethod::getFiller, &mpcd::DryingDropletStreamingMethod::setFiller);
     }

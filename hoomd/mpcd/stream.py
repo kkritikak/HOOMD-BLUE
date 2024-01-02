@@ -743,3 +743,67 @@ class drying_droplet(_streaming_method):
                                  bc,
                                  self.density,
                                  self.seed)
+
+    def set_filler(self, density, kT, seed, type='A'):
+        r""" Add virtual particles outside the spherical confinement
+
+        Args:
+            density (float): Density of virtual particles.
+            kT (float): Temperature of virtual particles.
+            seed (int): Seed to pseudo-random number generator for virtual particles.
+            type (str): Type of the MPCD particles to fill with.
+
+        The virtual particle filler draws particles in *all space outside* the droplet since
+        it would be very tricky to determine the number of virtual particles to add close to the wall
+        (individual ranks) due to the curvature of the geometry. The particle positions are drawn
+        from an uniform distribution and the velocities from distribution consistent with ``kT`` and
+        with the given ``density``. Typically, the virtual particle density and temperature are set to
+        the same conditions as the solvent.
+
+        The virtual particles will act as a weak thermostat on the fluid, and so energy is no longer
+        conserved. Momentum will also be sunk into the walls.
+
+        NOTE: The simulation box-size should be chosen carefully. The box should be just large enough to
+        hold the sphere+padding layer of cells (best case single padding layer). Performance of the
+        filler degrades with increasing box size, since we are using rejection sampling method.
+
+        Example:
+
+            drying_droplet.set_filler(density=5.0, kT=1.0, seed=73)
+
+        """
+        hoomd.util.print_status_line()
+
+        type_id = hoomd.context.current.mpcd.particles.getTypeByName(type)
+        T = hoomd.variant._setup_variant_input(kT)
+
+        if self._filler is None:
+            if not hoomd.context.exec_conf.isCUDAEnabled():
+                fill_class = _mpcd.SphereRejectionFiller
+            else:
+                fill_class = _mpcd.SphereRejectionFillerGPU
+            self._filler = fill_class(hoomd.context.current.mpcd.data,
+                                      density,
+                                      type_id,
+                                      T.cpp_variant,
+                                      seed,
+                                      self._cpp.geometry)
+            self._cpp.filler = self._filler
+        else:
+            self._filler.setDensity(density)
+            self._filler.setType(type_id)
+            self._filler.setTemperature(T.cpp_variant)
+            self._filler.setSeed(seed)
+
+    def remove_filler(self):
+        """ Remove the virtual particle filler.
+
+        Example::
+
+            drying_droplet.remove_filler()
+
+        """
+        hoomd.util.print_status_line()
+
+        self._filler = None
+        self._cpp.filler = None
