@@ -30,10 +30,15 @@ mpcd::DryingDropletStreamingMethodGPU::DryingDropletStreamingMethodGPU(std::shar
                                                                        mpcd::detail::boundary bc,
                                                                        Scalar density,
                                                                        unsigned int seed)
-    : mpcd::ConfinedStreamingMethodGPU<mpcd::detail::SphereGeometry>(sysdata, cur_timestep, period, phase, std::shared_ptr<mpcd::detail::SphereGeometry>()),
+    : mpcd::ConfinedStreamingMethodGPU<mpcd::detail::SphereGeometry>(sysdata, cur_timestep, period, phase, std::make_shared<mpcd::detail::SphereGeometry>(R->getValue(cur_timestep), 0.0, bc)),
       m_R(R), m_bc(bc), m_density(density), m_seed(seed),m_picks(this->m_exec_conf), m_removed(this->m_exec_conf), m_picker(m_sysdef, seed)
     {
     m_apply_picks_tuner.reset(new Autotuner(32, 1024, 32, 5, 100000, "mpcd_apply_picks", this->m_exec_conf));
+    const Scalar start_R = this->m_R->getValue(cur_timestep);
+    const unsigned int next_timestep = (m_next_timestep != cur_timestep) ? m_next_timestep : cur_timestep + m_period;
+    const Scalar end_R = this->m_R->getValue(next_timestep);
+    const Scalar V = (end_R - start_R) / (m_mpcd_dt * (next_timestep - cur_timestep) / m_period);
+    this->m_geom = std::make_shared<mpcd::detail::SphereGeometry>(start_R, V, bc);
     }
 
 /*!
@@ -47,19 +52,18 @@ void mpcd::DryingDropletStreamingMethodGPU::stream(unsigned int timestep)
      */
     if(!this->peekStream(timestep)) return;
 
+    if (this->m_validate_geom)
+        {
+        this->validate();
+        this->m_validate_geom = false;
+        }
+
     const Scalar start_R = this->m_R->getValue(timestep);
     const Scalar end_R = this->m_R->getValue(timestep + m_period);
     const Scalar V = (end_R - start_R)/(m_mpcd_dt);
     if (V > 0)
         {
         throw std::runtime_error("Droplet radius must decrease.");
-        }
-
-    if (!this->m_geom)
-        {
-        this->m_geom = std::make_shared<mpcd::detail::SphereGeometry>(start_R, V , m_bc );
-        this->validate();
-        this->m_validate_geom = false;
         }
 
     this->m_geom = std::make_shared<mpcd::detail::SphereGeometry>(end_R, V, m_bc );
