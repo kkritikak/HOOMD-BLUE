@@ -47,10 +47,7 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
     // use peekStream since shouldStream will be called by parent class
     if(!peekStream(timestep)) return;
 
-    /*
-     * Validating the geometry, because the interface is shrinking, it is
-     * sufficient to validate only the first time the geometry is set.
-     */
+    // validate geometry
     if (m_validate_geom)
         {
         validate();

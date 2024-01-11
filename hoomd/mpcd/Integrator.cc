@@ -69,8 +69,8 @@ void mpcd::Integrator::update(unsigned int timestep)
         m_gave_warning = true;
         }
 
-    bool check_collide = checkCollide(timestep);
     // remove any leftover virtual particles
+    bool check_collide = checkCollide(timestep);
     if (check_collide)
         {
         m_mpcd_sys->getParticleData()->removeVirtualParticles();
