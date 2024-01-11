@@ -29,7 +29,7 @@ mpcd::DryingDropletStreamingMethod::DryingDropletStreamingMethod(std::shared_ptr
                                                                  mpcd::detail::boundary bc,
                                                                  Scalar density,
                                                                  unsigned int seed)
-    : mpcd::ConfinedStreamingMethod<mpcd::detail::SphereGeometry>(sysdata, cur_timestep, period, phase, std::make_shared<mpcd::detail::SphereGeometry>(R->getValue(cur_timestep), 0.0, bc)),
+    : mpcd::ConfinedStreamingMethod<mpcd::detail::SphereGeometry>(sysdata, cur_timestep, period, phase, std::shared_ptr<mpcd::detail::SphereGeometry>()),
       m_R(R), m_bc(bc), m_density(density), m_seed(seed), m_picks(m_exec_conf), m_picker(m_sysdef, seed)
     {
     const Scalar start_R = m_R->getValue(cur_timestep);

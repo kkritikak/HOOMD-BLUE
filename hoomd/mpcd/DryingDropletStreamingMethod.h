@@ -83,7 +83,6 @@ class PYBIND11_EXPORT DryingDropletStreamingMethod : public mpcd::ConfinedStream
         mpcd::detail::boundary m_bc;                       //!< Boundary condition
         Scalar m_density;                                  //!< Solvent density
         unsigned int m_seed;                               //!< Seed to evaporator pseudo-random number generator
-        std::shared_ptr<mpcd::detail::SphereGeometry> m_geom;                                            //!< Streaming geometry
         std::shared_ptr<mpcd::RejectionVirtualParticleFiller<mpcd::detail::SphereGeometry>> m_filler;    //!< Pointer to the filler
 
         RandomSubsetPicker m_picker;                       //!< Picker to remove particles

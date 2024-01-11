@@ -98,8 +98,8 @@ class mpcd_stream_sphere_test(unittest.TestCase):
         drying_sphere = mpcd.stream.drying_droplet(R=self.R1, density = self.density, period=1, boundary="no_slip", seed=1991)
         drying_sphere.set_filler(density=5.0, kT=1.0, seed=79, type='A')
         self.assertTrue(drying_sphere._filler is not None)
-        all_ = hoomd.group.all()
-        mpcd.collide.srd(seed=1221, angle=130., period=1, kT=1.0, group=all_)
+
+        mpcd.collide.srd(seed=1221, angle=130., period=1, kT=1.0)
 
         # run should be able to setup the filler, although this all happens silently
         hoomd.run(2)
