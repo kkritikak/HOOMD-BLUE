@@ -31,7 +31,13 @@ mpcd::DryingDropletStreamingMethod::DryingDropletStreamingMethod(std::shared_ptr
                                                                  unsigned int seed)
     : mpcd::ConfinedStreamingMethod<mpcd::detail::SphereGeometry>(sysdata, cur_timestep, period, phase, std::shared_ptr<mpcd::detail::SphereGeometry>()),
       m_R(R), m_bc(bc), m_density(density), m_seed(seed), m_picks(m_exec_conf), m_picker(m_sysdef, seed)
-    {}
+    {
+    const Scalar start_R = m_R->getValue(cur_timestep);
+    const unsigned int next_timestep = (m_next_timestep != cur_timestep) ? m_next_timestep : cur_timestep + m_period;
+    const Scalar end_R = m_R->getValue(next_timestep);
+    const Scalar V = (end_R - start_R) / (m_mpcd_dt * (next_timestep - cur_timestep) / m_period);
+    m_geom = std::make_shared<mpcd::detail::SphereGeometry>(start_R, V, bc);
+    }
 
 /*!
  * \param timestep Current time to stream
@@ -41,6 +47,13 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
     // use peekStream since shouldStream will be called by parent class
     if(!peekStream(timestep)) return;
 
+    // validate geometry
+    if (m_validate_geom)
+        {
+        validate();
+        m_validate_geom = false;
+        }
+
     // compute final Radius and Velocity of surface
     const Scalar start_R = m_R->getValue(timestep);
     const Scalar end_R = m_R->getValue(timestep + m_period);
@@ -49,18 +62,6 @@ void mpcd::DryingDropletStreamingMethod::stream(unsigned int timestep)
     if (V > 0)
         {
         throw std::runtime_error("Droplet radius must decrease.");
-        }
-
-    /*
-     * If the initial geometry was not set, set the geometry and validate it.
-     * Because the interface is shrinking, it is sufficient to validate only the first time the geometry
-     * is set.
-     */
-    if (!m_geom)
-        {
-        m_geom = std::make_shared<mpcd::detail::SphereGeometry>(start_R, V, m_bc);
-        validate();
-        m_validate_geom = false;
         }
 
     /*

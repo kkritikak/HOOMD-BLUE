@@ -70,7 +70,8 @@ void mpcd::Integrator::update(unsigned int timestep)
         }
 
     // remove any leftover virtual particles
-    if (checkCollide(timestep))
+    bool check_collide = checkCollide(timestep);
+    if (check_collide)
         {
         m_mpcd_sys->getParticleData()->removeVirtualParticles();
         m_collide->drawGridShift(timestep);
@@ -82,7 +83,7 @@ void mpcd::Integrator::update(unsigned int timestep)
     #endif // ENABLE_MPI
 
     // fill in any virtual particles
-    if (checkCollide(timestep) && !m_fillers.empty())
+    if (check_collide && !m_fillers.empty())
         {
         for (auto filler = m_fillers.begin(); filler != m_fillers.end(); ++filler)
             {
@@ -97,6 +98,11 @@ void mpcd::Integrator::update(unsigned int timestep)
     // call the MPCD collision rule before the first MD step so that any embedded velocities are updated first
     if (m_collide)
         m_collide->collide(timestep);
+    // remove any virtual particles in the system
+    if (check_collide)
+        {
+        m_mpcd_sys->getParticleData()->removeVirtualParticles();
+        }
 
     // perform the first MD integration step
     if (m_prof) m_prof->push("Integrate");

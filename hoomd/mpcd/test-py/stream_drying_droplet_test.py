@@ -99,6 +99,8 @@ class mpcd_stream_sphere_test(unittest.TestCase):
         drying_sphere.set_filler(density=5.0, kT=1.0, seed=79, type='A')
         self.assertTrue(drying_sphere._filler is not None)
 
+        mpcd.collide.srd(seed=1221, angle=130., period=1, kT=1.0)
+
         # run should be able to setup the filler, although this all happens silently
         hoomd.run(2)
 
