@@ -12,6 +12,7 @@ set(TEST_LIST
     integrate_integrator
     integrate_slit
     integrate_slit_pore
+    make_random_sphere
     stream_bulk
     stream_slit
     stream_slit_pore

@@ -78,6 +78,15 @@ class PYBIND11_EXPORT ParticleData
                      std::shared_ptr<ExecutionConfiguration> exec_conf,
                      std::shared_ptr<DomainDecomposition> decomposition = std::shared_ptr<DomainDecomposition>());
 
+        //! Number constructor for particles inside sphere
+        ParticleData(unsigned int N,
+                     Scalar R,
+                     Scalar kT,
+                     unsigned int seed,
+                     unsigned int ndimensions,
+                     std::shared_ptr<ExecutionConfiguration> exec_conf,
+                     std::shared_ptr<DomainDecomposition> decomposition = std::shared_ptr<DomainDecomposition>());
+
         //! Snapshot constructor
         ParticleData(std::shared_ptr<mpcd::ParticleDataSnapshot> snapshot,
                      const BoxDim& global_box,
@@ -93,6 +102,9 @@ class PYBIND11_EXPORT ParticleData
 
         //! Default initialize the MPCD particle data per rank
         void initializeRandom(unsigned int N, const BoxDim& local_box, Scalar kT, unsigned int seed, unsigned int ndimensions);
+
+        //! Default initialize the MPCD particle(inside sphere of radius R) data per rank
+        void initializeRandomSphere(unsigned int N, Scalar R, Scalar kT, unsigned int seed, unsigned int ndimensions);
 
         //! Take a snapshot of the MPCD particle data
         void takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot> snapshot, const BoxDim& global_box) const;

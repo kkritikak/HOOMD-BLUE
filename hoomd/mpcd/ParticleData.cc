@@ -65,6 +65,45 @@ mpcd::ParticleData::ParticleData(unsigned int N,
     }
 
 /*!
+ * \param N Number of MPCD particles
+ * \param R Radius of sphere
+ * \param kT Temperature
+ * \param seed Seed to pseudo-random number generator
+ * \param ndimensions Dimensionality of the system
+ * \param exec_conf Execution configuration
+ * \param decomposition Domain decomposition
+ *
+ * MPCD particles are randomly initialized in the sphere of radius R with velocities
+ * equipartitioned at kT.
+ */
+mpcd::ParticleData::ParticleData(unsigned int N,
+                                 Scalar R,
+                                 Scalar kT,
+                                 unsigned int seed,
+                                 unsigned int ndimensions,
+                                 std::shared_ptr<ExecutionConfiguration> exec_conf,
+                                 std::shared_ptr<DomainDecomposition> decomposition)
+    : m_N(0), m_N_virtual(0), m_N_global(0), m_N_max(0), m_exec_conf(exec_conf), m_mass(1.0), m_valid_cell_cache(false)
+    {
+    m_exec_conf->msg->notice(5) << "Constructing MPCD ParticleData" << endl;
+
+    // set domain decomposition
+    unsigned int my_seed = seed;
+    #ifdef ENABLE_MPI
+    setupMPI(decomposition);
+    if (m_exec_conf->getNRanks() > 1)
+        {
+        bcast(my_seed, 0, m_exec_conf->getMPICommunicator());
+        my_seed += m_exec_conf->getRank(); // each rank must get a different seed value for C++11 PRNG
+        }
+    #endif // ENABLE_MPI
+    #ifdef ENABLE_CUDA
+    setupTuners();
+    #endif // ENABLE_CUDA
+    initializeRandomSphere(N, R, kT, my_seed, ndimensions);
+    }
+
+/*!
  * \param snapshot Snapshot of the MPCD particle data
  * \param global_box Global simulation box
  * \param exec_conf Execution configuration
@@ -380,6 +419,114 @@ void mpcd::ParticleData::initializeRandom(unsigned int N, const BoxDim& local_bo
         h_pos.data[i] = make_scalar4(pos_x(mt),
                                      pos_y(mt),
                                      (ndimensions == 3) ? pos_z(mt) : Scalar(0.0),
+                                     __int_as_scalar(0));
+        h_vel.data[i] = make_scalar4(vel(mt),
+                                     vel(mt),
+                                     (ndimensions == 3) ? vel(mt) : Scalar(0.0),
+                                     __int_as_scalar(mpcd::detail::NO_CELL));
+        h_tag.data[i] = tag_start + i;
+
+        // add up total velocity
+        vel_cm.x += h_vel.data[i].x;
+        vel_cm.y += h_vel.data[i].y;
+        vel_cm.z += h_vel.data[i].z;
+        }
+
+    // compute average velocity per-particle to remove
+    #ifdef ENABLE_MPI
+    if (nrank > 1)
+        {
+        MPI_Allreduce(MPI_IN_PLACE, &vel_cm, 3, MPI_DOUBLE, MPI_SUM, m_exec_conf->getMPICommunicator());
+        }
+    #endif // ENABLE_MPI
+    if (N > 0)
+        {
+        vel_cm.x /= N;
+        vel_cm.y /= N;
+        vel_cm.z /= N;
+        }
+
+    // subtract center-of-mass velocity
+    for (unsigned int i=0; i < m_N; ++i)
+        {
+        h_vel.data[i].x -= vel_cm.x;
+        h_vel.data[i].y -= vel_cm.y;
+        h_vel.data[i].z -= vel_cm.z;
+        }
+    }
+
+/*!
+ * \param N Global number of particles (global in MPI)
+ * \param R Radius of sphere 
+ * \param kT Temperature (in energy units)
+ * \param seed Random seed
+ * \param ndimensions Dimensionality
+ */
+void mpcd::ParticleData::initializeRandomSphere(unsigned int N, Scalar R, Scalar kT, unsigned int seed, unsigned int ndimensions)
+    {
+    // only one particle type is supported for this construction method
+    m_type_mapping.clear();
+    m_type_mapping.push_back("A");
+    // default particle mass is 1.0
+    m_mass = Scalar(1.0);
+
+    // figure out how many local particles I should own
+    setNGlobal(N);
+    unsigned int tag_start;
+    #ifdef ENABLE_MPI
+    const unsigned int nrank = m_exec_conf->getNRanks();
+    if (nrank > 1)
+        {
+        const unsigned int rank = m_exec_conf->getRank();
+        m_N = N / nrank;
+        tag_start = rank * m_N;
+
+        // distribute remainder of particles to low ranks
+        // this number is usually small, so it doesn't really matter
+        const unsigned int Nleft = N - m_N * nrank;
+        if (rank < Nleft)
+            {
+            ++m_N;
+            // need to offset 1 for every rank above 0 that I am
+            tag_start += rank;
+            }
+        else
+            {
+            // offset but total number of extra particles below me
+            tag_start += Nleft;
+            }
+        }
+    else
+    #endif // ENABLE_MPI
+        {
+        m_N = N;
+        tag_start = 0;
+        }
+
+    // random number generator
+    std::mt19937 mt(seed);
+    std::uniform_real_distribution<Scalar> cos_phi(Scalar(-1.0), Scalar(1.0));
+    std::uniform_real_distribution<Scalar> theta(Scalar(0.0), Scalar(2.0)*M_PI);
+    std::uniform_real_distribution<Scalar> pos_r(Scalar(0.0), Scalar(1.0));
+    std::normal_distribution<Scalar> vel(0.0, fast::sqrt(kT / m_mass));
+
+    // allocate and fill up with random values
+    allocate(m_N);
+    ArrayHandle<Scalar4> h_pos(m_pos, access_location::host, access_mode::overwrite);
+    ArrayHandle<Scalar4> h_vel(m_vel, access_location::host, access_mode::overwrite);
+    ArrayHandle<unsigned int> h_tag(m_tag, access_location::host, access_mode::overwrite);
+    double3 vel_cm = make_double3(0,0,0);
+    for (unsigned int i=0; i < m_N; ++i)
+        {
+        Scalar cos_phi_ = (ndimensions == 3) ? cos_phi(mt) : Scalar(0.0);
+        Scalar sin_phi = slow::sqrt(1 - cos_phi_*cos_phi_);
+        Scalar pos_r_ = R * pow(pos_r(mt), Scalar(1./3.));
+        Scalar pos_x = pos_r_ * slow::cos(theta(mt)) * sin_phi;
+        Scalar pos_y = pos_r_ * slow::sin(theta(mt)) * sin_phi;
+        Scalar pos_z = pos_r_ * cos_phi_;
+        h_pos.data[i] = make_scalar4(pos_x,
+                                     pos_y,
+                                     pos_z,
                                      __int_as_scalar(0));
         h_vel.data[i] = make_scalar4(vel(mt),
                                      vel(mt),
@@ -1237,7 +1384,9 @@ void mpcd::detail::export_ParticleData(pybind11::module& m)
     {
     pybind11::class_< mpcd::ParticleData, std::shared_ptr<mpcd::ParticleData> >(m, "MPCDParticleData")
     .def(pybind11::init< unsigned int, const BoxDim&, Scalar, unsigned int, unsigned int, std::shared_ptr<ExecutionConfiguration> >())
+    .def(pybind11::init< unsigned int, Scalar, Scalar, unsigned int, unsigned int, std::shared_ptr<ExecutionConfiguration> >())
     .def(pybind11::init< unsigned int, const BoxDim&, Scalar, unsigned int, unsigned int, std::shared_ptr<ExecutionConfiguration>, std::shared_ptr<DomainDecomposition> >())
+    .def(pybind11::init< unsigned int, Scalar, Scalar, unsigned int, unsigned int, std::shared_ptr<ExecutionConfiguration>, std::shared_ptr<DomainDecomposition> >())
     .def_property_readonly("N", &mpcd::ParticleData::getN)
     .def_property_readonly("N_global", &mpcd::ParticleData::getNGlobal)
     .def("getPosition", &mpcd::ParticleData::getPosition)
