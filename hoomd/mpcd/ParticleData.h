@@ -79,8 +79,9 @@ class PYBIND11_EXPORT ParticleData
                      std::shared_ptr<DomainDecomposition> decomposition = std::shared_ptr<DomainDecomposition>());
 
         //! Number constructor for particles inside sphere
-        ParticleData(unsigned int N,
+        ParticleData(Scalar density,
                      Scalar R,
+                     const BoxDim& local_box,
                      Scalar kT,
                      unsigned int seed,
                      unsigned int ndimensions,
@@ -104,7 +105,7 @@ class PYBIND11_EXPORT ParticleData
         void initializeRandom(unsigned int N, const BoxDim& local_box, Scalar kT, unsigned int seed, unsigned int ndimensions);
 
         //! Default initialize the MPCD particle(inside sphere of radius R) data per rank
-        void initializeRandomSphere(unsigned int N, Scalar R, Scalar kT, unsigned int seed, unsigned int ndimensions);
+        void initializeRandomSphere(Scalar density, Scalar R, const BoxDim& local_box, Scalar kT, unsigned int seed, unsigned int ndimensions);
 
         //! Take a snapshot of the MPCD particle data
         void takeSnapshot(std::shared_ptr<mpcd::ParticleDataSnapshot> snapshot, const BoxDim& global_box) const;
@@ -429,6 +430,7 @@ class PYBIND11_EXPORT ParticleData
         std::shared_ptr<DomainDecomposition> m_decomposition;       //!< Domain decomposition
         std::shared_ptr<Profiler> m_prof;                           //!< Profiler
 
+        GPUArray<Scalar4> m_pos_draw; //!< MPCD particle positions drawn randomly on sphere
         GPUArray<Scalar4> m_pos;    //!< MPCD particle positions plus type
         GPUArray<Scalar4> m_vel;    //!< MPCD particle velocities plus cell list id
         Scalar m_mass;              //!< MPCD particle mass

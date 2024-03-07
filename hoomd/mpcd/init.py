@@ -71,19 +71,19 @@ def make_random(N, kT, seed):
     hoomd.context.current.mpcd = data.system(_mpcd.SystemData(sysdef,pdata))
     return hoomd.context.current.mpcd
 
-def make_random_sphere(N, R, kT, seed):
+def make_random_sphere(density, R, kT, seed):
     R"""Initialize particles randomly inside a sphere
 
     Args:
-        N (int): Total number of MPCD particles
-        R (float): Radius of Sphere
+        density (float): density of MPCD particles inside sphere
+        R (float): Radius of Sphere 
         kT (float): Temperature of MPCD particles (in energy units)
         seed (int): Random seed for initialization
 
     Returns:
         Initialized MPCD system data inside a sphere (:py:class:`hoomd.mpcd.data.system`)
 
-    MPCD particles are randomly initialized into the sphere.
+    MPCD particles are randomly initialized inside the sphere.
     An MPCD system can be randomly initialized only **after** the HOOMD system
     is first initialized (see :py:mod:`hoomd.init`). The system can only be
     initialized one time. The total number of particles *N* is evenly divided
@@ -94,7 +94,7 @@ def make_random_sphere(N, R, kT, seed):
 
     Examples::
 
-        mpcd.init.make_random_sphere(N=1250000000, R=50., kT=1.0, seed=42)
+        mpcd.init.make_random_sphere(density=5.0, R=50., kT=1.0, seed=42)
 
     Notes:
         Random number generation is performed using C++11 ``mt19937`` seeded by
@@ -115,10 +115,11 @@ def make_random_sphere(N, R, kT, seed):
 
     # make particle data first
     sysdef = hoomd.context.current.system_definition
+    box = sysdef.getParticleData().getBox()
     if hoomd.context.current.decomposition:
-        pdata = _mpcd.MPCDParticleData(N, R, kT, seed, sysdef.getNDimensions(), hoomd.context.exec_conf, hoomd.context.current.decomposition.cpp_dd)
+        pdata = _mpcd.MPCDParticleData(density, R, box, kT, seed, sysdef.getNDimensions(), hoomd.context.exec_conf, hoomd.context.current.decomposition.cpp_dd)
     else:
-        pdata = _mpcd.MPCDParticleData(N, R, kT, seed, sysdef.getNDimensions(), hoomd.context.exec_conf)
+        pdata = _mpcd.MPCDParticleData(density, R, box, kT, seed, sysdef.getNDimensions(), hoomd.context.exec_conf)
 
     # then make mpcd system
     hoomd.context.current.mpcd = data.system(_mpcd.SystemData(sysdef,pdata))
