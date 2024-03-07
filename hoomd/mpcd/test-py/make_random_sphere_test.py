@@ -8,7 +8,7 @@ import hoomd
 import numpy as np
 from hoomd import mpcd
 
-# unit tests for snapshots with mpcd particle data
+# unit tests for generating random solvent particles inside sphere
 class mpcd_snapshot(unittest.TestCase):
     def setUp(self):
         hoomd.context.initialize()
@@ -16,7 +16,7 @@ class mpcd_snapshot(unittest.TestCase):
 
     def test_set_density(self):
         density = 5.
-        R0 = 10. # radius of sphere
+        R0 = 30. # radius of sphere
         s = mpcd.init.make_random_sphere(density=density, R=R0, kT =1.0, seed=7)
         snap = s.take_snapshot()
         # calculating the radial density profile and checking it's equal to density
@@ -37,6 +37,13 @@ class mpcd_snapshot(unittest.TestCase):
             density_array = np.array(particles_inshell/Vshell)
 
             self.assertTrue(np.allclose(density_array, density, atol=1))
+
+    # test that if the radius of sphere 0 or negative raises an error
+    def test_negative_radius(self):
+        with self.assertRaises(RuntimeError):
+            s = mpcd.init.make_random_sphere(density=5.0, R=0.0, kT =1.0, seed=7)
+        with self.assertRaises(RuntimeError):
+            s = mpcd.init.make_random_sphere(density=5.0, R=-5.0, kT =1.0, seed=7)
 
     def tearDown(self):
         pass
