@@ -19,24 +19,29 @@ class mpcd_snapshot(unittest.TestCase):
         R0 = 30. # radius of sphere
         s = mpcd.init.make_random_sphere(density=density, R=R0, kT =1.0, seed=7)
         snap = s.take_snapshot()
-        # calculating the radial density profile and checking it's equal to density
+        # calculating the average density and radial density profile and checking it's equal to density
         dr = 1.0 # shell thickness to calculate density
         nshell = int(np.round(R0/dr)) 
         R = np.zeros(nshell) 
         Vshell = np.zeros(nshell) 
         particles_inshell = np.zeros(nshell)
         if hoomd.comm.get_rank() == 0:
+            # calculating average density 
+            avg_dens = snap.particles.N / ((4./3.)*np.pi*R0**3)
+            self.assertAlmostEqual(avg_dens, density, delta=0.5)
+
             for h in range(nshell):
                 R[h]=(h+1)*dr
                 Vshell[h]=(4.0/3.0)*np.pi*(((h+1)*dr)**3 - (h*dr)**3)
             for i in range(snap.particles.N):
                 posi = snap.particles.position[i]
                 posi_mod = np.linalg.norm(posi)
+                self.assertTrue(posi_mod < R0)
                 shell = int(posi_mod/dr)
                 particles_inshell[shell] += 1
             density_array = np.array(particles_inshell/Vshell)
 
-            self.assertTrue(np.allclose(density_array, density, atol=1))
+            self.assertTrue(np.allclose(density_array, density, atol=0.6))
 
     # test that if the radius of sphere 0 or negative raises an error
     def test_negative_radius(self):
