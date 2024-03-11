@@ -498,7 +498,6 @@ void mpcd::ParticleData::initializeRandomSphere(Scalar density, Scalar R, const 
     std::normal_distribution<Scalar> vel(0.0, fast::sqrt(kT / m_mass));
 
     // generating Ndraw random positions and keeping them if they lie inside sphere
-
     for (unsigned int i=0; i < Ndraw; ++i)
         {
         const Scalar3 pos = make_scalar3(pos_x(mt), pos_y(mt), (ndimensions == 3) ? pos_z(mt) : Scalar(0.0));
@@ -524,7 +523,6 @@ void mpcd::ParticleData::initializeRandomSphere(Scalar density, Scalar R, const 
         MPI_Exscan(&m_N, &tag_start, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
         }
     #endif
-    
     setNGlobal(N_global);
 
     // fill up particle data arrays
