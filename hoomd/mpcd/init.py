@@ -71,6 +71,75 @@ def make_random(N, kT, seed):
     hoomd.context.current.mpcd = data.system(_mpcd.SystemData(sysdef,pdata))
     return hoomd.context.current.mpcd
 
+def make_random_sphere(density, R, kT, seed):
+    R"""Initialize particles randomly inside a sphere
+
+    Args:
+        density (float): density of MPCD particles inside sphere
+        R (float): Radius of Sphere 
+        kT (float): Temperature of MPCD particles (in energy units)
+        seed (int): Random seed for initialization
+
+    Returns:
+        Initialized MPCD system data inside a sphere (:py:class:`hoomd.mpcd.data.system`)
+
+    MPCD particles are randomly initialized inside the sphere.
+    An MPCD system can be randomly initialized only **after** the HOOMD system
+    is first initialized (see :py:mod:`hoomd.init`). The system can only be
+    initialized one time. Random particle positions are drawn uniformly in
+    the sphere of radius *R* using rejection sampling within the box. Hence,
+    the number of particles initialized may not be equal to :math:`4 \pi R^3 \rho/3`,
+    where :math: `\rho` is the *density*. Particle velocities are drawn from a
+    Maxwell-Boltzmann distribution consistent with temperature *kT*. All MPCD
+    particles are given unit mass and type A.
+
+    Examples::
+
+        mpcd.init.make_random_sphere(density=5.0, R=50., kT=1.0, seed=42)
+
+    Notes:
+        Random number generation is performed using C++11 ``mt19937`` seeded by
+        *seed* plus the rank number in MPI simulations. This random number
+        generator is separate from other generators used in MPCD, so *seed* can
+        be reasonably recycled elsewhere.
+
+    """
+    hoomd.util.print_status_line()
+
+    if not hoomd.init.is_initialized():
+        hoomd.context.msg.error("mpcd: HOOMD system must be initialized before mpcd\n")
+        raise RuntimeError("HOOMD system not initialized")
+
+    if hoomd.context.current.mpcd is not None:
+        hoomd.context.msg.error("mpcd: system is already initialized, cannot reinitialize\n")
+        raise RuntimeError("mpcd system already initialized")
+
+    # make particle data first
+    sysdef = hoomd.context.current.system_definition
+    box = sysdef.getParticleData().getBox()
+    # if sphere diameter is less than zero or greater than length of box- throw a runtime error
+    global_box = sysdef.getParticleData().getGlobalBox()
+    global_box_length = global_box.getL()
+    if sysdef.getNDimensions() == 3:
+        min_box_l = min([global_box_length.x, global_box_length.y, global_box_length.z])
+    else:
+        min_box_l = min([global_box_length.x, global_box_length.y])
+    if R<= 0:
+        hoomd.context.msg.error("Radius of sphere cannot be zero or negative\n")
+        raise RuntimeError("Radius of sphere cannot be zero or negative")
+    elif 2.*R > min_box_l:
+        hoomd.context.msg.error("Diameter of sphere is greater than length of the box\n")
+        raise RuntimeError("Diameter of sphere is greater than length of the box")
+
+    if hoomd.context.current.decomposition:
+        pdata = _mpcd.MPCDParticleData(density, R, box, kT, seed, sysdef.getNDimensions(), hoomd.context.exec_conf, hoomd.context.current.decomposition.cpp_dd)
+    else:
+        pdata = _mpcd.MPCDParticleData(density, R, box, kT, seed, sysdef.getNDimensions(), hoomd.context.exec_conf)
+
+    # then make mpcd system
+    hoomd.context.current.mpcd = data.system(_mpcd.SystemData(sysdef,pdata))
+    return hoomd.context.current.mpcd
+
 def read_snapshot(snapshot):
     R"""Initialize from a snapshot
 
