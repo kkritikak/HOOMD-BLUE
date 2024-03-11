@@ -27,6 +27,10 @@ class mpcd_snapshot(unittest.TestCase):
             # all particles must be inside the sphere
             self.assertTrue(np.all(r < R0))
 
+            # center of mass velocity should be zero
+            vcm = np.mean(snap.particles.velocity, axis=0)
+            self.assertTrue(np.allclose(vcm, [0, 0, 0]))
+
             # particles should have roughly the right average density
             self.assertAlmostEqual(snap.particles.N/(4*np.pi*R0**3/3), density, delta=0.5)
 
@@ -46,18 +50,6 @@ class mpcd_snapshot(unittest.TestCase):
             hist_theta, _ = np.histogram(theta, bins=20, density=True)
             self.assertTrue(np.allclose(hist_theta , 1/(2*np.pi), rtol=0.1))
 
-    # test that if the radius of sphere 0 or negative raise an error 
-    def test_negative_radius(self):
-        with self.assertRaises(RuntimeError):
-            s = mpcd.init.make_random_sphere(density=5.0, R=0.0, kT =1.0, seed=7)
-        with self.assertRaises(RuntimeError):
-            s = mpcd.init.make_random_sphere(density=5.0, R=-5.0, kT =1.0, seed=7)
-
-    # diameter of sphere larger than length of box should raise an error 
-    def test_radius_too_big(self):
-        with self.assertRaises(RuntimeError):
-            s = mpcd.init.make_random_sphere(density=5.0, R=70.0, kT =1.0, seed=7)
-
     # test that make_random_sphere is also working fine in 2D
     def test_init_2D(self):
         # clear out the system
@@ -71,6 +63,10 @@ class mpcd_snapshot(unittest.TestCase):
 
         if hoomd.comm.get_rank() == 0:
             r = np.linalg.norm(snap.particles.position, axis=1)
+
+            # z components should be zero in 2d
+            self.assertTrue(np.allclose(snap.particles.position[:, 2], 0))
+            self.assertTrue(np.allclose(snap.particles.velocity[:, 2], 0))
 
             # all particles must be inside the sphere
             self.assertTrue(np.all(r < R0))
@@ -88,6 +84,18 @@ class mpcd_snapshot(unittest.TestCase):
             theta = np.arctan2(snap.particles.position[:, 1], snap.particles.position[:, 0])
             hist_theta, _ = np.histogram(theta, bins=20, density=True)
             self.assertTrue(np.allclose(hist_theta , 1/(2*np.pi), rtol=0.1))
+
+    # test that if the radius of sphere 0 or negative raise an error 
+    def test_negative_radius(self):
+        with self.assertRaises(RuntimeError):
+            s = mpcd.init.make_random_sphere(density=5.0, R=0.0, kT =1.0, seed=7)
+        with self.assertRaises(RuntimeError):
+            s = mpcd.init.make_random_sphere(density=5.0, R=-5.0, kT =1.0, seed=7)
+
+    # diameter of sphere larger than length of box should raise an error 
+    def test_radius_too_big(self):
+        with self.assertRaises(RuntimeError):
+            s = mpcd.init.make_random_sphere(density=5.0, R=70.0, kT =1.0, seed=7)
 
     def tearDown(self):
         pass

@@ -120,7 +120,10 @@ def make_random_sphere(density, R, kT, seed):
     # if sphere diameter is less than zero or greater than length of box- throw a runtime error
     global_box = sysdef.getParticleData().getGlobalBox()
     global_box_length = global_box.getL()
-    min_box_l = min([global_box_length.x, global_box_length.y, global_box_length.z]) if sysdef.getNDimensions() == 3 else min([global_box_length.x, global_box_length.y])
+    if sysdef.getNDimensions() == 3:
+        min_box_l = min([global_box_length.x, global_box_length.y, global_box_length.z])
+    else:
+        min_box_l = min([global_box_length.x, global_box_length.y])
     if R<= 0:
         hoomd.context.msg.error("Radius of sphere cannot be zero or negative\n")
         raise RuntimeError("Radius of sphere cannot be zero or negative")
