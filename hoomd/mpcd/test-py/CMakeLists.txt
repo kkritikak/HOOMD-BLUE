@@ -9,10 +9,10 @@ set(TEST_LIST
     force_constant
     force_sine
     init_make_random
+    init_make_random_sphere
     integrate_integrator
     integrate_slit
     integrate_slit_pore
-    make_random_sphere
     stream_bulk
     stream_slit
     stream_slit_pore

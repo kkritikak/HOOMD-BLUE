@@ -480,12 +480,11 @@ void mpcd::ParticleData::initializeRandomSphere(Scalar density, Scalar R, const 
         }
 
     // Calculating Ndraw - number of particles that should be inside the local box according to density
-    unsigned int Ndraw = round(density*local_box.getVolume());
+    unsigned int Ndraw = std::round(density*local_box.getVolume((ndimensions == 2)));
 
     // Allocating an Array for storing the random drawn positions
-    GPUArray<Scalar4> pos_draw(Ndraw, m_exec_conf);
-    m_pos_draw.swap(pos_draw);
-    ArrayHandle<Scalar4> h_pos_draw(m_pos_draw, access_location::host, access_mode::overwrite);
+    std::vector<Scalar4> pos_draw;
+    pos_draw.reserve(Ndraw);
 
     // center of box
     const Scalar3 lo = local_box.getLo();
@@ -498,44 +497,37 @@ void mpcd::ParticleData::initializeRandomSphere(Scalar density, Scalar R, const 
     std::uniform_real_distribution<Scalar> pos_z(lo.z, hi.z);
     std::normal_distribution<Scalar> vel(0.0, fast::sqrt(kT / m_mass));
 
-    // generating Ndraw random positions and keeping them if they lie inside sphere(also counting N_kept)
-    unsigned int N_kept = 0;
-    unsigned int N_tag_rank = 0;
+    // generating Ndraw random positions and keeping them if they lie inside sphere
 
     for (unsigned int i=0; i < Ndraw; ++i)
         {
-        Scalar pos_x_draw = pos_x(mt);
-        Scalar pos_y_draw = pos_y(mt);
-        Scalar pos_z_draw = (ndimensions == 3) ? pos_z(mt) : Scalar(0.0);
-        Scalar mod_pos_draw = slow::sqrt(pos_x_draw*pos_x_draw + pos_y_draw*pos_y_draw + pos_z_draw*pos_z_draw);
-        if (mod_pos_draw < R)
+        const Scalar3 pos = make_scalar3(pos_x(mt), pos_y(mt), (ndimensions == 3) ? pos_z(mt) : Scalar(0.0));
+        const Scalar r = slow::sqrt(dot(pos, pos));
+        if (r < R)
             {
-            h_pos_draw.data[N_kept] =  make_scalar4(pos_x_draw,
-                                                    pos_y_draw,
-                                                    pos_z_draw,
-                                                    __int_as_scalar(0));
-            N_kept += 1;
+            pos_draw.push_back(make_scalar4(pos.x, pos.y, pos.z, __int_as_scalar(0)));
             }
         }
-
-    // setting m_N to N_kept(actual drawn particles) on that rank
-    m_N = N_kept;
     
+    // allocate for the number of particles drawn (always allocate at least 1 so resizing works later)
+    m_N = pos_draw.size();
+    allocate((m_N > 0) ? m_N : 1);
+
     // reduce / scan the number of particles that are drawn on all ranks to get total N and tag on current rank
+    unsigned int N_global = m_N;
+    unsigned int tag_start = 0;
     #ifdef ENABLE_MPI
     const unsigned int nrank = m_exec_conf->getNRanks();
     if (nrank > 1)
         {
-        MPI_Allreduce(MPI_IN_PLACE, &N_kept, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
-        MPI_Exscan(&N_kept, &N_tag_rank, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
+        MPI_Allreduce(MPI_IN_PLACE, &N_global, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
+        MPI_Exscan(&m_N, &tag_start, 1, MPI_UNSIGNED, MPI_SUM, m_exec_conf->getMPICommunicator());
         }
     #endif
     
-    // setting N_global
-    unsigned int N = N_kept;
-    setNGlobal(N);
-    //allocate and fill up with random values generated earlier
-    allocate(m_N);
+    setNGlobal(N_global);
+
+    // fill up particle data arrays
     ArrayHandle<Scalar4> h_pos(m_pos, access_location::host, access_mode::overwrite);
     ArrayHandle<Scalar4> h_vel(m_vel, access_location::host, access_mode::overwrite);
     ArrayHandle<unsigned int> h_tag(m_tag, access_location::host, access_mode::overwrite);
@@ -543,12 +535,12 @@ void mpcd::ParticleData::initializeRandomSphere(Scalar density, Scalar R, const 
 
     for (unsigned int i=0; i < m_N; ++i)
         {
-        h_pos.data[i] = h_pos_draw.data[i];
+        h_pos.data[i] = pos_draw[i];
         h_vel.data[i] = make_scalar4(vel(mt),
                                      vel(mt),
                                      (ndimensions == 3) ? vel(mt) : Scalar(0.0),
                                      __int_as_scalar(mpcd::detail::NO_CELL));
-        h_tag.data[i] = N_tag_rank + i ;
+        h_tag.data[i] = tag_start + i ;
 
         // add up total velocity
         vel_cm.x += h_vel.data[i].x;
@@ -563,11 +555,12 @@ void mpcd::ParticleData::initializeRandomSphere(Scalar density, Scalar R, const 
         MPI_Allreduce(MPI_IN_PLACE, &vel_cm, 3, MPI_DOUBLE, MPI_SUM, m_exec_conf->getMPICommunicator());
         }
     #endif // ENABLE_MPI
-    if (N > 0)
+
+    if (m_N_global > 0)
         {
-        vel_cm.x /= N;
-        vel_cm.y /= N;
-        vel_cm.z /= N;
+        vel_cm.x /= m_N_global;
+        vel_cm.y /= m_N_global;
+        vel_cm.z /= m_N_global;
         }
 
     // subtract center-of-mass velocity

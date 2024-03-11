@@ -86,11 +86,12 @@ def make_random_sphere(density, R, kT, seed):
     MPCD particles are randomly initialized inside the sphere.
     An MPCD system can be randomly initialized only **after** the HOOMD system
     is first initialized (see :py:mod:`hoomd.init`). The system can only be
-    initialized one time. The total number of particles *N* is evenly divided
-    between all domains. Random positions are then drawn uniformly within the
-    (local) box. Particle velocities are drawn from a Maxwell-Boltzmann
-    distribution consistent with temperature *kT*. All MPCD particles are given
-    unit mass and type A.
+    initialized one time. Random particle positions are drawn uniformly in
+    the sphere of radius *R* using rejection sampling within the box. Hence,
+    the number of particles initialized may not be equal to :math:`4 \pi R^3 \rho/3`,
+    where :math: `\rho` is the *density*. Particle velocities are drawn from a
+    Maxwell-Boltzmann distribution consistent with temperature *kT*. All MPCD
+    particles are given unit mass and type A.
 
     Examples::
 
