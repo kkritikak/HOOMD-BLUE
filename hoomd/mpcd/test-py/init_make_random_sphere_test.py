@@ -64,6 +64,10 @@ class mpcd_snapshot(unittest.TestCase):
         if hoomd.comm.get_rank() == 0:
             r = np.linalg.norm(snap.particles.position, axis=1)
 
+            # center of mass velocity should be zero
+            vcm = np.mean(snap.particles.velocity, axis=0)
+            self.assertTrue(np.allclose(vcm, [0, 0, 0]))
+
             # z components should be zero in 2d
             self.assertTrue(np.allclose(snap.particles.position[:, 2], 0))
             self.assertTrue(np.allclose(snap.particles.velocity[:, 2], 0))
