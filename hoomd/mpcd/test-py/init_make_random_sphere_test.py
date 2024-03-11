@@ -12,6 +12,7 @@ from hoomd import mpcd
 class mpcd_snapshot(unittest.TestCase):
     def setUp(self):
         hoomd.context.initialize()
+        # default testing configuration
         hoomd.init.read_snapshot(hoomd.data.make_snapshot(N=0, box=hoomd.data.boxdim(L=120.)))
 
     def test_init(self):
@@ -37,22 +38,56 @@ class mpcd_snapshot(unittest.TestCase):
 
             # cos(phi) should be uniformly distributed
             cos_phi = snap.particles.position[:, 2]/r
-            hist_cos_phi, bins_cos_phi = np.histogram(cos_phi, bins=20)
-            self.assertTrue(np.allclose(hist_cos_phi , np.mean(hist_cos_phi), rtol=0.1))
+            hist_cos_phi, _ = np.histogram(cos_phi, bins=20, density=True)
+            self.assertTrue(np.allclose(hist_cos_phi , 0.5, rtol=0.1))
 
             # theta should be uniformly distributed
             theta = np.arctan2(snap.particles.position[:, 1], snap.particles.position[:, 0])
-            hist_theta, bins_theta = np.histogram(theta, bins=20)
-            self.assertTrue(np.allclose(hist_theta , np.mean(hist_theta), rtol=0.1))
+            hist_theta, _ = np.histogram(theta, bins=20, density=True)
+            self.assertTrue(np.allclose(hist_theta , 1/(2*np.pi), rtol=0.1))
 
-    # test that if the radius of sphere 0 or negative or greater than boxdim raises an error
+    # test that if the radius of sphere 0 or negative raise an error 
     def test_negative_radius(self):
         with self.assertRaises(RuntimeError):
             s = mpcd.init.make_random_sphere(density=5.0, R=0.0, kT =1.0, seed=7)
         with self.assertRaises(RuntimeError):
             s = mpcd.init.make_random_sphere(density=5.0, R=-5.0, kT =1.0, seed=7)
+
+    # diameter of sphere larger than length of box should raise an error 
+    def test_radius_too_big(self):
         with self.assertRaises(RuntimeError):
             s = mpcd.init.make_random_sphere(density=5.0, R=70.0, kT =1.0, seed=7)
+
+    # test that make_random_sphere is also working fine in 2D
+    def test_init_2D(self):
+        # clear out the system
+        hoomd.context.initialize()
+        # reinitialize the system with box having dimensions = 2
+        hoomd.init.read_snapshot(hoomd.data.make_snapshot(N=0, box=hoomd.data.boxdim(L=120., dimensions=2)))
+        density = 5.
+        R0 = 30. # radius of sphere
+        s = mpcd.init.make_random_sphere(density=density, R=R0, kT =1.0, seed=7)
+        snap = s.take_snapshot()
+
+        if hoomd.comm.get_rank() == 0:
+            r = np.linalg.norm(snap.particles.position, axis=1)
+
+            # all particles must be inside the sphere
+            self.assertTrue(np.all(r < R0))
+
+            # particles should have roughly the right average density
+            self.assertAlmostEqual(snap.particles.N/(np.pi*R0**2), density, delta=0.5)
+
+            # particles should be uniformly distributed in r
+            hist,bin_edges = np.histogram(r, bins=int(R0), range=(0, R0))
+            bin_volumes = np.pi*(bin_edges[1:]**2 - bin_edges[:-1]**2)
+            bin_density = hist / bin_volumes
+            self.assertTrue(np.allclose(bin_density, density, rtol=0.6))
+
+            # theta should be uniformly distributed
+            theta = np.arctan2(snap.particles.position[:, 1], snap.particles.position[:, 0])
+            hist_theta, _ = np.histogram(theta, bins=20, density=True)
+            self.assertTrue(np.allclose(hist_theta , 1/(2*np.pi), rtol=0.1))
 
     def tearDown(self):
         pass

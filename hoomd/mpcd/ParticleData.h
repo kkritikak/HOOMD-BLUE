@@ -430,7 +430,6 @@ class PYBIND11_EXPORT ParticleData
         std::shared_ptr<DomainDecomposition> m_decomposition;       //!< Domain decomposition
         std::shared_ptr<Profiler> m_prof;                           //!< Profiler
 
-        GPUArray<Scalar4> m_pos_draw; //!< MPCD particle positions drawn randomly inside a sphere
         GPUArray<Scalar4> m_pos;    //!< MPCD particle positions plus type
         GPUArray<Scalar4> m_vel;    //!< MPCD particle velocities plus cell list id
         Scalar m_mass;              //!< MPCD particle mass

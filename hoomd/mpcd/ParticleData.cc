@@ -498,11 +498,12 @@ void mpcd::ParticleData::initializeRandomSphere(Scalar density, Scalar R, const 
     std::normal_distribution<Scalar> vel(0.0, fast::sqrt(kT / m_mass));
 
     // generating Ndraw random positions and keeping them if they lie inside sphere
+    const double Rsq = R*R;
     for (unsigned int i=0; i < Ndraw; ++i)
         {
         const Scalar3 pos = make_scalar3(pos_x(mt), pos_y(mt), (ndimensions == 3) ? pos_z(mt) : Scalar(0.0));
-        const Scalar r = slow::sqrt(dot(pos, pos));
-        if (r < R)
+        const Scalar rsq = dot(pos, pos);
+        if (rsq < Rsq)
             {
             pos_draw.push_back(make_scalar4(pos.x, pos.y, pos.z, __int_as_scalar(0)));
             }
