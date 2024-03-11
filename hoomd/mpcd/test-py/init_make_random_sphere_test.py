@@ -45,12 +45,14 @@ class mpcd_snapshot(unittest.TestCase):
             hist_theta, bins_theta = np.histogram(theta, bins=20)
             self.assertTrue(np.allclose(hist_theta , np.mean(hist_theta), rtol=0.1))
 
-    # test that if the radius of sphere 0 or negative raises an error
+    # test that if the radius of sphere 0 or negative or greater than boxdim raises an error
     def test_negative_radius(self):
         with self.assertRaises(RuntimeError):
             s = mpcd.init.make_random_sphere(density=5.0, R=0.0, kT =1.0, seed=7)
         with self.assertRaises(RuntimeError):
             s = mpcd.init.make_random_sphere(density=5.0, R=-5.0, kT =1.0, seed=7)
+        with self.assertRaises(RuntimeError):
+            s = mpcd.init.make_random_sphere(density=5.0, R=70.0, kT =1.0, seed=7)
 
     def tearDown(self):
         pass

@@ -117,6 +117,12 @@ def make_random_sphere(density, R, kT, seed):
     # make particle data first
     sysdef = hoomd.context.current.system_definition
     box = sysdef.getParticleData().getBox()
+    global_box = sysdef.getParticleData().getGlobalBox()
+    global_box_length = global_box.getL()
+    min_box_l = min([global_box_length.x, global_box_length.y, global_box_length.z])
+    if 2.*R > min_box_l :
+        hoomd.context.msg.error("Diameter of sphere is greater than length of the box\n")
+        raise RuntimeError("Diameter of sphere is greater than length of the box")
     if hoomd.context.current.decomposition:
         pdata = _mpcd.MPCDParticleData(density, R, box, kT, seed, sysdef.getNDimensions(), hoomd.context.exec_conf, hoomd.context.current.decomposition.cpp_dd)
     else:
