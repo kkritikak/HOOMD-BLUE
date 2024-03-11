@@ -9,7 +9,6 @@ set(TEST_LIST
     force_constant
     force_sine
     init_make_random
-    init_make_random_sphere
     integrate_integrator
     integrate_slit
     integrate_slit_pore
