@@ -17,6 +17,7 @@ set(_mpcd_sources
     ManualVirtualParticleFiller.cc
     ParticleData.cc
     ParticleDataSnapshot.cc
+    RadialSolventVelocityAnalyzer.cc
     RandomSubsetPicker.cc
     SlitGeometryFiller.cc
     SlitPoreGeometryFiller.cc
@@ -48,6 +49,7 @@ set(_mpcd_headers
     ParticleData.h
     ParticleDataSnapshot.h
     ParticleDataUtilities.h
+    RadialSolventVelocityAnalyzer.h
     RandomSubsetPicker.h
     RejectionVirtualParticleFiller.h
     SlitGeometry.h

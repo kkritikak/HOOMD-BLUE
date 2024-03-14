@@ -24,6 +24,9 @@
 // integration
 #include "Integrator.h"
 
+// analyze
+#include "RadialSolventVelocityAnalyzer.h"
+
 // Collision methods
 #include "CollisionMethod.h"
 #include "ATCollisionMethod.h"
@@ -139,6 +142,8 @@ PYBIND11_MODULE(_mpcd, m)
     mpcd::detail::export_ATCollisionMethodGPU(m);
     mpcd::detail::export_SRDCollisionMethodGPU(m);
     #endif // ENABLE_CUDA
+
+    mpcd::detail::export_RadialSolventVelocityAnalyzer(m);
 
     mpcd::detail::export_boundary(m);
     mpcd::detail::export_BulkGeometry(m);
