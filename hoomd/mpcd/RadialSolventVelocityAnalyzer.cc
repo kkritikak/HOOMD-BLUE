@@ -70,7 +70,6 @@ void RadialSolventVelocityAnalyzer::analyze(unsigned int timestep)
     if (m_prof) m_prof->push("RadialSolventVelocityAnalayse");
 
     // binParticles
-
     ArrayHandle<Scalar4> h_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::read);
     ArrayHandle<Scalar4> h_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::read);
     std::vector<unsigned int> counts(m_num_bins, 0);
@@ -106,7 +105,6 @@ void RadialSolventVelocityAnalyzer::analyze(unsigned int timestep)
         const double r_in = m_bin_width * static_cast<double>(i);
         const double r_out = std::min(r_in + m_bin_width, static_cast<double>(m_R));
         const double V_shell = (4.0*M_PI/3.0) * (r_out * r_out * r_out - r_in * r_in * r_in);
-        radial_vel[i] = radial_vel[i]/V_shell;
         density.push_back(counts[i]/V_shell);
         }
 
