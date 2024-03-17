@@ -16,9 +16,7 @@
 #endif
 
 #include "hoomd/Analyzer.h"
-#include "hoomd/GPUFlags.h"
 #include "SystemData.h"
-
 #include "hoomd/extern/pybind/include/pybind11/pybind11.h"
 
 namespace mpcd
@@ -36,6 +34,7 @@ class PYBIND11_EXPORT RadialSolventVelocityAnalyzer : public Analyzer
     public:
         //! Constructor
         RadialSolventVelocityAnalyzer(std::shared_ptr<mpcd::SystemData> sysdata,
+                                      Scalar R,
                                       Scalar bin_width);
 
         //! Destructor
@@ -47,8 +46,11 @@ class PYBIND11_EXPORT RadialSolventVelocityAnalyzer : public Analyzer
         //! Get a copy of the bins
         std::vector<Scalar> getBins() const;
 
-        //! Get a copy of the density data
-        std::vector<std::vector<Scalar>> get() const;
+        //! Get a copy of the density data at frame idx
+        std::vector<Scalar> get(unsigned int idx) const;
+
+        //! Get a copy of radial velocity profile at frame idx
+        std::vector<Scalar> getRadialVelocity(unsigned int idx) const;
 
         //! Reset the accumulated values
         void reset();
@@ -56,22 +58,13 @@ class PYBIND11_EXPORT RadialSolventVelocityAnalyzer : public Analyzer
     protected:
         std::shared_ptr<mpcd::ParticleData> m_mpcd_pdata;   //!< MPCD Particle data
         std::shared_ptr<mpcd::SystemData> m_mpcd_sys;       //!< MPCD System
-        const BoxDim& m_global_box;                         //!< Global simulation box 
-        std::shared_ptr<SystemDefinition> m_sysdef;
 
-        GPUArray<unsigned int> m_counts;    //!< Array of bin counts from a single frame
-        Scalar m_Rmax;                         //!< Maximum radius possible for a sphere inside box
+        Scalar m_R;                         //!< Maximum radius possible for a sphere inside box
         Scalar m_bin_width;                 //!< Bin width
         unsigned int m_num_bins;            //!< Number of bins
-        unsigned int m_num_samples;         //!< Number of samples where analysis is done 
 
-        GPUArray<double> m_accum_rho;     //!< Accumulated density
-
-        //! Bin particle counts
-        virtual void binParticles();
-
-        //! Accumulate the counts into the density profile
-        virtual void accumulate();
+        std::vector<std::vector<Scalar>> m_density;     //!< Density at each frame
+        std::vector<std::vector<Scalar>> m_radial_vel;     //!< Velocity at each frame
     };
 
 namespace detail
@@ -82,3 +75,4 @@ void export_RadialSolventVelocityAnalyzer(pybind11::module& m);
 } // end namespace mpcd
 
 #endif // MPCD_RADIAL_SOLVENT_VELOCITY_ANALYZER_H_
+
