@@ -8,7 +8,7 @@
  * \brief Declaration of mpcd::RadialSolventVelocityAnalyzer
  */
 
-#ifndef MPCD_RADIAL__SOLVENT_VELOCITY_ANALYZER_H_
+#ifndef MPCD_RADIAL_SOLVENT_VELOCITY_ANALYZER_H_
 #define MPCD_RADIAL_SOLVENT_VELOCITY_ANALYZER_H_
 
 #ifdef NVCC
