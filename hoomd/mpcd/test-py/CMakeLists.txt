@@ -1,6 +1,7 @@
 # Maintainer: mphoward
 
 set(TEST_LIST
+    analyze_radial_solvent_velocity
     collide_at
     collide_srd
     data_snapshot
