@@ -46,8 +46,11 @@ class PYBIND11_EXPORT RadialSolventVelocityAnalyzer : public Analyzer
         //! Get a copy of the bins
         std::vector<Scalar> getBins() const;
 
+        //! Get the number of samples stored
+        unsigned int getNumSamples() const;
+
         //! Get a copy of the density data at frame idx
-        std::vector<Scalar> get(unsigned int idx) const;
+        std::vector<Scalar> getDensity(unsigned int idx) const;
 
         //! Get a copy of radial velocity profile at frame idx
         std::vector<Scalar> getRadialVelocity(unsigned int idx) const;
@@ -56,8 +59,8 @@ class PYBIND11_EXPORT RadialSolventVelocityAnalyzer : public Analyzer
         void reset();
 
     protected:
-        std::shared_ptr<mpcd::ParticleData> m_mpcd_pdata;   //!< MPCD Particle data
         std::shared_ptr<mpcd::SystemData> m_mpcd_sys;       //!< MPCD System
+        std::shared_ptr<mpcd::ParticleData> m_mpcd_pdata;   //!< MPCD Particle data
 
         Scalar m_R;                         //!< Maximum radius possible for a sphere inside box
         Scalar m_bin_width;                 //!< Bin width

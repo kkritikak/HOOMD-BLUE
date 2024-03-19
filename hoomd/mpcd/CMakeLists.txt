@@ -193,6 +193,7 @@ ENDMACRO(copy_file)
 
 set(files
     __init__.py
+    analyze.py
     collide.py
     data.py
     force.py

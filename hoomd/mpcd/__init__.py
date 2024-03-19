@@ -98,6 +98,7 @@ import hoomd
 from hoomd import _hoomd
 from hoomd.md import _md
 
+from hoomd.mpcd import analyze
 from hoomd.mpcd import collide
 from hoomd.mpcd import data
 from hoomd.mpcd import force

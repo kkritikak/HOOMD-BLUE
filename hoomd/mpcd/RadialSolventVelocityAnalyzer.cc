@@ -30,20 +30,8 @@ RadialSolventVelocityAnalyzer::RadialSolventVelocityAnalyzer(std::shared_ptr<mpc
     m_exec_conf->msg->notice(5) << "Constructing RadialSolventVelocityAnalyzer" << std::endl;
 
     assert(m_bin_width > 0.0);
-
-    // allocate memory for the bins
     m_num_bins = std::round(m_R / bin_width);
     m_bin_width = m_R / m_num_bins;
-    reset();
-
-#ifdef ENABLE_MPI
-    // MPI is currently not supported due to how this analyzer might degrade performance
-    if (m_exec_conf->getNRanks() > 1)
-        {
-        m_exec_conf->msg->error() << "MPCD: Radial Solvent Velocity analyzer does not support MPI" << std::endl;
-        throw std::runtime_error("Radial Solvent Velocity analyzer does not support MPI");
-        }
-#endif // ENABLE_MPI
     }
 
 RadialSolventVelocityAnalyzer::~RadialSolventVelocityAnalyzer()
@@ -53,22 +41,9 @@ RadialSolventVelocityAnalyzer::~RadialSolventVelocityAnalyzer()
 
 /*!
  * \param timestep Current simulation timestep
- *
- * To get rho(r), we calculate as
- *
- * \verbatim
- *                  counts_i
- *      g_i = ----------------------
- *                  V_shell
- *
- * \endverbatim
- *
- * The shell volume is V_shell = (4 pi/3)*(r_{i+1}^3-r_i^3).
  */
 void RadialSolventVelocityAnalyzer::analyze(unsigned int timestep)
     {
-    if (m_prof) m_prof->push("RadialSolventVelocityAnalayse");
-
     // binParticles
     ArrayHandle<Scalar4> h_pos(m_mpcd_pdata->getPositions(), access_location::host, access_mode::read);
     ArrayHandle<Scalar4> h_vel(m_mpcd_pdata->getVelocities(), access_location::host, access_mode::read);
@@ -77,42 +52,71 @@ void RadialSolventVelocityAnalyzer::analyze(unsigned int timestep)
 
     // compute the total number of mpcd particles
     const unsigned int N = m_mpcd_pdata->getN();
+    const Scalar Rsq = m_R * m_R;
     for (unsigned int i=0; i < N; ++i)
         {
-        // load particle i
         const Scalar4 pos_i = h_pos.data[i];
-        const Scalar4 vel_i = h_vel.data[i];
         const Scalar3 r_i = make_scalar3(pos_i.x, pos_i.y, pos_i.z);
-        const Scalar3 v_i = make_scalar3(vel_i.x, vel_i.y, vel_i.z);
-        
-        // distance and radial velocity calculation 
         const Scalar r_isq = dot(r_i, r_i);
-        const Scalar r_i_norm = slow::sqrt(r_isq);
-        const Scalar v_irad = dot(v_i, r_i)/r_i_norm;
-
-        if (r_i_norm < m_R)
+        if (r_isq < Rsq)
             {
+            const Scalar4 vel_i = h_vel.data[i];
+            const Scalar3 v_i = make_scalar3(vel_i.x, vel_i.y, vel_i.z);
+            const Scalar r_i_norm = slow::sqrt(r_isq);
+
+            // compute radial velocity, handling special case where r = 0
+            Scalar v_irad = 0;
+            if (r_i_norm > 0)
+                {
+                v_irad = dot(v_i, r_i)/r_i_norm;
+                }
+
             const unsigned int bin = static_cast<unsigned int>(r_i_norm / m_bin_width);
             ++counts[bin];
             radial_vel[bin] += v_irad;
             }
         }
 
+#ifdef ENABLE_MPI
+    // in MPI, reduce vectors across all ranks so everyone has correct data
+    if (m_exec_conf->getNRanks() > 1)
+        {
+        MPI_Allreduce(MPI_IN_PLACE,
+                      counts.data(),
+                      m_num_bins,
+                      MPI_UNSIGNED,
+                      MPI_SUM,
+                      m_exec_conf->getMPICommunicator()
+                      );
+        MPI_Allreduce(MPI_IN_PLACE,
+                      radial_vel.data(),
+                      m_num_bins,
+                      MPI_HOOMD_SCALAR,
+                      MPI_SUM,
+                      m_exec_conf->getMPICommunicator()
+                      );
+        }
+#endif // ENABLE_MPI
+
     // calculate density and radial velocity from counts
     std::vector<Scalar> density(m_num_bins, 0);
     for (unsigned int i=0; i < m_num_bins; ++i)
         {
-        const double r_in = m_bin_width * static_cast<double>(i);
-        const double r_out = std::min(r_in + m_bin_width, static_cast<double>(m_R));
-        const double V_shell = (4.0*M_PI/3.0) * (r_out * r_out * r_out - r_in * r_in * r_in);
-        density.push_back(counts[i]/V_shell);
+        // since density and velocity default to 0, only need to do something
+        // if the count is > 0
+        if (counts[i] > 0)
+            {
+            const Scalar r_in = m_bin_width * static_cast<double>(i);
+            const Scalar r_out = std::min(r_in + m_bin_width, static_cast<double>(m_R));
+            const Scalar V_shell = (4.0*M_PI/3.0) * (r_out * r_out * r_out - r_in * r_in * r_in);
+            density[i] = counts[i] / V_shell;
+            radial_vel[i] /= counts[i];
+            }
         }
 
     // fill in the elements of density for each frame
     m_density.push_back(density);
     m_radial_vel.push_back(radial_vel);
-
-    if (m_prof) m_prof->pop();
     }
 
 /*!
@@ -130,18 +134,22 @@ std::vector<Scalar> RadialSolventVelocityAnalyzer::getBins() const
     return bins;
     }
 
+unsigned int RadialSolventVelocityAnalyzer::getNumSamples() const
+    {
+    assert(m_density.size() == m_radial_vel.size());
+    return m_density.size();
+    }
+
 /*!
  * \returns Radial Density profile at frame idx 
  */
-std::vector<Scalar> RadialSolventVelocityAnalyzer::get(unsigned int idx) const
+std::vector<Scalar> RadialSolventVelocityAnalyzer::getDensity(unsigned int idx) const
     {
-    if (idx > m_density.size())
+    if (idx >= m_density.size())
         {
         throw std::runtime_error("Frame index to access the m_density is out of range in RadialSolventVelocityAnalyzer");
         }
-    std::vector<Scalar> density;
-    density = m_density[idx];
-    return density;
+    return m_density[idx];
     }
 
 /*!
@@ -149,13 +157,11 @@ std::vector<Scalar> RadialSolventVelocityAnalyzer::get(unsigned int idx) const
  */
 std::vector<Scalar> RadialSolventVelocityAnalyzer::getRadialVelocity(unsigned int idx) const
     {
-    if (idx > m_radial_vel.size())
+    if (idx >= m_radial_vel.size())
         {
         throw std::runtime_error("Frame index to access the m_radial_velocity is out of range in RadialSolventVelocityAnalyzer");
         }
-    std::vector<Scalar> rad_vel;
-    rad_vel = m_radial_vel[idx];
-    return rad_vel;
+    return m_radial_vel[idx];
     }
 
 void RadialSolventVelocityAnalyzer::reset()
@@ -174,9 +180,10 @@ void export_RadialSolventVelocityAnalyzer(pybind11::module& m)
     namespace py = pybind11;
     py::class_< RadialSolventVelocityAnalyzer, std::shared_ptr<RadialSolventVelocityAnalyzer> >(m, "RadialSolventVelocityAnalyzer", py::base<Analyzer>())
         .def(py::init<std::shared_ptr<mpcd::SystemData>, Scalar, Scalar>())
-        .def("get", &RadialSolventVelocityAnalyzer::get)
+        .def_property_readonly("num_samples", &RadialSolventVelocityAnalyzer::getNumSamples)
+        .def("getDensity", &RadialSolventVelocityAnalyzer::getDensity)
         .def("getRadialVelocity", &RadialSolventVelocityAnalyzer::getRadialVelocity)
-        .def("getBins", &RadialSolventVelocityAnalyzer::getBins)
+        .def_property_readonly("bins", &RadialSolventVelocityAnalyzer::getBins)
         .def("reset", &RadialSolventVelocityAnalyzer::reset);
     }
 } // end namespace detail
